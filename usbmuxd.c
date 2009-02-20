@@ -70,6 +70,9 @@ static struct device_use_info **device_use_list = NULL;
 static int device_use_count = 0;
 static pthread_mutex_t usbmux_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/**
+ * for debugging purposes.
+ */
 static void print_buffer(const char *data, const int length)
 {
     	int i;
@@ -101,6 +104,17 @@ static void print_buffer(const char *data, const int length)
 	printf("\n");
 }
 
+/**
+ * Read incoming usbmuxd packet. If the packet is larger than
+ * the size specified by len, the data will be truncated.
+ *
+ * @param fd the file descriptor to read from.
+ * @param data pointer to a buffer to store the read data to.
+ * @param len the length of the data to be read. The buffer
+ *        pointed to by data should be at least len bytes in size.
+ *
+ * @return 
+ */
 static int usbmuxd_get_request(int fd, void *data, size_t len)
 {
     uint32_t pktlen;
@@ -117,13 +131,22 @@ static int usbmuxd_get_request(int fd, void *data, size_t len)
     }
 
     recv_len = recv_buf(fd, data, pktlen);
-    if (recv_len < pktlen) {
+    if ((recv_len > 0) && (recv_len < pktlen)) {
 	fprintf(stderr, "%s: Uh-oh, we got less than the packet's size, %d instead of %d...\n", __func__, recv_len, pktlen);
     }
 
     return recv_len;
 }
 
+/**
+ * Send a usbmuxd result packet with given tag and result_code.
+ *
+ * @param fd the file descriptor to write to.
+ * @param tag the tag value that identifies where this message belongs to.
+ * @param result_code the error value (0 = Success, most likely errno values otherwise)
+ *
+ * @return the return value returned by send_buf (normally the number of bytes sent)
+ */
 static int usbmuxd_send_result(int fd, uint32_t tag, uint32_t result_code)
 {
     struct usbmux_result res;
@@ -140,7 +163,12 @@ static int usbmuxd_send_result(int fd, uint32_t tag, uint32_t result_code)
 }
 
 /**
+ * this thread reads from the usb connection and writes the 
+ * data to the connected client.
  *
+ * @param arg pointer to a client_data structure.
+ *
+ * @return NULL in any case
  */
 static void *usbmuxd_client_reader_thread(void *arg)
 {
@@ -184,16 +212,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
 
 	cursor = rbuffer;
 	while (rlen > 0) {
-	    //printf("%s: \n", __func__);
-	    //print_buffer(cursor, rlen);
-	    //if ((rlen > 4) && !cursor[3]) {
-    		len = send_buf(cdata->socket, cursor, rlen);
-	    /*} else if (cursor[0] == 1) {
-		fprintf(stderr, "%s: Error message received: %s\n", __func__, cursor+1);
-		// we got an error message and no data. don't send it.
-		// TODO parse the error code and put it in the right place! 
-		len = rlen;
-	    }*/
+    	    len = send_buf(cdata->socket, cursor, rlen);
 	    // calculate remainder
 	    rlen -= len;
 	    // advance cursor
@@ -209,6 +228,16 @@ static void *usbmuxd_client_reader_thread(void *arg)
     return NULL;
 }
 
+/**
+ * This function handles the connecting procedure to a previously
+ * set up usbmux client.
+ * Sends a usbmuxd result packet denoting success or failure.
+ * A successful result is mandatory for later communication.
+ *
+ * @param cdata pointer to a previously initialized client_data structure
+ *
+ * @return
+ */
 static int usbmuxd_handleConnectResult(struct client_data *cdata)
 {
     int result;
@@ -219,7 +248,11 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
     uint32_t rlen;
     iphone_error_t err;
 
-    // trigger connection attempt if ready to write to client
+    if (!cdata) {
+	fprintf(stderr, "%s: Invalid client_data provided!\n", __func__);
+	return -EINVAL;
+    }
+
     result = check_fd(cdata->socket, fdwrite, DEFAULT_TIMEOUT);
     if (result <= 0) {
 	if (result < 0) {
@@ -231,7 +264,8 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, DEFAULT_TIMEOUT);
 	if (err != 0) {
 	    fprintf(stderr, "%s: encountered USB read error: %d\n", __func__, err);
-	    usbmuxd_send_result(cdata->socket, cdata->tag, err);
+	    usbmuxd_send_result(cdata->socket, cdata->tag, -err);
+	    return err;
 	} else {
 	    if (rlen > 0) {
 		//print_buffer(buffer, rlen);
@@ -242,10 +276,11 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 
 		    if (sscanf(buffer+22, "%s - %d\n", err_type, &err_code) == 2) {
 			usbmuxd_send_result(cdata->socket, cdata->tag, err_code);
+			return -err_code;
 		    } else {
 			usbmuxd_send_result(cdata->socket, cdata->tag, ENODATA);
+			return -ENODATA;
 		    }
-		    return -2;
 		} else {
 		    // send success result
 		    usbmuxd_send_result(cdata->socket, cdata->tag, 0);
@@ -255,12 +290,11 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	    } else {
 		// no server greeting? this seems to be ok. send success.
 		usbmuxd_send_result(cdata->socket, cdata->tag, 0);
-		return 0;
 	    }
 	}
 	//fsync(cdata->socket);
     }
-    return 0;
+    return result;
 }
 
 /**
@@ -612,7 +646,7 @@ static int daemonize()
 }
 
 /**
- * signal handler function for cleaning up stuff
+ * signal handler function for cleaning up properly
  */
 static void clean_exit(int sig)
 {
@@ -745,6 +779,9 @@ static void *usbmuxd_accept_thread(void *arg)
     return NULL;
 }
 
+/**
+ * main function.
+ */
 int main(int argc, char **argv)
 {
     int foreground = 1;
