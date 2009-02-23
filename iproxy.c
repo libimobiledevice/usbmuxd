@@ -36,9 +36,6 @@
 
 #define SOCKET_FILE "/var/run/usbmuxd"
 
-volatile int stop_ctos = 0;
-volatile int stop_stoc = 0;
-
 static uint16_t listen_port = 0;
 static uint16_t device_port = 0;
 
@@ -47,6 +44,8 @@ pthread_mutex_t smutex = PTHREAD_MUTEX_INITIALIZER;
 struct client_data {
     int fd;
     int sfd;
+    volatile int stop_ctos;
+    volatile int stop_stoc;
 };
 
 int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
@@ -95,7 +94,7 @@ void *run_stoc_loop(void *arg)
 
     printf("%s: fd = %d\n", __func__, cdata->fd);
 
-    while (!stop_stoc && cdata->fd>0 && cdata->sfd>0) {
+    while (!cdata->stop_stoc && cdata->fd>0 && cdata->sfd>0) {
 	recv_len = recv_buf_timeout(cdata->sfd, buffer, sizeof(buffer), 0, 5000);
 	if (recv_len <= 0) {
 	    if (recv_len == 0) {
@@ -124,7 +123,7 @@ void *run_stoc_loop(void *arg)
     }
     close(cdata->fd);
     cdata->fd = -1;
-    stop_ctos = 1;
+    cdata->stop_ctos = 1;
 
     return NULL;
 }
@@ -139,10 +138,10 @@ void *run_ctos_loop(void *arg)
 
     printf("%s: fd = %d\n", __func__, cdata->fd);
 
-    stop_stoc = 0;
+    cdata->stop_stoc = 0;
     pthread_create(&stoc, NULL, run_stoc_loop, cdata);
 
-    while (!stop_ctos && cdata->fd>0 && cdata->sfd>0) {
+    while (!cdata->stop_ctos && cdata->fd>0 && cdata->sfd>0) {
 	recv_len = recv_buf_timeout(cdata->fd, buffer, sizeof(buffer), 0, 5000);
 	if (recv_len <= 0) {
 	    if (recv_len == 0) {
@@ -171,15 +170,16 @@ void *run_ctos_loop(void *arg)
     }
     close(cdata->fd);
     cdata->fd = -1;
-    stop_stoc = 1;
+    cdata->stop_stoc = 1;
 
     pthread_join(stoc, NULL);
 
     return NULL;
 }
 
-int main(int argc, char **argv)
+void *acceptor_thread(void *arg)
 {
+    struct client_data *cdata;
     int recv_len = 0;
     int hello_done;
     int connected;
@@ -187,7 +187,117 @@ int main(int argc, char **argv)
     unsigned char *buf;
     struct usbmux_header hello;
     struct usbmux_dev_info device_info;
-    int sfd = -1;
+    pthread_t ctos;
+
+    if (!arg) {
+	fprintf(stderr, "invalid client_data provided!\n");
+	return NULL;
+    }
+
+    cdata = (struct client_data*)arg;
+
+    cdata->sfd = connect_unix_socket(SOCKET_FILE);
+    if (cdata->sfd < 0) {
+	printf("error opening socket, terminating.\n");
+	return NULL;
+    }
+
+    // send hello
+    hello.length = sizeof(struct usbmux_header);
+    hello.reserved = 0;
+    hello.type = usbmux_hello;
+    hello.tag = 2;
+
+    hello_done = 0;
+    connected = 0;
+
+    fprintf(stdout, "sending Hello packet\n");
+    if (send(cdata->sfd, &hello, hello.length, 0) == hello.length) {
+	uint32_t res = -1;
+	// get response
+	if (usbmuxd_get_result(cdata->sfd, hello.tag, &res) && (res==0)) {
+	    fprintf(stdout, "Got Hello Response!\n");
+	    hello_done = 1;
+	} else {
+	    fprintf(stderr, "Did not get Hello response (with result=0)...\n");
+	    close(cdata->sfd);
+	    cdata->sfd = -1;
+	    return NULL;
+	}
+
+	device_info.device_id = 0;
+
+	if (hello_done) {
+	    // get all devices
+	    while (1) {
+		if (recv_buf_timeout(cdata->sfd, &pktlen, 4, MSG_PEEK, 1000) == 4) {
+		    buf = (unsigned char*)malloc(pktlen);
+		    if (!buf) {
+			exit(-ENOMEM);
+		    }
+		    recv_len = recv_buf(cdata->sfd, buf, pktlen);
+		    if (recv_len < pktlen) {
+			fprintf(stdout, "received less data than specified in header!\n");
+		    }
+		    fprintf(stdout, "Received device data\n");
+		    //log_debug_buffer(stdout, (char*)buf, pktlen);
+		    memcpy(&device_info, buf + sizeof(struct usbmux_header), sizeof(device_info));
+		    free(buf);
+		} else {
+		    // we _should_ have all of them now.
+		    // or perhaps an error occured.
+		    break;
+		}
+	    }
+	}
+
+	if (device_info.device_id > 0) {
+	    struct usbmux_connect_request c_req;
+
+	    fprintf(stdout, "Requesting connecion to device %d port %d\n", device_info.device_id, device_port);
+
+	    // try to connect to last device found
+	    c_req.header.length = sizeof(c_req);
+	    c_req.header.reserved = 0;
+	    c_req.header.type = usbmux_connect;
+	    c_req.header.tag = 3;
+	    c_req.device_id = device_info.device_id;
+	    c_req.port = htons(device_port);
+	    c_req.reserved = 0;
+
+	    if (send_buf(cdata->sfd, &c_req, sizeof(c_req)) < 0) {
+		perror("send");
+	    } else {
+		// read ACK
+		res = -1;
+		fprintf(stdout, "Reading connect result...\n");
+		if (usbmuxd_get_result(cdata->sfd, c_req.header.tag, &res)) {
+		    if (res == 0) {
+			fprintf(stdout, "Connect success!\n");
+			connected = 1;
+		    } else {
+			fprintf(stderr, "Connect failed, Error code=%d\n", res);
+		    }
+		}
+	    }
+	}
+
+	if (connected) {
+		cdata->stop_ctos = 0;
+		pthread_create(&ctos, NULL, run_ctos_loop, cdata);
+		pthread_join(ctos, NULL);
+	} else {
+	    fprintf(stderr, "Error connecting to device!\n");
+	}
+    }
+    close(cdata->sfd);
+
+    return NULL;
+}
+
+int main(int argc, char **argv)
+{
+    int mysock = -1;
 
     if (argc != 3) {
 	printf("usage: %s LOCAL_PORT DEVICE_PORT\n", argv[0]);
@@ -207,6 +317,34 @@ int main(int argc, char **argv)
 	return -EINVAL;
     }
 
+    // first create the listening socket endpoint waiting for connections.
+    mysock = create_socket(listen_port);
+    if (mysock < 0) {
+	fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
+	return -errno;
+    } else {
+	pthread_t acceptor;
+	struct sockaddr_in c_addr;
+	socklen_t len = sizeof(struct sockaddr_in);
+	struct client_data cdata;
+	int c_sock;
+	while (1) {
+	    printf("waiting for connection\n");
+	    c_sock = accept(mysock, (struct sockaddr*)&c_addr, &len);
+	    if (c_sock) {
+		printf("accepted connection, fd = %d\n", c_sock);
+		cdata.fd = c_sock;
+		pthread_create(&acceptor, NULL, acceptor_thread, &cdata);
+		pthread_join(acceptor, NULL);
+	    } else {
+		break;
+	    }
+	}
+	close(c_sock);
+	close(mysock);
+    }
+
+/*
     sfd = connect_unix_socket(SOCKET_FILE);
     if (sfd < 0) {
 	printf("error opening socket, terminating.\n");
@@ -293,37 +431,13 @@ int main(int argc, char **argv)
 	}
 
 	if (connected) {
-	    int mysock = create_socket(listen_port);
-	    if (mysock < 0) {
-		fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
-	    } else {
-		pthread_t ctos;
-		struct sockaddr_in c_addr;
-		socklen_t len = sizeof(struct sockaddr_in);
-		struct client_data cdata;
-		int c_sock;
-	 	while (1) {
-		    printf("waiting for connection\n");
-		    c_sock = accept(mysock, (struct sockaddr*)&c_addr, &len);
-		    if (c_sock) {
-			printf("accepted connection, fd = %d\n", c_sock);
-			cdata.fd = c_sock;
-			cdata.sfd = sfd;
-			stop_ctos = 0;
-			pthread_create(&ctos, NULL, run_ctos_loop, &cdata);
-			pthread_join(ctos, NULL);
-		    } else {
-			break;
-		    }
-		}
-		close(c_sock);
-		close(mysock);
-	    }
+	    //
 	} else {
 	    fprintf(stderr, "No attached device found?!\n");
 	}
     }
     close(sfd);
+*/
 
     return 0;
 }
