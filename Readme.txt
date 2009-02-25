@@ -3,6 +3,7 @@ Build
 
   make
 
+
 Use
 ===
 
@@ -12,8 +13,6 @@ Use
 
 Muwahahaha.  Hopefully you get the normal SSH login prompt.
 
-  Unfortunately, as of 2009-02-24 this only survives for a single
-  connection.  You will have to restart the 'iproxy' part.
 
 SSH
 ===
