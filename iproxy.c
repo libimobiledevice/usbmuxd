@@ -290,6 +290,7 @@ void *acceptor_thread(void *arg)
 	    fprintf(stderr, "Error connecting to device!\n");
 	}
     }
+    close(cdata->fd);
     close(cdata->sfd);
 
     return NULL;
