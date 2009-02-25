@@ -5,9 +5,9 @@
 
 enum fd_mode
 {
-    fdread,
-    fdwrite,
-    fdexcept
+    FD_READ,
+    FD_WRITE,
+    FD_EXCEPT
 };
 typedef enum fd_mode fd_mode;
 

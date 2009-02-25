@@ -1,0 +1,6 @@
+*~
+*.o
+.*.swp
+iproxy
+testclient
+usbmuxd

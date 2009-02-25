@@ -1,26 +1,31 @@
-TARGET=usbmuxd
-CFLAGS=-Wall
-LDFLAGS=-lpthread -lusb -lrt
+TARGETS=usbmuxd iproxy testclient
+CFLAGS=-Wall -g
+LIBS=-lpthread -lusb -lrt
+LDFLAGS=
 
-objects = sock_stuff.o usbmuxd.o iphone.o
+all:	$(TARGETS)
 
-all:	$(TARGET)
+main.o: main.c usbmuxd.h sock_stuff.h iphone.h
+iphone.o: iproxy.c iphone.h usbmuxd.h sock_stuff.h
+sock_stuff.o: sock_stuff.c sock_stuff.h
+testclient.o: testclient.c sock_stuff.h
 
-%.o:    %.c %.h
+%.o:    %.c
 	$(CC) -o $@ $(CFLAGS) -c $< 
 
-$(TARGET): $(objects)
-	$(CC) -o $@ $(LDFLAGS) $^
+usbmuxd: main.o sock_stuff.o iphone.o
+	$(CC) -o $@ $(LDFLAGS) $^ $(LIBS)
+
+testclient: testclient.o sock_stuff.o
+	$(CC) -o $@ $(LDFLAGS) $^ $(LIBS)
+
+iproxy: iproxy.o sock_stuff.o
+	$(CC) -o $@ $(LDFLAGS) $^ $(LIBS)
 
 clean:
-	rm -f *.o $(TARGET)
+	rm -f *.o $(TARGETS)
 
 realclean: clean
 	rm -f *~
 
-testclient: testclient.c sock_stuff.o
-	$(CC) $(LDFLAGS) -o testclient $(CFLAGS) $< sock_stuff.o
-
-iproxy: iproxy.c sock_stuff.o
-	$(CC) -lpthread -o iproxy $(CFLAGS) $< sock_stuff.o
-
+.PHONY: all clean realclean

@@ -3,42 +3,48 @@
 
 #include <stdint.h>
 
-struct usbmux_header {
+#define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
+
+struct usbmuxd_header {
 	uint32_t length;    // length of message, including header
 	uint32_t reserved;  // always zero
 	uint32_t type;      // message type
 	uint32_t tag;       // responses to this query will echo back this tag
-};
+} __attribute__((__packed__));
 
-struct usbmux_result {
-	struct usbmux_header header;
+struct usbmuxd_result {
+	struct usbmuxd_header header;
 	uint32_t result;
-};
+} __attribute__((__packed__));
 
-struct	usbmux_connect_request {
-	struct usbmux_header header;
+struct	usbmuxd_connect_request {
+	struct usbmuxd_header header;
 	uint32_t device_id;
-	uint16_t port;	     // TCP port number
+	uint16_t tcp_dport;   // TCP port number
 	uint16_t reserved;   // set to zero
-};
+} __attribute__((__packed__));
 
-struct usbmux_dev_info {
+struct usbmuxd_device_info {
 	uint32_t device_id;
 	uint16_t product_id;
 	char serial_number[40];
-};
+} __attribute__((__packed__));
 
-struct usbmux_dev_info_request {
-	struct usbmux_header header;
-	struct usbmux_dev_info dev_info;
-	unsigned char padding[222];
-};
+struct usbmuxd_device_info_request {
+	struct usbmuxd_header header;
+	struct usbmuxd_device_info device_info;
+	char padding[222];
+} __attribute__((__packed__));
+
+struct usbmuxd_hello {
+	struct usbmuxd_header header;
+} __attribute__((__packed__));
 
 enum {
-	usbmux_result  = 1,
-	usbmux_connect = 2,
-	usbmux_hello   = 3,
-	usbmux_device_info = 4,
+	USBMUXD_RESULT  = 1,
+	USBMUXD_CONNECT = 2,
+	USBMUXD_HELLO   = 3,
+	USBMUXD_DEVICE_INFO = 4,
 };
 
 #endif

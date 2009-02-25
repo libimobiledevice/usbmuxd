@@ -10,11 +10,9 @@
 #include "usbmuxd.h"
 #include "sock_stuff.h"
 
-#define SOCKET_FILE "/var/run/usbmuxd"
-
 int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
 {
-    struct usbmux_result res;
+    struct usbmuxd_result res;
     int recv_len;
 
     if (!result) {
@@ -28,7 +26,7 @@ int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
 	if ((recv_len == sizeof(res))
 	    && (res.header.length == recv_len)
 	    && (res.header.reserved == 0)
-	    && (res.header.type == usbmux_result)
+	    && (res.header.type == USBMUXD_RESULT)
 	   ) {
 	    *result = res.result;
 	    if (res.header.tag == tag) {
@@ -50,29 +48,29 @@ int main(int argc, char **argv)
     int connected;
     uint32_t pktlen;
     unsigned char *buf;
-    struct usbmux_header hello;
-    struct usbmux_dev_info device_info;
+    struct usbmuxd_hello hello;
+    struct usbmuxd_device_info device_info;
 
-    sfd = connect_unix_socket(SOCKET_FILE);
+    sfd = connect_unix_socket(USBMUXD_SOCKET_FILE);
     if (sfd < 0) {
 	printf("error opening socket, terminating.\n");
 	return -1;
     }
 
     // send hello
-    hello.length = sizeof(struct usbmux_header);
-    hello.reserved = 0;
-    hello.type = usbmux_hello;
-    hello.tag = 2;
+    hello.header.length = sizeof(struct usbmuxd_hello);
+    hello.header.reserved = 0;
+    hello.header.type = USBMUXD_HELLO;
+    hello.header.tag = 2;
 
     hello_done = 0;
     connected = 0;
 
     fprintf(stdout, "sending Hello packet\n");
-    if (send(sfd, &hello, hello.length, 0) == hello.length) {
+    if (send(sfd, &hello, hello.header.length, 0) == hello.header.length) {
 	uint32_t res = -1;
 	// get response
-	if (usbmuxd_get_result(sfd, hello.tag, &res) && (res==0)) {
+	if (usbmuxd_get_result(sfd, hello.header.tag, &res) && (res==0)) {
 	    fprintf(stdout, "Got Hello Response!\n");
 	    hello_done = 1;
 	} else {
@@ -97,7 +95,7 @@ int main(int argc, char **argv)
 		    }
 		    fprintf(stdout, "got device data:\n");
 		    //log_debug_buffer(stdout, (char*)buf, pktlen);
-		    memcpy(&device_info, buf + sizeof(struct usbmux_header), sizeof(device_info));
+		    memcpy(&device_info, buf + sizeof(struct usbmuxd_header), sizeof(device_info));
 		    free(buf);
 		} else {
 		    // we _should_ have all of them now.
@@ -108,15 +106,15 @@ int main(int argc, char **argv)
 	}
 
 	if (device_info.device_id > 0) {
-	    struct usbmux_connect_request c_req;
+	    struct usbmuxd_connect_request c_req;
 
 	    // try to connect to last device found
 	    c_req.header.length = sizeof(c_req);
 	    c_req.header.reserved = 0;
-	    c_req.header.type = usbmux_connect;
+	    c_req.header.type = USBMUXD_CONNECT;
 	    c_req.header.tag = 3;
 	    c_req.device_id = device_info.device_id;
-	    c_req.port = htons(22);
+	    c_req.tcp_dport = htons(22);
 	    c_req.reserved = 0;
 
 	    if (send_buf(sfd, &c_req, sizeof(c_req)) < 0) {

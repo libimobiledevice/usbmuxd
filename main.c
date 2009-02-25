@@ -39,8 +39,6 @@
 
 #include "iphone.h"
 
-#define SOCKET_FILE "/var/run/usbmuxd"
-
 #define DEFAULT_TIMEOUT 4000
 #define DEFAULT_CHILDREN_CAPACITY 10
 
@@ -163,11 +161,11 @@ static int usbmuxd_get_request(int fd, void *data, size_t len)
  */
 static int usbmuxd_send_result(int fd, uint32_t tag, uint32_t result_code)
 {
-    struct usbmux_result res;
+    struct usbmuxd_result res;
 
     res.header.length = sizeof(res);
     res.header.reserved = 0;
-    res.header.type = usbmux_result;
+    res.header.type = USBMUXD_RESULT;
     res.header.tag = tag;
     res.result = result_code;
 
@@ -209,7 +207,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
     fprintf(stdout, "%s[%d:%d]: started\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
 
     while (!quit_flag && !cdata->reader_quit) {
-	result = check_fd(cdata->socket, fdwrite, DEFAULT_TIMEOUT);
+	result = check_fd(cdata->socket, FD_WRITE, DEFAULT_TIMEOUT);
 	if (result <= 0) {
 	    if (result < 0) {
 		fprintf(stderr, "%s: select error: %s\n", __func__, strerror(errno));
@@ -269,7 +267,7 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	return -EINVAL;
     }
 
-    result = check_fd(cdata->socket, fdwrite, DEFAULT_TIMEOUT);
+    result = check_fd(cdata->socket, FD_WRITE, DEFAULT_TIMEOUT);
     if (result <= 0) {
 	if (result < 0) {
 	    fprintf(stderr, "%s: select error: %s\n", __func__, strerror(errno));
@@ -349,7 +347,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
     }
 
     while (!quit_flag && !cdata->reader_dead) {
-	result = check_fd(cdata->socket, fdread, DEFAULT_TIMEOUT);
+	result = check_fd(cdata->socket, FD_READ, DEFAULT_TIMEOUT);
 	if (result <= 0) {
 	    if (result < 0) {
 		fprintf(stderr, "%s: Error: checkfd: %s\n", __func__, strerror(errno));
@@ -415,9 +413,9 @@ leave:
 static void *usbmuxd_client_init_thread(void *arg)
 {
     struct client_data *cdata;
-    struct usbmux_header hello;
-    struct usbmux_dev_info_request dev_info_req;
-    struct usbmux_connect_request c_req;
+    struct usbmuxd_hello hello;
+    struct usbmuxd_device_info_request dev_info_req;
+    struct usbmuxd_connect_request c_req;
 
     struct usb_bus *bus;
     struct usb_device *dev;
@@ -447,15 +445,15 @@ static void *usbmuxd_client_init_thread(void *arg)
 	goto leave;
     }
 
-    if ((recv_len == 16) && (hello.length == 16)
-	&& (hello.reserved == 0) && (hello.type == usbmux_hello)) {
+    if ((recv_len == sizeof(hello)) && (hello.header.length == sizeof(hello))
+	&& (hello.header.reserved == 0) && (hello.header.type == USBMUXD_HELLO)) {
     	// send success response
-	usbmuxd_send_result(cdata->socket, hello.tag, 0);
+	usbmuxd_send_result(cdata->socket, hello.header.tag, 0);
     } else {
 	// send error response and exit
         fprintf(stderr, "%s: Invalid Hello packet received.\n", __func__);
 	// TODO is this required?!
-	usbmuxd_send_result(cdata->socket, hello.tag, EINVAL);
+	usbmuxd_send_result(cdata->socket, hello.header.tag, EINVAL);
 	goto leave;
     }
 
@@ -476,15 +474,15 @@ static void *usbmuxd_client_init_thread(void *arg)
 		// construct packet
 		memset(&dev_info_req, 0, sizeof(dev_info_req));
 		dev_info_req.header.length = sizeof(dev_info_req);
-		dev_info_req.header.type = usbmux_device_info;
-		dev_info_req.dev_info.device_id = dev->devnum;
-		dev_info_req.dev_info.product_id = dev->descriptor.idProduct;
+		dev_info_req.header.type = USBMUXD_DEVICE_INFO;
+		dev_info_req.device_info.device_id = dev->devnum;
+		dev_info_req.device_info.product_id = dev->descriptor.idProduct;
 		if (dev->descriptor.iSerialNumber) {
 		    usb_dev_handle *udev;
 		    //pthread_mutex_lock(&usbmux_mutex);
 		    udev = usb_open(dev);
 		    if (udev) {
-			usb_get_string_simple(udev, dev->descriptor.iSerialNumber, dev_info_req.dev_info.serial_number, sizeof(dev_info_req.dev_info.serial_number)+1);
+			usb_get_string_simple(udev, dev->descriptor.iSerialNumber, dev_info_req.device_info.serial_number, sizeof(dev_info_req.device_info.serial_number)+1);
 			usb_close(udev);
 		    }
 		    //pthread_mutex_unlock(&usbmux_mutex);
@@ -515,12 +513,12 @@ static void *usbmuxd_client_init_thread(void *arg)
 	goto leave;
     }
 
-    if (c_req.header.type != usbmux_connect) {
+    if (c_req.header.type != USBMUXD_CONNECT) {
 	fprintf(stderr, "%s: Unexpected packet of type %d received.\n", __func__, c_req.header.type);
 	goto leave;
     }
 
-    fprintf(stdout, "%s: Setting up connection to usb device #%d on port %d\n", __func__, c_req.device_id, ntohs(c_req.port));
+    fprintf(stdout, "%s: Setting up connection to usb device #%d on port %d\n", __func__, c_req.device_id, ntohs(c_req.tcp_dport));
 
     // find the device, and open usb connection
     phone = NULL;
@@ -569,7 +567,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 
     // setup connection to iPhone/iPod
 //    pthread_mutex_lock(&usbmux_mutex);
-    res = iphone_mux_new_client(cur_dev->phone, 0, ntohs(c_req.port), &(cdata->muxclient));
+    res = iphone_mux_new_client(cur_dev->phone, 0, ntohs(c_req.tcp_dport), &(cdata->muxclient));
 //    pthread_mutex_unlock(&usbmux_mutex);
 
     if (res != 0) {
@@ -707,7 +705,7 @@ static void *usbmuxd_accept_thread(void *arg)
     while (!quit_flag) {	
 	// Check the file descriptor before accepting a connection.
 	// If no connection attempt is made, just repeat...
-	result = check_fd(fsock, fdread, 1000);
+	result = check_fd(fsock, FD_READ, 1000);
 	if (result <= 0) {
 	    if (result == 0) {
 		// cleanup
@@ -814,13 +812,13 @@ int main(int argc, char **argv)
 
     // TODO: Parameter checking.
 
-    fsock = create_unix_socket(SOCKET_FILE);
+    fsock = create_unix_socket(USBMUXD_SOCKET_FILE);
     if (fsock < 0) {
 	fprintf(stderr, "Could not create socket, exiting\n");
 	return -1;
     }
 
-    chmod(SOCKET_FILE, 0666);
+    chmod(USBMUXD_SOCKET_FILE, 0666);
 
     if (!foreground) {
 	if (daemonize() < 0) {
@@ -848,7 +846,7 @@ int main(int argc, char **argv)
     	close(fsock);
     }
 
-    unlink(SOCKET_FILE);
+    unlink(USBMUXD_SOCKET_FILE);
 
     return 0;
 }
