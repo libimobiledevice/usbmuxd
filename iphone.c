@@ -132,6 +132,61 @@ void log_debug_msg(const char *format, ...)
 #endif
 }
 
+#ifdef DEBUG
+/**
+ * for debugging purposes.
+ */
+static void print_buffer(const char *data, const int length)
+{
+    	int i;
+	int j;
+	unsigned char c;
+
+	for(i=0; i<length; i+=16) {
+		printf("%04x: ", i);
+		for (j=0;j<16;j++) {
+			if (i+j >= length) {
+				printf("   ");
+				continue;
+			}
+			printf("%02hhx ", *(data+i+j));
+		}
+		printf("  | ");
+		for(j=0;j<16;j++) {
+			if (i+j >= length)
+				break;
+			c = *(data+i+j);
+			if ((c < 32) || (c > 127)) {
+				printf(".");
+				continue;
+			}
+			printf("%c", c);
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
+#endif
+
+void hton_header(usbmux_tcp_header *hdr)
+{
+    if (hdr) {
+	hdr->length = htonl(hdr->length);
+	hdr->scnt = htonl(hdr->scnt);
+	hdr->ocnt = htonl(hdr->ocnt);
+	hdr->length16 = htons(hdr->length16);
+    }
+}
+
+void ntoh_header(usbmux_tcp_header *hdr)
+{
+    if (hdr) {
+	hdr->length = ntohl(hdr->length);
+	hdr->scnt = ntohl(hdr->scnt);
+	hdr->ocnt = ntohl(hdr->ocnt);
+	hdr->length16 = ntohs(hdr->length16);
+    }
+}
 
 /** Creates a USBMux header containing version information
  * 
@@ -392,6 +447,12 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
     int timeout = 1000;
     int retrycount = 0;
     int bytes = 0;
+
+#ifdef DEBUG
+    printf("===============================\n%s: trying to send\n", __func__);
+    print_buffer(data, datalen);
+    printf("===============================\n");
+#endif
     do {
         if (retrycount > 3) {
             fprintf(stderr, "EPIC FAIL! aborting on retry count overload.\n");
@@ -426,6 +487,14 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
     }
     while(0); // fall out
 
+#ifdef DEBUG
+    if (bytes > 0) {
+	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+	printf("%s: sent to phone\n", __func__);
+    	print_buffer(data, bytes);
+	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+    }
+#endif
     return bytes;
 }
 
@@ -458,6 +527,15 @@ int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int 
         }
 		return -1;
 	}
+
+#ifdef DEBUG
+	if (bytes > 0) {
+	    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+	    printf("%s: received from phone:\n", __func__);
+	    print_buffer(data, bytes);
+	    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+	}
+#endif
 
 	return bytes;
 }
@@ -621,8 +699,8 @@ iphone_error_t iphone_mux_new_client(iphone_device_t device, uint16_t src_port, 
 	// send TCP syn
 	if (new_connection && new_connection->header) {
 		new_connection->header->tcp_flags = TCP_SYN;
-		new_connection->header->length = htonl(new_connection->header->length);
-		new_connection->header->length16 = htons(new_connection->header->length16);
+		new_connection->header->length = new_connection->header->length;
+		new_connection->header->length16 = new_connection->header->length16;
         new_connection->header->scnt = 0;
         new_connection->header->ocnt = 0;
         new_connection->phone = device;
@@ -635,6 +713,8 @@ iphone_error_t iphone_mux_new_client(iphone_device_t device, uint16_t src_port, 
         new_connection->wr_window = 0;
         add_connection(new_connection);
         new_connection->error = IPHONE_E_SUCCESS;
+		hton_header(new_connection->header);
+		printf("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(new_connection->header->sport), ntohs(new_connection->header->dport));
 		if (send_to_phone(device, (char *) new_connection->header, sizeof(usbmux_tcp_header)) >= 0) {
             *client = new_connection;
             return IPHONE_E_SUCCESS;
@@ -661,11 +741,10 @@ iphone_error_t iphone_mux_free_client(iphone_umux_client_t client)
 
     pthread_mutex_lock(&client->mutex);
 	client->header->tcp_flags = TCP_FIN;
-	client->header->length = htonl(0x1C);
-	client->header->scnt = htonl(client->header->scnt);
-	client->header->ocnt = htonl(client->header->ocnt);
+	client->header->length = 0x1C;
 	client->header->window = 0;
-	client->header->length16 = htons(0x1C);
+	client->header->length16 = 0x1C;
+	hton_header(client->header);
 	int bytes = 0;
 
 	bytes = usb_bulk_write(client->phone->device, BULKOUT, (char *) client->header, sizeof(usbmux_tcp_header), 800);
@@ -731,31 +810,29 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
     // client->scnt and client->ocnt should already be in host notation...
     // we don't need to change them juuuust yet. 
     char *buffer = (char *) malloc(blocksize + 2);	// allow 2 bytes of safety padding
-    // Set the length and pre-emptively htonl/htons it
-    client->header->length = htonl(blocksize);
-    client->header->length16 = htons(blocksize);
+    // Set the length
+    client->header->length = blocksize;
+    client->header->length16 = blocksize;
 
-    // Put scnt and ocnt into big-endian notation
-    client->header->scnt = htonl(client->header->scnt);
-    client->header->ocnt = htonl(client->header->ocnt);
+    // Put header into big-endian notation
+    hton_header(client->header);
     // Concatenation of stuff in the buffer.
     memcpy(buffer, client->header, sizeof(usbmux_tcp_header));
     memcpy(buffer + sizeof(usbmux_tcp_header), data, datalen);
 
+    printf("%s: send_to_phone(%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
     sendresult = send_to_phone(client->phone, buffer, blocksize);
     // Now that we've sent it off, we can clean up after our sloppy selves.
     if (buffer)
         free(buffer);
 
+    // revert header fields that have been swapped before trying to send
+    ntoh_header(client->header);
+
     // update counts ONLY if the send succeeded.
     if (sendresult == blocksize) {
-        // Re-calculate scnt and ocnt
-        client->header->scnt = ntohl(client->header->scnt) + datalen;
-        client->header->ocnt = ntohl(client->header->ocnt);
-        // Revert lengths
-        client->header->length = ntohl(client->header->length);
-        client->header->length16 = ntohs(client->header->length16);
-
+        // Re-calculate scnt
+	client->header->scnt += datalen;
         client->wr_window -= blocksize;
     }
 
@@ -812,20 +889,19 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
         if (header->tcp_flags == (TCP_SYN | TCP_ACK)) {
             fprintf(stdout, "yes, got syn+ack ; replying with ack.\n");
             client->header->tcp_flags = TCP_ACK;
-            client->header->length = htonl(sizeof(usbmux_tcp_header));
-            client->header->length16 = htons(sizeof(usbmux_tcp_header));
-            client->header->scnt = htonl(client->header->scnt + 1);
+            client->header->length = sizeof(usbmux_tcp_header);
+            client->header->length16 = sizeof(usbmux_tcp_header);
+            client->header->scnt += 1;
             client->header->ocnt = header->ocnt;
+	    hton_header(client->header);
             // push it to USB
             // TODO: need to check for error in the send here.... :(
+	    printf("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
 	    if (send_to_phone(client->phone, (char *)client->header, sizeof(usbmux_tcp_header)) <= 0) {
 		fprintf(stdout, "%s: error when pushing to usb...\n", __func__);
 	    }
             // need to revert some of the fields back to host notation.
-            client->header->scnt = ntohl(client->header->scnt);
-            client->header->ocnt = ntohl(client->header->ocnt);
-            client->header->length = ntohl(client->header->length);
-            client->header->length16 = ntohs(client->header->length16);
+	    ntoh_header(client->header);
         }
         else {
             client->error = IPHONE_E_ECONNABORTED;
@@ -843,7 +919,33 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
     // larger number.
     if (header->tcp_flags & TCP_RST) {
         client->error = IPHONE_E_ECONNRESET;
-        fprintf(stderr, "peer sent connection reset. setting error: %d\n", client->error);
+
+	if (datalen > 0) {
+	    char e_msg[128];
+	    e_msg[0] = 0;
+	    if (datalen > 1) {
+		memcpy(e_msg, data+1, datalen-1);
+		e_msg[datalen-1] = 0;
+	    }	    
+	    // fetch the message
+	    switch(data[0]) {
+		case 0:
+		    // this is not an error, it's just a status message.
+		    fprintf(stdout, "received status message: %s\n", e_msg);
+		    datalen = 0;
+		    break;
+		case 1:
+		    fprintf(stderr, "received error message: %s\n", e_msg);
+		    datalen = 0;
+		    break;
+		default:
+		    fprintf(stderr, "received unknown message (type 0x%02x): %s\n", data[0], e_msg);
+		    //datalen = 0; // <-- we let this commented out for testing
+		    break;
+	    }
+	} else {
+	    fprintf(stderr, "peer sent connection reset. setting error: %d\n", client->error);
+	}
     }
 
     // the packet's ocnt tells us how much of our data the device has received.
@@ -954,7 +1056,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         readlen = 0;
     }
     if (readlen > 0) {
-        //fprintf(stdout, "recv_from_phone_timeout pulled an extra %d bytes\n", readlen);
+        //fprintf(stdout, "recv_from_phone_timeout pulled an extra %d bytes\n", readlen);	
     }
 
     // the amount of content we have to work with is the remainder plus
@@ -968,7 +1070,9 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         // check if there's even sufficient data to decode a header
         if (usbReceive.leftover < HEADERLEN) break;
         usbmux_tcp_header *header = (usbmux_tcp_header *) cursor;
-        
+
+    	printf("%s: recv_from_phone_timeout (%d --> %d)\n", __func__, ntohs(header->sport), ntohs(header->dport));
+
         // now that we have a header, check if there is sufficient data
         // to construct a full packet, including its data
         uint32 packetlen = ntohl(header->length);
