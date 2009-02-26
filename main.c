@@ -49,6 +49,11 @@ struct device_use_info {
     uint32_t device_id;
     iphone_device_t phone;
     int use_count;
+    /* mutex for mutual exclusion of calling the iphone_mux_send function
+     * TODO: I don't know if we need really need this? */
+    pthread_mutex_t writer_mutex;
+    /* mutex to keep the reader threads from reading partial packages */
+    pthread_mutex_t reader_mutex;
 };
 
 struct client_data {
@@ -68,17 +73,6 @@ struct client_data {
 static struct device_use_info **device_use_list = NULL;
 static int device_use_count = 0;
 static pthread_mutex_t usbmux_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-/**
- * mutex for mutual exclusion of calling the iphone_mux_send function
- * TODO: I don't know if we really need this?
- */
-static pthread_mutex_t writer_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-/**
- * mutex to keep the reader threads from reading partial packages
- */
-static pthread_mutex_t reader_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef DEBUG
 /**
@@ -216,9 +210,9 @@ static void *usbmuxd_client_reader_thread(void *arg)
 	}
 
 	rlen = 0;
-	//pthread_mutex_lock(&usbmux_mutex);
+	//pthread_mutex_lock(&cdata->duinfo->reader_mutex);
 	err = iphone_mux_recv_timeout(cdata->muxclient, rbuffer, rbuffersize, &rlen, DEFAULT_TIMEOUT);
-	//pthread_mutex_unlock(&usbmux_mutex);
+	//pthread_mutex_unlock(&cdata->duinfo->reader_mutex);
 	if (err != 0) {
 	    fprintf(stderr, "%s[%d:%d]: encountered USB read error: %d\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count, err);
 	    break;
@@ -275,7 +269,9 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	}
     } else {
 	result = 0;
+	pthread_mutex_lock(&cdata->duinfo->reader_mutex);
 	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, DEFAULT_TIMEOUT);
+	pthread_mutex_unlock(&cdata->duinfo->reader_mutex);
 	if (err != 0) {
 	    fprintf(stderr, "%s: encountered USB read error: %d\n", __func__, err);
 	    usbmuxd_send_result(cdata->socket, cdata->tag, -err);
@@ -335,8 +331,10 @@ static void *usbmuxd_client_handler_thread(void *arg)
     fprintf(stdout, "%s[%d:%d]: started\n", __func__, cdata->duinfo->device_id,cdata->duinfo->use_count);
 
     if (usbmuxd_handleConnectResult(cdata)) {
+	fprintf(stderr, "handleConnectResult: Error\n");
 	goto leave;
     }
+    fprintf(stdout, "handleConnectResult: Success\n");
 
     // starting mux reader thread
     cdata->reader_quit = 0;
@@ -368,7 +366,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 
 	cursor = buffer;
 
-	pthread_mutex_lock(&writer_mutex);
+	pthread_mutex_lock(&cdata->duinfo->writer_mutex);
 	do {
 	    wlen = 0;
 	    err = iphone_mux_send(cdata->muxclient, cursor, len, &wlen);
@@ -385,7 +383,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 	    // advance cursor appropiately.
 	    cursor += wlen;
 	} while ((len > 0) && !quit_flag);
-	pthread_mutex_unlock(&writer_mutex);
+	pthread_mutex_unlock(&cdata->duinfo->writer_mutex);
 	if (len < 0) {
 	    break;
 	}
@@ -551,6 +549,8 @@ static void *usbmuxd_client_init_thread(void *arg)
 	cur_dev->use_count = 1;
 	cur_dev->device_id = c_req.device_id;
 	cur_dev->phone = phone;
+	pthread_mutex_init(&cur_dev->reader_mutex, NULL);
+	pthread_mutex_init(&cur_dev->writer_mutex, NULL);
 
 	fprintf(stdout, "%s: device_use_count = %d\n", __func__, device_use_count);
 
@@ -588,12 +588,15 @@ static void *usbmuxd_client_init_thread(void *arg)
 
     sent_result = 0;
 
+    // TODO: wait for connect result?
+    // if connect failed, don't run this loop:
+
     // start reading data from the connected device
     while (!quit_flag && !cdata->handler_dead) {
-	pthread_mutex_lock(&reader_mutex);
+	pthread_mutex_lock(&cur_dev->reader_mutex);
 	iphone_mux_pullbulk(cur_dev->phone);
 	err = iphone_mux_get_error(cdata->muxclient);
-	pthread_mutex_unlock(&reader_mutex);
+	pthread_mutex_unlock(&cur_dev->reader_mutex);
         if (err != IPHONE_E_SUCCESS) {
 	    break;
 	}
@@ -626,6 +629,8 @@ leave:
 	} else {
 	    iphone_free_device(cur_dev->phone);
 	    cur_dev->use_count = 0;
+	    pthread_mutex_destroy(&cur_dev->reader_mutex);
+	    pthread_mutex_destroy(&cur_dev->writer_mutex);
 	    free(cur_dev);
 	    cur_dev = NULL;
 	    pthread_mutex_lock(&usbmux_mutex);
@@ -787,7 +792,7 @@ static void *usbmuxd_accept_thread(void *arg)
     for (i = 0; i < children_capacity; i++) {
         if (children[i] != NULL) {
             pthread_join(children[i]->thread, NULL);
-            free(children[i]);
+	    free(children[i]);
         }
     }
 
