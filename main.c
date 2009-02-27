@@ -49,11 +49,13 @@ struct device_use_info {
     uint32_t device_id;
     iphone_device_t phone;
     int use_count;
+    pthread_t bulk_reader;
+    pthread_mutex_t mutex;
     /* mutex for mutual exclusion of calling the iphone_mux_send function
      * TODO: I don't know if we need really need this? */
     pthread_mutex_t writer_mutex;
     /* mutex to keep the reader threads from reading partial packages */
-    pthread_mutex_t reader_mutex;
+    //pthread_mutex_t reader_mutex;
 };
 
 struct client_data {
@@ -66,6 +68,7 @@ struct client_data {
     int reader_quit;
     int reader_dead;
     int handler_dead;
+    int connected;
     iphone_umux_client_t muxclient;
     struct device_use_info *duinfo;
 };
@@ -269,9 +272,9 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	}
     } else {
 	result = 0;
-	pthread_mutex_lock(&cdata->duinfo->reader_mutex);
+	//pthread_mutex_lock(&cdata->duinfo->reader_mutex);
 	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, DEFAULT_TIMEOUT);
-	pthread_mutex_unlock(&cdata->duinfo->reader_mutex);
+	//pthread_mutex_unlock(&cdata->duinfo->reader_mutex);
 	if (err != 0) {
 	    fprintf(stderr, "%s: encountered USB read error: %d\n", __func__, err);
 	    usbmuxd_send_result(cdata->socket, cdata->tag, -err);
@@ -404,6 +407,46 @@ leave:
 }
 
 /**
+ * Thread performing usb_bulk_read from the connected device.
+ * One thread per device. Lives as long as the device is in use.
+ */
+static void *usbmuxd_bulk_reader_thread(void *arg)
+{
+    struct device_use_info *cur_dev;
+    
+    if (!arg) {
+	fprintf(stderr, "%s: Invalid client_data provided\n", __func__);
+	return NULL;
+    }
+
+    cur_dev = (struct device_use_info*)arg;
+
+    printf("%s: started\n", __func__);
+
+    while (!quit_flag && cur_dev) {
+       	
+	pthread_mutex_lock(&cur_dev->mutex);
+	if (cur_dev->use_count <= 0) {
+	    pthread_mutex_unlock(&cur_dev->mutex);
+	    break;
+	}
+	pthread_mutex_unlock(&cur_dev->mutex);
+
+	//pthread_mutex_lock(&cur_dev->reader_mutex);
+	iphone_mux_pullbulk(cur_dev->phone);
+	//err = iphone_mux_get_error(cdata->muxclient);
+	//pthread_mutex_unlock(&cur_dev->reader_mutex);
+        //if (err != IPHONE_E_SUCCESS) {
+	//    break;
+	//}
+    }
+
+    printf("%s: terminated\n", __func__);
+
+    return NULL;
+}
+
+/**
  * This thread is started when a new connection is accepted.
  * It performs the handshake, then waits for the connect packet and
  * on success it starts the usbmuxd_client_handler thread.
@@ -422,8 +465,8 @@ static void *usbmuxd_client_init_thread(void *arg)
     int found = 0;    
     int res;
     int i;
-    int sent_result;
-    iphone_error_t err;
+//    int sent_result;
+//    iphone_error_t err;
 
     iphone_device_t phone;
     struct device_use_info *cur_dev = NULL;
@@ -549,10 +592,12 @@ static void *usbmuxd_client_init_thread(void *arg)
 	cur_dev->use_count = 1;
 	cur_dev->device_id = c_req.device_id;
 	cur_dev->phone = phone;
-	pthread_mutex_init(&cur_dev->reader_mutex, NULL);
+	pthread_mutex_init(&cur_dev->mutex, NULL);
+	//pthread_mutex_init(&cur_dev->reader_mutex, NULL);
 	pthread_mutex_init(&cur_dev->writer_mutex, NULL);
 
 	fprintf(stdout, "%s: device_use_count = %d\n", __func__, device_use_count);
+	pthread_create(&cur_dev->bulk_reader, NULL, usbmuxd_bulk_reader_thread, cur_dev);
 
 	pthread_mutex_lock(&usbmux_mutex);
 	device_use_list = (struct device_use_info**)realloc(device_use_list, sizeof(struct device_use_info*) * (device_use_count+1));
@@ -586,11 +631,12 @@ static void *usbmuxd_client_init_thread(void *arg)
 	goto leave;
     }
 
-    sent_result = 0;
+    //sent_result = 0;
 
     // TODO: wait for connect result?
     // if connect failed, don't run this loop:
 
+    /*
     // start reading data from the connected device
     while (!quit_flag && !cdata->handler_dead) {
 	pthread_mutex_lock(&cur_dev->reader_mutex);
@@ -606,14 +652,16 @@ static void *usbmuxd_client_init_thread(void *arg)
 	//fprintf(stderr, "Sending error message %d tag %d\n", err, c_req.header.tag);
 	err = iphone_mux_get_error(cdata->muxclient);
 	//usbmuxd_send_result(cdata->socket, c_req.header.tag, err); 
-    }
+    }*/
 
-    fprintf(stdout, "%s: terminating\n", __func__);
+    //fprintf(stdout, "%s: terminating\n", __func__);
 
     // wait for handler thread to finish its work
     if (cdata->handler != 0) {
     	pthread_join(cdata->handler, NULL);
     }
+    
+    fprintf(stdout, "%s: closing connection\n", __func__);
 
     // time to clean up
     if (cdata && cdata->muxclient) { // should be non-NULL
@@ -621,16 +669,25 @@ static void *usbmuxd_client_init_thread(void *arg)
     }
 
 leave:
+    fprintf(stdout, "%s: terminating\n", __func__);
+
     // this has to be freed only if it's not in use anymore as it closes
     // the USB connection
     if (cur_dev) {
+	pthread_mutex_lock(&cur_dev->mutex);
 	if (cur_dev->use_count > 1) {
+	    printf("%s: decreasing device use count\n", __func__);
 	    cur_dev->use_count--;
+	    pthread_mutex_unlock(&cur_dev->mutex);
 	} else {
-	    iphone_free_device(cur_dev->phone);
+	    printf("%s: last client disconnected, cleaning up\n", __func__);
 	    cur_dev->use_count = 0;
-	    pthread_mutex_destroy(&cur_dev->reader_mutex);
+	    pthread_mutex_unlock(&cur_dev->mutex);
+	    pthread_join(cur_dev->bulk_reader, NULL);
+	    iphone_free_device(cur_dev->phone);
+	    //pthread_mutex_destroy(&cur_dev->reader_mutex);
 	    pthread_mutex_destroy(&cur_dev->writer_mutex);
+	    pthread_mutex_destroy(&cur_dev->mutex);
 	    free(cur_dev);
 	    cur_dev = NULL;
 	    pthread_mutex_lock(&usbmux_mutex);
@@ -683,135 +740,19 @@ static void clean_exit(int sig)
 }
 
 /**
- * thread function that performs accept() and starts the required child
- * threads to perform the rest of the communication stuff.
- */
-static void *usbmuxd_accept_thread(void *arg)
-{
-    struct sockaddr_un c_addr;
-    socklen_t len = sizeof(struct sockaddr_un);
-    struct client_data *cdata;
-    struct client_data **children = NULL;
-    int children_capacity = DEFAULT_CHILDREN_CAPACITY;
-    int i = 0;
-    int result = 0;
-    int cnt;
-
-    // Reserve space for 10 clients which should be enough. If not, the
-    // buffer gets enlarged later.
-    children = (struct client_data**)malloc(sizeof(struct client_data*) * children_capacity);
-    if (!children) {
-	fprintf(stderr, "%s: Out of memory when allocating memory for child threads. Terminating.\n", __func__);
-	exit(EXIT_FAILURE);
-    }
-    memset(children, 0, sizeof(struct client_data*) * children_capacity);
-
-    fprintf(stdout, "%s: waiting for connection\n", __func__);
-    while (!quit_flag) {	
-	// Check the file descriptor before accepting a connection.
-	// If no connection attempt is made, just repeat...
-	result = check_fd(fsock, FD_READ, 1000);
-	if (result <= 0) {
-	    if (result == 0) {
-		// cleanup
-		for (i = 0; i < children_capacity; i++) {
-		    if (children[i]) {
-		        if (children[i]->dead != 0) {
-			    pthread_join(children[i]->thread, NULL);
-			    fprintf(stdout, "%s: reclaimed client thread (fd=%d)\n", __func__, children[i]->socket);
-			    free(children[i]);
-			    children[i] = NULL;
-			    cnt++;
-			} else {
-    			    cnt = 0;
-			}
-		    } else {
-			cnt++;
-		    }
-		}
-
-		if ((children_capacity > DEFAULT_CHILDREN_CAPACITY)
-			&& ((children_capacity - cnt) <= DEFAULT_CHILDREN_CAPACITY)) {
-		    children_capacity = DEFAULT_CHILDREN_CAPACITY;
-		    children = realloc(children, sizeof(struct client_data*) * children_capacity);
-		}
-		continue;
-	    } else {
-		fprintf(stderr, "select error: %s\n", strerror(errno));
-		continue;
-	    }
-	}
-
-	cdata = (struct client_data*)malloc(sizeof(struct client_data));
-	memset(cdata, 0, sizeof(struct client_data));
-	if (!cdata) {
-	    quit_flag = 1;
-	    fprintf(stderr, "%s: Error: Out of memory! Terminating.\n", __func__);
-	    break;
-	}
-
-	cdata->socket = accept(fsock, (struct sockaddr*)&c_addr, &len);
-       	if (cdata->socket < 0) {
-	    free(cdata);
-	    if (errno == EINTR) {
-		continue;
-	    } else {
-		fprintf(stderr, "%s: Error in accept: %s\n", __func__, strerror(errno));
-		continue;
-	    }
-	}
-
-	fprintf(stdout, "%s: new client connected (fd=%d)\n", __func__, cdata->socket);
-
-	// create client thread:
-	if (pthread_create(&cdata->thread, NULL, usbmuxd_client_init_thread, cdata) == 0) {
-	    for (i = 0; i < children_capacity; i++) {
-		if (children[i] == NULL) break;
-	    }
-	    if (i == children_capacity) {
-		// enlarge buffer
-		children_capacity++;
-		children = realloc(children, sizeof(struct client_data*) * children_capacity);
-		if (!children) {
-		    fprintf(stderr, "%s: Out of memory when enlarging child thread buffer\n", __func__);
-		}
-	    }
-	    children[i] = cdata;
-	} else {
-	    fprintf(stderr, "%s: Failed to create client_init_thread.\n", __func__);
-	    close(cdata->socket);
-	    free(cdata);
-	    cdata = NULL;
-	}
-    }
-
-    fprintf(stdout, "%s: terminating\n", __func__);
-
-    // preparing for shutdown: wait for child threads to terminate (if any)
-    fprintf(stdout, "%s: waiting for child threads to terminate...\n", __func__);
-    for (i = 0; i < children_capacity; i++) {
-        if (children[i] != NULL) {
-            pthread_join(children[i]->thread, NULL);
-	    free(children[i]);
-        }
-    }
-
-    // delete the children set.
-    free(children);
-    children = NULL;
-
-    fprintf(stdout, "%s: terminated.\n", __func__);
-
-    return NULL;
-}
-
-/**
- * main function.
+ * main function. Initializes all stuff and then loops waiting in accept.
  */
 int main(int argc, char **argv)
 {
     int foreground = 1;
-    pthread_t acceptor;
+    struct sockaddr_un c_addr;
+    socklen_t len = sizeof(struct sockaddr_un);
+    struct client_data *cdata = NULL;
+    struct client_data **children = NULL;
+    int children_capacity = DEFAULT_CHILDREN_CAPACITY;
+    int i = 0;
+    int result = 0;
+    int cnt = 0;
 
     fprintf(stdout, "usbmuxd: starting\n");
 
@@ -837,21 +778,117 @@ int main(int argc, char **argv)
     signal(SIGTERM, clean_exit);
     signal(SIGPIPE, SIG_IGN); 
 
-    if (pthread_create(&acceptor, NULL, usbmuxd_accept_thread, NULL) != 0) {
-	fprintf(stderr, "Failed to create server thread.\n");
-	close(fsock);
-	return -1;
+    // Reserve space for 10 clients which should be enough. If not, the
+    // buffer gets enlarged later.
+    children = (struct client_data**)malloc(sizeof(struct client_data*) * children_capacity);
+    if (!children) {
+	fprintf(stderr, "usbmuxd: Out of memory when allocating memory for child threads. Terminating.\n");
+	exit(EXIT_FAILURE);
+    }
+    memset(children, 0, sizeof(struct client_data*) * children_capacity);
+
+    fprintf(stdout, "usbmuxd: waiting for connection\n");
+    while (!quit_flag) {	
+	// Check the file descriptor before accepting a connection.
+	// If no connection attempt is made, just repeat...
+	result = check_fd(fsock, FD_READ, 1000);
+	if (result <= 0) {
+	    if (result == 0) {
+		// cleanup
+		for (i = 0; i < children_capacity; i++) {
+		    if (children[i]) {
+		        if (children[i]->dead != 0) {
+			    pthread_join(children[i]->thread, NULL);
+			    fprintf(stdout, "usbmuxd: reclaimed client thread (fd=%d)\n", children[i]->socket);
+			    free(children[i]);
+			    children[i] = NULL;
+			    cnt++;
+			} else {
+    			    cnt = 0;
+			}
+		    } else {
+			cnt++;
+		    }
+		}
+
+		if ((children_capacity > DEFAULT_CHILDREN_CAPACITY)
+			&& ((children_capacity - cnt) <= DEFAULT_CHILDREN_CAPACITY)) {
+		    children_capacity = DEFAULT_CHILDREN_CAPACITY;
+		    children = realloc(children, sizeof(struct client_data*) * children_capacity);
+		}
+		continue;
+	    } else {
+		fprintf(stderr, "usbmuxd: select error: %s\n", strerror(errno));
+		continue;
+	    }
+	}
+
+	cdata = (struct client_data*)malloc(sizeof(struct client_data));
+	memset(cdata, 0, sizeof(struct client_data));
+	if (!cdata) {
+	    quit_flag = 1;
+	    fprintf(stderr, "usbmuxd: Error: Out of memory! Terminating.\n");
+	    break;
+	}
+
+	cdata->socket = accept(fsock, (struct sockaddr*)&c_addr, &len);
+       	if (cdata->socket < 0) {
+	    free(cdata);
+	    if (errno == EINTR) {
+		continue;
+	    } else {
+		fprintf(stderr, "usbmuxd: Error in accept: %s\n", strerror(errno));
+		continue;
+	    }
+	}
+
+	fprintf(stdout, "usbmuxd: new client connected (fd=%d)\n", cdata->socket);
+
+	// create client thread:
+	if (pthread_create(&cdata->thread, NULL, usbmuxd_client_init_thread, cdata) == 0) {
+	    for (i = 0; i < children_capacity; i++) {
+		if (children[i] == NULL) break;
+	    }
+	    if (i == children_capacity) {
+		// enlarge buffer
+		children_capacity++;
+		children = realloc(children, sizeof(struct client_data*) * children_capacity);
+		if (!children) {
+		    fprintf(stderr, "usbmuxd: Out of memory when enlarging child thread buffer\n");
+		}
+	    }
+	    children[i] = cdata;
+	} else {
+	    fprintf(stderr, "usbmuxd: Failed to create client_init_thread.\n");
+	    close(cdata->socket);
+	    free(cdata);
+	    cdata = NULL;
+	}
     }
 
-    // Relax here. Just wait for the accept thread to terminate.
-    pthread_join(acceptor, NULL);
-
     fprintf(stdout, "usbmuxd: terminating\n");
+
+    // preparing for shutdown: wait for child threads to terminate (if any)
+    fprintf(stdout, "usbmuxd: waiting for child threads to terminate...\n");
+    for (i = 0; i < children_capacity; i++) {
+        if (children[i] != NULL) {
+            pthread_join(children[i]->thread, NULL);
+	    free(children[i]);
+        }
+    }
+
+    // delete the children set.
+    free(children);
+    children = NULL;
+
+
     if (fsock >= 0) {
     	close(fsock);
     }
 
     unlink(USBMUXD_SOCKET_FILE);
+
+    fprintf(stdout, "usbmuxd: terminated\n");
 
     return 0;
 }
