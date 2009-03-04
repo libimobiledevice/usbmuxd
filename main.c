@@ -122,7 +122,7 @@ static void print_buffer(const char *data, const int length)
  *
  * @return 
  */
-static int usbmuxd_get_request(int fd, void *data, size_t len)
+static int usbmuxd_get_request(int fd, void **data, size_t len)
 {
     uint32_t pktlen;
     int recv_len;
@@ -131,16 +131,26 @@ static int usbmuxd_get_request(int fd, void *data, size_t len)
 	return -errno;
     }
 
-    if (len < pktlen) {
+    if (len == 0) {
+	// allocate buffer space
+	*data = malloc(pktlen);
+    } else if (len < pktlen) {
 	// target buffer is to small to hold this packet! fix it!
 	fprintf(stderr, "%s: WARNING -- packet (%d) is larger than target buffer (%d)! Truncating.\n", __func__, pktlen, len);
 	pktlen = len;
     }
 
-    recv_len = recv_buf(fd, data, pktlen);
+    recv_len = recv_buf(fd, *data, pktlen);
     if ((recv_len > 0) && (recv_len < pktlen)) {
 	fprintf(stderr, "%s: Uh-oh, we got less than the packet's size, %d instead of %d...\n", __func__, recv_len, pktlen);
     }
+
+#ifdef DEBUG
+    if (*data && (recv_len > 0)) {
+	fprintf(stderr, "%s: received:\n", __func__);
+	print_buffer(*data,recv_len);
+    }
+#endif
 
     return recv_len;
 }
@@ -199,7 +209,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
 
     cdata->reader_dead = 0;
 
-    fprintf(stdout, "%s[%d:%d]: started\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
+    fprintf(stderr, "%s[%d:%d]: started\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
 
     while (!quit_flag && !cdata->reader_quit) {
 	result = check_fd(cdata->socket, FD_WRITE, DEFAULT_TIMEOUT);
@@ -228,7 +238,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
 	fsync(cdata->socket);
     }
 
-    fprintf(stdout, "%s[%d:%d]: terminated\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
+    fprintf(stderr, "%s[%d:%d]: terminated\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
 
     cdata->reader_dead = 1;
 
@@ -325,13 +335,13 @@ static void *usbmuxd_client_handler_thread(void *arg)
 
     cdata = (struct client_data*)arg;
 
-    fprintf(stdout, "%s[%d:%d]: started\n", __func__, cdata->duinfo->device_id,cdata->duinfo->use_count);
+    fprintf(stderr, "%s[%d:%d]: started\n", __func__, cdata->duinfo->device_id,cdata->duinfo->use_count);
 
     if (usbmuxd_handleConnectResult(cdata)) {
 	fprintf(stderr, "handleConnectResult: Error\n");
 	goto leave;
     }
-    fprintf(stdout, "handleConnectResult: Success\n");
+    fprintf(stderr, "handleConnectResult: Success\n");
 
     // starting mux reader thread
     cdata->reader_quit = 0;
@@ -388,7 +398,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 
 leave:
     // cleanup
-    fprintf(stdout, "%s[%d:%d]: terminating\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
+    fprintf(stderr, "%s[%d:%d]: terminating\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
     if (cdata->reader != 0) {
 	cdata->reader_quit = 1;
 	pthread_join(cdata->reader, NULL);
@@ -396,7 +406,7 @@ leave:
 
     cdata->handler_dead = 1;
 
-    fprintf(stdout, "%s[%d:%d]: terminated\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
+    fprintf(stderr, "%s[%d:%d]: terminated\n", __func__, cdata->duinfo->device_id, cdata->duinfo->use_count);
     return NULL;
 }
 
@@ -446,9 +456,9 @@ static void *usbmuxd_bulk_reader_thread(void *arg)
 static void *usbmuxd_client_init_thread(void *arg)
 {
     struct client_data *cdata;
-    struct usbmuxd_hello hello;
+    struct usbmuxd_hello *hello = NULL;
     struct usbmuxd_device_info_request dev_info_req;
-    struct usbmuxd_connect_request c_req;
+    struct usbmuxd_connect_request *c_req = NULL;
 
     struct usb_bus *bus;
     struct usb_device *dev;
@@ -471,22 +481,27 @@ static void *usbmuxd_client_init_thread(void *arg)
     cdata = (struct client_data*)arg;
     cdata->dead = 0;
     
-    fprintf(stdout, "%s: started (fd=%d)\n", __func__, cdata->socket);
+    fprintf(stderr, "%s: started (fd=%d)\n", __func__, cdata->socket);
 
-    if ((recv_len = usbmuxd_get_request(cdata->socket, &hello, sizeof(hello))) <= 0) {
+    if ((recv_len = usbmuxd_get_request(cdata->socket, (void**)&hello, 0)) <= 0) {
         fprintf(stderr, "%s: No Hello packet received, error %s\n", __func__, strerror(errno));
 	goto leave;
     }
 
-    if ((recv_len == sizeof(hello)) && (hello.header.length == sizeof(hello))
-	&& (hello.header.reserved == 0) && (hello.header.type == USBMUXD_HELLO)) {
+    if ((recv_len == sizeof(struct usbmuxd_hello)) && (hello->header.length == sizeof(struct usbmuxd_hello))
+	&& (hello->header.reserved == 0) && (hello->header.type == USBMUXD_HELLO)) {
     	// send success response
-	usbmuxd_send_result(cdata->socket, hello.header.tag, 0);
+	fprintf(stderr, "%s: Got Hello packet!\n", __func__);
+	usbmuxd_send_result(cdata->socket, hello->header.tag, 0);
+    } else if ((recv_len == sizeof(struct usbmuxd_connect_request)) && (hello->header.type == USBMUXD_CONNECT)) {
+	c_req = (struct usbmuxd_connect_request*)hello;
+	hello = NULL;
+	goto connect;
     } else {
 	// send error response and exit
         fprintf(stderr, "%s: Invalid Hello packet received.\n", __func__);
 	// TODO is this required?!
-	usbmuxd_send_result(cdata->socket, hello.header.tag, EINVAL);
+	usbmuxd_send_result(cdata->socket, hello->header.tag, EINVAL);
 	goto leave;
     }
 
@@ -501,7 +516,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 		&& dev->descriptor.idProduct >= 0x1290
 		&& dev->descriptor.idProduct <= 0x1293)
 	    {
-		fprintf(stdout, "%s: Found device on bus %d, id %d\n", __func__, bus->location, dev->devnum);
+		fprintf(stderr, "%s: Found device on bus %d, id %d\n", __func__, bus->location, dev->devnum);
 		found++;
 
 		// construct packet
@@ -540,18 +555,20 @@ static void *usbmuxd_client_init_thread(void *arg)
 	goto leave;
     }
 
-    memset(&c_req, 0, sizeof(c_req));
-    if ((recv_len = usbmuxd_get_request(cdata->socket, &c_req, sizeof(c_req))) <= 0) {
+    //memset(&c_req, 0, sizeof(c_req));
+    if ((recv_len = usbmuxd_get_request(cdata->socket, (void**)&c_req, 0)) <= 0) {
 	fprintf(stderr, "%s: Did not receive any connect request.\n", __func__);
 	goto leave;
     }
 
-    if (c_req.header.type != USBMUXD_CONNECT) {
-	fprintf(stderr, "%s: Unexpected packet of type %d received.\n", __func__, c_req.header.type);
+connect:
+
+    if (c_req->header.type != USBMUXD_CONNECT) {
+	fprintf(stderr, "%s: Unexpected packet of type %d received.\n", __func__, c_req->header.type);
 	goto leave;
     }
 
-    fprintf(stdout, "%s: Setting up connection to usb device #%d on port %d\n", __func__, c_req.device_id, ntohs(c_req.tcp_dport));
+    fprintf(stderr, "%s: Setting up connection to usb device #%d on port %d\n", __func__, c_req->device_id, ntohs(c_req->tcp_dport));
 
     // find the device, and open usb connection
     phone = NULL;
@@ -561,7 +578,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 	pthread_mutex_lock(&usbmux_mutex);
 	for (i = 0; i < device_use_count; i++) {
 	    if (device_use_list[i]) {
-		if (device_use_list[i]->device_id == c_req.device_id) {
+		if (device_use_list[i]->device_id == c_req->device_id) {
 		    device_use_list[i]->use_count++;
 		    cur_dev = device_use_list[i];
 		    phone = cur_dev->phone;
@@ -573,21 +590,21 @@ static void *usbmuxd_client_init_thread(void *arg)
     }
     if (!phone) {
 	// if not found, make a new connection
-	if (iphone_get_specific_device(0, c_req.device_id, &phone) != IPHONE_E_SUCCESS) {
-	    fprintf(stderr, "%s: device_id %d could not be opened\n", __func__, c_req.device_id);
-	    usbmuxd_send_result(cdata->socket, c_req.header.tag, ENODEV);
+	if (iphone_get_specific_device(0, c_req->device_id, &phone) != IPHONE_E_SUCCESS) {
+	    fprintf(stderr, "%s: device_id %d could not be opened\n", __func__, c_req->device_id);
+	    usbmuxd_send_result(cdata->socket, c_req->header.tag, ENODEV);
 	    goto leave;
 	}
 	// add to device list
 	cur_dev = (struct device_use_info*)malloc(sizeof(struct device_use_info));
 	memset(cur_dev, 0, sizeof(struct device_use_info));
 	cur_dev->use_count = 1;
-	cur_dev->device_id = c_req.device_id;
+	cur_dev->device_id = c_req->device_id;
 	cur_dev->phone = phone;
 	pthread_mutex_init(&cur_dev->mutex, NULL);
 	pthread_mutex_init(&cur_dev->writer_mutex, NULL);
 
-	fprintf(stdout, "%s: device_use_count = %d\n", __func__, device_use_count);
+	fprintf(stderr, "%s: device_use_count = %d\n", __func__, device_use_count);
 	pthread_create(&cur_dev->bulk_reader, NULL, usbmuxd_bulk_reader_thread, cur_dev);
 
 	pthread_mutex_lock(&usbmux_mutex);
@@ -598,23 +615,23 @@ static void *usbmuxd_client_init_thread(void *arg)
 	}
 	pthread_mutex_unlock(&usbmux_mutex);
     } else {
-	fprintf(stdout, "%s: reusing usb connection device_id %d\n", __func__, c_req.device_id);
+	fprintf(stderr, "%s: reusing usb connection device_id %d\n", __func__, c_req->device_id);
     }
 
     // setup connection to iPhone/iPod
 //    pthread_mutex_lock(&usbmux_mutex);
-    res = iphone_mux_new_client(cur_dev->phone, 0, ntohs(c_req.tcp_dport), &(cdata->muxclient));
+    res = iphone_mux_new_client(cur_dev->phone, 0, ntohs(c_req->tcp_dport), &(cdata->muxclient));
 //    pthread_mutex_unlock(&usbmux_mutex);
 
     if (res != 0) {
-	usbmuxd_send_result(cdata->socket, c_req.header.tag, res);
+	usbmuxd_send_result(cdata->socket, c_req->header.tag, res);
 	fprintf(stderr, "%s: mux_new_client returned %d, aborting.\n", __func__, res);
 	goto leave;
     }
 
     // start connection handler thread
     cdata->handler_dead = 0;
-    cdata->tag = c_req.header.tag;
+    cdata->tag = c_req->header.tag;
     cdata->duinfo = cur_dev;
     if (pthread_create(&cdata->handler, NULL, usbmuxd_client_handler_thread, cdata) != 0) {
 	fprintf(stderr, "%s: could not create usbmuxd_client_handler_thread!\n", __func__);
@@ -643,14 +660,14 @@ static void *usbmuxd_client_init_thread(void *arg)
 	//usbmuxd_send_result(cdata->socket, c_req.header.tag, err); 
     }*/
 
-    //fprintf(stdout, "%s: terminating\n", __func__);
+    //fprintf(stderr, "%s: terminating\n", __func__);
 
     // wait for handler thread to finish its work
     if (cdata->handler != 0) {
     	pthread_join(cdata->handler, NULL);
     }
     
-    fprintf(stdout, "%s: closing connection\n", __func__);
+    fprintf(stderr, "%s: closing connection\n", __func__);
 
     // time to clean up
     if (cdata && cdata->muxclient) { // should be non-NULL
@@ -658,7 +675,14 @@ static void *usbmuxd_client_init_thread(void *arg)
     }
 
 leave:
-    fprintf(stdout, "%s: terminating\n", __func__);
+    fprintf(stderr, "%s: terminating\n", __func__);
+
+    if (hello) {
+	free(hello);
+    }
+    if (c_req) {
+	free(c_req);
+    }
 
     // this has to be freed only if it's not in use anymore as it closes
     // the USB connection
@@ -702,7 +726,7 @@ leave:
     cdata->dead = 1;
     close(cdata->socket);
     
-    fprintf(stdout, "%s: terminated\n", __func__);
+    fprintf(stderr, "%s: terminated\n", __func__);
 
     return NULL;
 }
@@ -722,7 +746,7 @@ static int daemonize()
 static void clean_exit(int sig)
 {
     if (sig == SIGINT) {
-	fprintf(stdout, "CTRL+C pressed\n");
+	fprintf(stderr, "CTRL+C pressed\n");
     }
     quit_flag = 1;
 }
@@ -742,7 +766,7 @@ int main(int argc, char **argv)
     int result = 0;
     int cnt = 0;
 
-    fprintf(stdout, "usbmuxd: starting\n");
+    fprintf(stderr, "usbmuxd: starting\n");
 
     // TODO: Parameter checking.
 
@@ -775,7 +799,7 @@ int main(int argc, char **argv)
     }
     memset(children, 0, sizeof(struct client_data*) * children_capacity);
 
-    fprintf(stdout, "usbmuxd: waiting for connection\n");
+    fprintf(stderr, "usbmuxd: waiting for connection\n");
     while (!quit_flag) {	
 	// Check the file descriptor before accepting a connection.
 	// If no connection attempt is made, just repeat...
@@ -787,7 +811,7 @@ int main(int argc, char **argv)
 		    if (children[i]) {
 		        if (children[i]->dead != 0) {
 			    pthread_join(children[i]->thread, NULL);
-			    fprintf(stdout, "usbmuxd: reclaimed client thread (fd=%d)\n", children[i]->socket);
+			    fprintf(stderr, "usbmuxd: reclaimed client thread (fd=%d)\n", children[i]->socket);
 			    free(children[i]);
 			    children[i] = NULL;
 			    cnt++;
@@ -830,7 +854,7 @@ int main(int argc, char **argv)
 	    }
 	}
 
-	fprintf(stdout, "usbmuxd: new client connected (fd=%d)\n", cdata->socket);
+	fprintf(stderr, "usbmuxd: new client connected (fd=%d)\n", cdata->socket);
 
 	// create client thread:
 	if (pthread_create(&cdata->thread, NULL, usbmuxd_client_init_thread, cdata) == 0) {
@@ -854,10 +878,10 @@ int main(int argc, char **argv)
 	}
     }
 
-    fprintf(stdout, "usbmuxd: terminating\n");
+    fprintf(stderr, "usbmuxd: terminating\n");
 
     // preparing for shutdown: wait for child threads to terminate (if any)
-    fprintf(stdout, "usbmuxd: waiting for child threads to terminate...\n");
+    fprintf(stderr, "usbmuxd: waiting for child threads to terminate...\n");
     for (i = 0; i < children_capacity; i++) {
         if (children[i] != NULL) {
             pthread_join(children[i]->thread, NULL);
@@ -876,7 +900,7 @@ int main(int argc, char **argv)
 
     unlink(USBMUXD_SOCKET_FILE);
 
-    fprintf(stdout, "usbmuxd: terminated\n");
+    fprintf(stderr, "usbmuxd: terminated\n");
 
     return 0;
 }
