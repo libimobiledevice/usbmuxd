@@ -449,9 +449,11 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
     int bytes = 0;
 
 #ifdef DEBUG
+    #ifdef DEBUG_MORE
     printf("===============================\n%s: trying to send\n", __func__);
     print_buffer(data, datalen);
     printf("===============================\n");
+    #endif
 #endif
     do {
         if (retrycount > 3) {
@@ -980,6 +982,7 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
 
     // ensure there is enough space, either by first malloc or realloc
     if (datalen > 0) {
+	fprintf(stderr, "%s: putting %d bytes into client's recv_buffer\n", __func__, datalen);
         if (client->r_len == 0) dobroadcast = 1;
 
         if (client->recv_buffer == NULL) {
@@ -1077,6 +1080,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         // to construct a full packet, including its data
         uint32 packetlen = ntohl(header->length);
         if (usbReceive.leftover < packetlen) {
+	    printf("%s: not enough data to construct a full packet\n", __func__);
             break;
         }
 
@@ -1087,6 +1091,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         }
         else {
             // stuff the data
+	    fprintf(stderr, "%s: found client, calling append_receive_buffer\n", __func__);
             append_receive_buffer(client, cursor);
         }
 
@@ -1104,6 +1109,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
     // if there are no leftovers, we just leave the datastructure as is,
     // and re-use the block next time.
     if (usbReceive.leftover > 0 && cursor != usbReceive.buffer) {
+	fprintf(stderr, "%s: we got a leftover, so handle it\n", __func__);
         char* newbuff = malloc(DEFAULT_CAPACITY);
         memcpy(newbuff, cursor, usbReceive.leftover);
         free(usbReceive.buffer);

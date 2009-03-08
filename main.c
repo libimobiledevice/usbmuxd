@@ -74,6 +74,7 @@ struct client_data {
 static struct device_use_info **device_use_list = NULL;
 static int device_use_count = 0;
 static pthread_mutex_t usbmux_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t usb_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef DEBUG
 /**
@@ -167,6 +168,7 @@ static int usbmuxd_get_request(int fd, void **data, size_t len)
 static int usbmuxd_send_result(int fd, uint32_t tag, uint32_t result_code)
 {
     struct usbmuxd_result res;
+    int ret;
 
     res.header.length = sizeof(res);
     res.header.reserved = 0;
@@ -176,7 +178,9 @@ static int usbmuxd_send_result(int fd, uint32_t tag, uint32_t result_code)
 
     fprintf(stderr, "%s: tag=%d result=%d\n", __func__, res.header.tag, res.result);
 
-    return send_buf(fd, &res, sizeof(res));
+    ret = send_buf(fd, &res, sizeof(res));
+    fsync(fd); // let's get it sent
+    return ret;
 }
 
 /**
@@ -278,7 +282,7 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	}
     } else {
 	result = 0;
-	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, DEFAULT_TIMEOUT);
+	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, 1000);
 	if (err != 0) {
 	    fprintf(stderr, "%s: encountered USB read error: %d\n", __func__, err);
 	    usbmuxd_send_result(cdata->socket, cdata->tag, -err);
@@ -505,10 +509,16 @@ static void *usbmuxd_client_init_thread(void *arg)
 	goto leave;
     }
 
+    pthread_mutex_lock(&usb_mutex);
+    fprintf(stderr, "%s: usb init\n", __func__);
     // gather data about all iPhones/iPods attached
     usb_init();
+    fprintf(stderr, "%s: usb find busses\n", __func__);
     usb_find_busses();
+    fprintf(stderr, "%s: usb find devices\n", __func__);
     usb_find_devices();
+
+    fprintf(stderr, "%s: Looking for attached devices...\n", __func__);
 
     for (bus = usb_get_busses(); bus; bus = bus->next) {
 	for (dev = bus->devices; dev; dev = dev->next) {
@@ -548,13 +558,16 @@ static void *usbmuxd_client_init_thread(void *arg)
 	    }
 	}
     }
+    pthread_mutex_unlock(&usb_mutex);
 
-    // now wait for connect request
     if (found <= 0) {
 	fprintf(stderr, "%s: No attached iPhone/iPod devices found.\n", __func__);
 	goto leave;
     }
 
+    fprintf(stderr, "%s: Waiting for connect request\n", __func__);
+
+    // now wait for connect request
     //memset(&c_req, 0, sizeof(c_req));
     if ((recv_len = usbmuxd_get_request(cdata->socket, (void**)&c_req, 0)) <= 0) {
 	fprintf(stderr, "%s: Did not receive any connect request.\n", __func__);
@@ -590,12 +603,19 @@ connect:
     }
     if (!phone) {
 	// if not found, make a new connection
+	fprintf(stderr, "%s: creating new usb connection, device_id=%d\n", __func__, c_req->device_id);
+
+	pthread_mutex_lock(&usb_mutex);
 	if (iphone_get_specific_device(0, c_req->device_id, &phone) != IPHONE_E_SUCCESS) {
+	    pthread_mutex_unlock(&usb_mutex);
 	    fprintf(stderr, "%s: device_id %d could not be opened\n", __func__, c_req->device_id);
 	    usbmuxd_send_result(cdata->socket, c_req->header.tag, ENODEV);
 	    goto leave;
 	}
+	pthread_mutex_unlock(&usb_mutex);
+	
 	// add to device list
+	fprintf(stderr, "%s: add to device list\n", __func__);
 	cur_dev = (struct device_use_info*)malloc(sizeof(struct device_use_info));
 	memset(cur_dev, 0, sizeof(struct device_use_info));
 	cur_dev->use_count = 1;
@@ -615,7 +635,7 @@ connect:
 	}
 	pthread_mutex_unlock(&usbmux_mutex);
     } else {
-	fprintf(stderr, "%s: reusing usb connection device_id %d\n", __func__, c_req->device_id);
+	fprintf(stderr, "%s: reusing usb connection, device_id=%d\n", __func__, c_req->device_id);
     }
 
     // setup connection to iPhone/iPod
@@ -697,7 +717,9 @@ leave:
 	    cur_dev->use_count = 0;
 	    pthread_mutex_unlock(&cur_dev->mutex);
 	    pthread_join(cur_dev->bulk_reader, NULL);
+	    pthread_mutex_lock(&usb_mutex);
 	    iphone_free_device(cur_dev->phone);
+	    pthread_mutex_unlock(&usb_mutex);
 	    pthread_mutex_destroy(&cur_dev->writer_mutex);
 	    pthread_mutex_destroy(&cur_dev->mutex);
 	    free(cur_dev);

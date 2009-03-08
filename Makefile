@@ -1,5 +1,5 @@
 TARGETS=usbmuxd iproxy testclient
-CFLAGS=-Wall -g
+CFLAGS=-Wall -g -DDEBUG
 LIBS=-lpthread -lusb -lrt
 LDFLAGS=
 
