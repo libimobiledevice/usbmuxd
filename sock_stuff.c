@@ -173,7 +173,7 @@ int connect_socket(const char *addr, uint16_t port)
 
     memset((void *)&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
-    saddr.sin_addr.s_addr = (uint32_t)hp->h_addr;
+    saddr.sin_addr.s_addr = *(uint32_t*)hp->h_addr;
     saddr.sin_port = htons(port);
 
     if (connect(sfd, (struct sockaddr*)&saddr, sizeof(saddr)) < 0) {
