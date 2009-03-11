@@ -264,7 +264,7 @@ int recv_buf_timeout(int fd, void *data, size_t length, int flags, unsigned int 
     result = recv(fd, data, length, flags);
     if (res > 0 && result == 0) {
 	// but this is an error condition
-	fprintf(stderr, "%s: fd=%d\n", __func__, fd);
+	fprintf(stderr, "%s: fd=%d recv returned 0\n", __func__, fd);
 	return -1;
     }
     return result;
