@@ -53,11 +53,17 @@ static const uint8 TCP_URG = 1 << 5;
 static const uint32 WINDOW_MAX = 5 * 1024;
 static const uint32 WINDOW_INCREMENT = 512;
 
+typedef struct {
+    char* buffer;
+    int leftover;
+    int capacity;
+} receivebuf_t;
 
 struct iphone_device_int {
 	char *buffer;
 	struct usb_dev_handle *device;
 	struct usb_device *__device;
+	receivebuf_t usbReceive;
 };
 
 typedef struct {
@@ -100,17 +106,10 @@ struct iphone_umux_client_int {
 };
 
 
-typedef struct {
-    char* buffer;
-    int leftover;
-    int capacity;
-} receivebuf_t;
-
-
 static pthread_mutex_t iphonemutex = PTHREAD_MUTEX_INITIALIZER;
 static iphone_umux_client_t *connlist = NULL;
 static int clients = 0;
-static receivebuf_t usbReceive = {NULL, 0, 0};
+//static receivebuf_t usbReceive = {NULL, 0, 0};
 
 
 /**
@@ -275,7 +274,7 @@ static iphone_error_t iphone_config_usb_device(iphone_device_t phone)
  */
 iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t * device)
 {
-	struct usb_bus *bus, *busses;
+	struct usb_bus *bus;
 	struct usb_device *dev;
 	usbmux_version_header *version;
 	int bytes = 0;
@@ -295,10 +294,9 @@ iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t 
 	usb_init();
 	usb_find_busses();
 	usb_find_devices();
-	busses = usb_get_busses();
 
 	// Set the device configuration
-	for (bus = busses; bus; bus = bus->next)
+	for (bus = usb_get_busses(); bus; bus = bus->next)
 		if (bus->location == bus_n)
 			for (dev = bus->devices; dev != NULL; dev = dev->next)
 				if (dev->devnum == dev_n) {
@@ -416,6 +414,9 @@ iphone_error_t iphone_free_device(iphone_device_t device)
 
 	if (device->buffer) {
 		free(device->buffer);
+	}
+	if (device->usbReceive.buffer) {
+		free(device->usbReceive.buffer);
 	}
 	if (device->device) {
 		usb_release_interface(device->device, 1);
@@ -586,10 +587,13 @@ usbmux_tcp_header *new_mux_packet(uint16 s_port, uint16 d_port)
  */
 static void delete_connection(iphone_umux_client_t connection)
 {
+    iphone_umux_client_t *newlist = NULL;
+
     pthread_mutex_lock(&iphonemutex);
 
     // update the global list of connections
-	iphone_umux_client_t *newlist = (iphone_umux_client_t *) malloc(sizeof(iphone_umux_client_t) * (clients - 1));
+    if (clients > 1) {
+	newlist = (iphone_umux_client_t *) malloc(sizeof(iphone_umux_client_t) * (clients - 1));
 	int i = 0, j = 0;
 	for (i = 0; i < clients; i++) {
 		if (connlist[i] == connection)
@@ -599,9 +603,12 @@ static void delete_connection(iphone_umux_client_t connection)
 			j++;
 		}
 	}
+    }
+    if (connlist) {
 	free(connlist);
-	connlist = newlist;
-	clients--;
+    }
+    connlist = newlist;
+    clients--;
 
     // free up this connection
     pthread_mutex_lock(&connection->mutex);
@@ -1043,17 +1050,22 @@ iphone_umux_client_t find_client(usbmux_tcp_header* recv_header)
  */
 void iphone_mux_pullbulk(iphone_device_t phone)
 {
+    if (!phone) {
+	fprintf(stderr, "iphone_mux_pullbulk: invalid argument\n");
+	return;
+    }
+
     static const int DEFAULT_CAPACITY = 128*1024;
-    if (usbReceive.buffer == NULL) {
-        usbReceive.capacity = DEFAULT_CAPACITY;
-        usbReceive.buffer = malloc(usbReceive.capacity);
-        usbReceive.leftover = 0;
+    if (phone->usbReceive.buffer == NULL) {
+        phone->usbReceive.capacity = DEFAULT_CAPACITY;
+        phone->usbReceive.buffer = malloc(phone->usbReceive.capacity);
+        phone->usbReceive.leftover = 0;
     }
 
     // start the cursor off just ahead of the leftover.
-    char* cursor = &usbReceive.buffer[usbReceive.leftover];
+    char* cursor = &phone->usbReceive.buffer[phone->usbReceive.leftover];
     // pull in content, note that the amount we can pull is capacity minus leftover
-    int readlen = recv_from_phone_timeout(phone, cursor, usbReceive.capacity - usbReceive.leftover, 5000);
+    int readlen = recv_from_phone_timeout(phone, cursor, phone->usbReceive.capacity - phone->usbReceive.leftover, 5000);
     if (readlen < 0) {
         //fprintf(stderr, "recv_from_phone_timeout gave us an error.\n");
         readlen = 0;
@@ -1064,14 +1076,14 @@ void iphone_mux_pullbulk(iphone_device_t phone)
 
     // the amount of content we have to work with is the remainder plus
     // what we managed to read
-    usbReceive.leftover += readlen;
+    phone->usbReceive.leftover += readlen;
 
     // reset the cursor to the front of that buffer and work through
     // trying to decode packets out of them.
-    cursor = usbReceive.buffer;
+    cursor = phone->usbReceive.buffer;
     while (1) {
         // check if there's even sufficient data to decode a header
-        if (usbReceive.leftover < HEADERLEN) break;
+        if (phone->usbReceive.leftover < HEADERLEN) break;
         usbmux_tcp_header *header = (usbmux_tcp_header *) cursor;
 
     	printf("%s: recv_from_phone_timeout (%d --> %d)\n", __func__, ntohs(header->sport), ntohs(header->dport));
@@ -1079,7 +1091,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         // now that we have a header, check if there is sufficient data
         // to construct a full packet, including its data
         uint32 packetlen = ntohl(header->length);
-        if (usbReceive.leftover < packetlen) {
+        if (phone->usbReceive.leftover < packetlen) {
 	    printf("%s: not enough data to construct a full packet\n", __func__);
             break;
         }
@@ -1097,7 +1109,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
 
         // move the cursor and account for the consumption
         cursor += packetlen;
-        usbReceive.leftover -= packetlen;
+        phone->usbReceive.leftover -= packetlen;
     }
     
     // now, we need to manage any leftovers.
@@ -1108,13 +1120,13 @@ void iphone_mux_pullbulk(iphone_device_t phone)
     //
     // if there are no leftovers, we just leave the datastructure as is,
     // and re-use the block next time.
-    if (usbReceive.leftover > 0 && cursor != usbReceive.buffer) {
+    if (phone->usbReceive.leftover > 0 && cursor != phone->usbReceive.buffer) {
 	fprintf(stderr, "%s: we got a leftover, so handle it\n", __func__);
         char* newbuff = malloc(DEFAULT_CAPACITY);
-        memcpy(newbuff, cursor, usbReceive.leftover);
-        free(usbReceive.buffer);
-        usbReceive.buffer = newbuff;
-        usbReceive.capacity = DEFAULT_CAPACITY;
+        memcpy(newbuff, cursor, phone->usbReceive.leftover);
+        free(phone->usbReceive.buffer);
+        phone->usbReceive.buffer = newbuff;
+        phone->usbReceive.capacity = DEFAULT_CAPACITY;
     }
 }    
 

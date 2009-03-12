@@ -510,8 +510,9 @@ static void *usbmuxd_client_init_thread(void *arg)
     }
 
     pthread_mutex_lock(&usb_mutex);
-    fprintf(stderr, "%s: usb init\n", __func__);
     // gather data about all iPhones/iPods attached
+   
+    fprintf(stderr, "%s: usb init\n", __func__);
     usb_init();
     fprintf(stderr, "%s: usb find busses\n", __func__);
     usb_find_busses();
