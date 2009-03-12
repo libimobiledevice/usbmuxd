@@ -290,6 +290,11 @@ iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t 
 	phone->__device = NULL;
 	phone->buffer = NULL;
 
+	// don't forget these:
+	phone->usbReceive.buffer = NULL;
+	phone->usbReceive.leftover = 0;
+	phone->usbReceive.capacity = 0;
+
 	// Initialize libusb
 	usb_init();
 	usb_find_busses();
