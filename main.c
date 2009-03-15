@@ -326,7 +326,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
     struct client_data *cdata;
     int result;
     char *cursor;
-    char buffer[1024];
+    char buffer[65536];
     ssize_t len;
     ssize_t maxlen = sizeof(buffer);
     uint32_t wlen;
@@ -474,7 +474,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 //    int sent_result;
 //    iphone_error_t err;
 
-    iphone_device_t phone;
+    iphone_device_t phone = NULL;
     struct device_use_info *cur_dev = NULL;
 
     if (!arg) {
