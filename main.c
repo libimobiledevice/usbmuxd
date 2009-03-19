@@ -738,9 +738,11 @@ leave:
 		}
 		free(device_use_list);
 		device_use_list = newlist;
+		device_use_count--;
 	    } else {
 		free(device_use_list);
 		device_use_list = NULL;
+		device_use_count = 0;
 	    }
 	    pthread_mutex_unlock(&usbmux_mutex);
 	}
