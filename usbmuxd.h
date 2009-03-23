@@ -36,14 +36,14 @@ struct usbmuxd_device_info_request {
 	char padding[222];
 } __attribute__((__packed__));
 
-struct usbmuxd_hello {
+struct usbmuxd_scan_request {
 	struct usbmuxd_header header;
 } __attribute__((__packed__));
 
 enum {
 	USBMUXD_RESULT  = 1,
 	USBMUXD_CONNECT = 2,
-	USBMUXD_HELLO   = 3,
+	USBMUXD_SCAN = 3,
 	USBMUXD_DEVICE_INFO = 4,
 };
 

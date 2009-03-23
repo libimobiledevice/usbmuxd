@@ -282,7 +282,7 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	}
     } else {
 	result = 0;
-	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, 1000);
+	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, 100);
 	if (err != 0) {
 	    fprintf(stderr, "%s: encountered USB read error: %d\n", __func__, err);
 	    usbmuxd_send_result(cdata->socket, cdata->tag, -err);
@@ -460,7 +460,7 @@ static void *usbmuxd_bulk_reader_thread(void *arg)
 static void *usbmuxd_client_init_thread(void *arg)
 {
     struct client_data *cdata;
-    struct usbmuxd_hello *hello = NULL;
+    struct usbmuxd_scan_request *s_req = NULL;
     struct usbmuxd_device_info_request dev_info_req;
     struct usbmuxd_connect_request *c_req = NULL;
 
@@ -487,25 +487,25 @@ static void *usbmuxd_client_init_thread(void *arg)
     
     fprintf(stderr, "%s: started (fd=%d)\n", __func__, cdata->socket);
 
-    if ((recv_len = usbmuxd_get_request(cdata->socket, (void**)&hello, 0)) <= 0) {
+    if ((recv_len = usbmuxd_get_request(cdata->socket, (void**)&s_req, 0)) <= 0) {
         fprintf(stderr, "%s: No Hello packet received, error %s\n", __func__, strerror(errno));
 	goto leave;
     }
 
-    if ((recv_len == sizeof(struct usbmuxd_hello)) && (hello->header.length == sizeof(struct usbmuxd_hello))
-	&& (hello->header.reserved == 0) && (hello->header.type == USBMUXD_HELLO)) {
+    if ((recv_len == sizeof(struct usbmuxd_scan_request)) && (s_req->header.length == sizeof(struct usbmuxd_scan_request))
+	&& (s_req->header.reserved == 0) && (s_req->header.type == USBMUXD_SCAN)) {
     	// send success response
 	fprintf(stderr, "%s: Got Hello packet!\n", __func__);
-	usbmuxd_send_result(cdata->socket, hello->header.tag, 0);
-    } else if ((recv_len == sizeof(struct usbmuxd_connect_request)) && (hello->header.type == USBMUXD_CONNECT)) {
-	c_req = (struct usbmuxd_connect_request*)hello;
-	hello = NULL;
+	usbmuxd_send_result(cdata->socket, s_req->header.tag, 0);
+    } else if ((recv_len == sizeof(struct usbmuxd_connect_request)) && (s_req->header.type == USBMUXD_CONNECT)) {
+	c_req = (struct usbmuxd_connect_request*)s_req;
+	s_req = NULL;
 	goto connect;
     } else {
 	// send error response and exit
         fprintf(stderr, "%s: Invalid Hello packet received.\n", __func__);
 	// TODO is this required?!
-	usbmuxd_send_result(cdata->socket, hello->header.tag, EINVAL);
+	usbmuxd_send_result(cdata->socket, s_req->header.tag, EINVAL);
 	goto leave;
     }
 
@@ -698,8 +698,8 @@ connect:
 leave:
     fprintf(stderr, "%s: terminating\n", __func__);
 
-    if (hello) {
-	free(hello);
+    if (s_req) {
+	free(s_req);
     }
     if (c_req) {
 	free(c_req);
