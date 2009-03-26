@@ -44,12 +44,12 @@ int main(int argc, char **argv)
 {
     int sfd;
     int recv_len = 0;
-    int hello_done;
+    int scan_done;
     int connected;
     uint32_t pktlen;
     unsigned char *buf;
-    struct usbmuxd_hello hello;
-    struct usbmuxd_device_info device_info;
+    struct usbmuxd_scan_request scan;
+    struct am_device_info device_info;
 
     sfd = connect_unix_socket(USBMUXD_SOCKET_FILE);
     if (sfd < 0) {
@@ -57,31 +57,31 @@ int main(int argc, char **argv)
 	return -1;
     }
 
-    // send hello
-    hello.header.length = sizeof(struct usbmuxd_hello);
-    hello.header.reserved = 0;
-    hello.header.type = USBMUXD_HELLO;
-    hello.header.tag = 2;
+    // send scan
+    scan.header.length = sizeof(struct usbmuxd_scan_request);
+    scan.header.reserved = 0;
+    scan.header.type = USBMUXD_SCAN;
+    scan.header.tag = 2;
 
-    hello_done = 0;
+    scan_done = 0;
     connected = 0;
 
-    fprintf(stdout, "sending Hello packet\n");
-    if (send(sfd, &hello, hello.header.length, 0) == hello.header.length) {
+    fprintf(stdout, "sending scan packet\n");
+    if (send(sfd, &scan, scan.header.length, 0) == scan.header.length) {
 	uint32_t res = -1;
 	// get response
-	if (usbmuxd_get_result(sfd, hello.header.tag, &res) && (res==0)) {
-	    fprintf(stdout, "Got Hello Response!\n");
-	    hello_done = 1;
+	if (usbmuxd_get_result(sfd, scan.header.tag, &res) && (res==0)) {
+	    fprintf(stdout, "Got response to scan request!\n");
+	    scan_done = 1;
 	} else {
-	    fprintf(stderr, "Did not get Hello response (with result=0)...\n");
+	    fprintf(stderr, "Did not get response to scan request (with result=0)...\n");
 	    close(sfd);
 	    return -1;
 	}
 
 	device_info.device_id = 0;
 
-	if (hello_done) {
+	if (scan_done) {
 	    // get all devices
 	    while (1) {
 		if (recv_buf_timeout(sfd, &pktlen, 4, MSG_PEEK, 1000) == 4) {

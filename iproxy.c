@@ -179,12 +179,12 @@ void *acceptor_thread(void *arg)
 {
     struct client_data *cdata;
     int recv_len = 0;
-    int hello_done;
+    int scan_done;
     int connected;
     uint32_t pktlen;
     unsigned char *buf;
-    struct usbmuxd_hello hello;
-    struct usbmuxd_device_info device_info;
+    struct usbmuxd_scan_request scan;
+    struct am_device_info device_info;
     pthread_t ctos;
 
     if (!arg) {
@@ -200,24 +200,24 @@ void *acceptor_thread(void *arg)
 	return NULL;
     }
 
-    // send hello
-    hello.header.length = sizeof(struct usbmuxd_hello);
-    hello.header.reserved = 0;
-    hello.header.type = USBMUXD_HELLO;
-    hello.header.tag = 2;
+    // send scan
+    scan.header.length = sizeof(struct usbmuxd_scan_request);
+    scan.header.reserved = 0;
+    scan.header.type = USBMUXD_SCAN;
+    scan.header.tag = 2;
 
-    hello_done = 0;
+    scan_done = 0;
     connected = 0;
 
-    fprintf(stdout, "sending Hello packet\n");
-    if (send(cdata->sfd, &hello, hello.header.length, 0) == hello.header.length) {
+    fprintf(stdout, "sending scan packet\n");
+    if (send(cdata->sfd, &scan, scan.header.length, 0) == scan.header.length) {
 	uint32_t res = -1;
 	// get response
-	if (usbmuxd_get_result(cdata->sfd, hello.header.tag, &res) && (res==0)) {
-	    fprintf(stdout, "Got Hello Response!\n");
-	    hello_done = 1;
+	if (usbmuxd_get_result(cdata->sfd, scan.header.tag, &res) && (res==0)) {
+	    fprintf(stdout, "Got response to scan request!\n");
+	    scan_done = 1;
 	} else {
-	    fprintf(stderr, "Did not get Hello response (with result=0)...\n");
+	    fprintf(stderr, "Did not get response to scan request (with result=0)...\n");
 	    close(cdata->sfd);
 	    cdata->sfd = -1;
 	    return NULL;
@@ -225,7 +225,7 @@ void *acceptor_thread(void *arg)
 
 	device_info.device_id = 0;
 
-	if (hello_done) {
+	if (scan_done) {
 	    // get all devices
 	    while (1) {
 		if (recv_buf_timeout(cdata->sfd, &pktlen, 4, MSG_PEEK, 1000) == 4) {
@@ -342,101 +342,6 @@ int main(int argc, char **argv)
 	close(c_sock);
 	close(mysock);
     }
-
-/*
-    sfd = connect_unix_socket(USBMUXD_SOCKET_FILE);
-    if (sfd < 0) {
-	printf("error opening socket, terminating.\n");
-	return -1;
-    }
-
-    // send hello
-    hello.header.length = sizeof(hello);
-    hello.header.reserved = 0;
-    hello.header.type = USBMUXD_HELLO;
-    hello.header.tag = 2;
-
-    hello_done = 0;
-    connected = 0;
-
-    fprintf(stdout, "sending Hello packet\n");
-    if (send(sfd, &hello, hello.header.length, 0) == hello.header.length) {
-	uint32_t res = -1;
-	// get response
-	if (usbmuxd_get_result(sfd, hello.header.tag, &res) && (res==0)) {
-	    fprintf(stdout, "Got Hello Response!\n");
-	    hello_done = 1;
-	} else {
-	    fprintf(stderr, "Did not get Hello response (with result=0)...\n");
-	    close(sfd);
-	    return -1;
-	}
-
-	device_info.device_id = 0;
-
-	if (hello_done) {
-	    // get all devices
-	    while (1) {
-		if (recv_buf_timeout(sfd, &pktlen, 4, MSG_PEEK, 1000) == 4) {
-		    buf = (unsigned char*)malloc(pktlen);
-		    if (!buf) {
-			exit(-ENOMEM);
-		    }
-		    recv_len = recv_buf(sfd, buf, pktlen);
-		    if (recv_len < pktlen) {
-			fprintf(stdout, "received less data than specified in header!\n");
-		    }
-		    fprintf(stdout, "Received device data\n");
-		    //log_debug_buffer(stdout, (char*)buf, pktlen);
-		    memcpy(&device_info, buf + sizeof(struct usbmuxd_header), sizeof(device_info));
-		    free(buf);
-		} else {
-		    // we _should_ have all of them now.
-		    // or perhaps an error occured.
-		    break;
-		}
-	    }
-	}
-
-	if (device_info.device_id > 0) {
-	    struct usbmuxd_connect_request c_req;
-
-	    fprintf(stdout, "Requesting connecion to device %d port %d\n", device_info.device_id, device_port);
-
-	    // try to connect to last device found
-	    c_req.header.length = sizeof(c_req);
-	    c_req.header.reserved = 0;
-	    c_req.header.type = USBMUXD_CONNECT;
-	    c_req.header.tag = 3;
-	    c_req.device_id = device_info.device_id;
-	    c_req.tcp_dport = htons(device_port);
-	    c_req.reserved = 0;
-
-	    if (send_buf(sfd, &c_req, sizeof(c_req)) < 0) {
-		perror("send");
-	    } else {
-		// read ACK
-		res = -1;
-		fprintf(stdout, "Reading connect result...\n");
-		if (usbmuxd_get_result(sfd, c_req.header.tag, &res)) {
-		    if (res == 0) {
-			fprintf(stdout, "Connect success!\n");
-			connected = 1;
-		    } else {
-			fprintf(stderr, "Connect failed, Error code=%d\n", res);
-		    }
-		}
-	    }
-	}
-
-	if (connected) {
-	    //
-	} else {
-	    fprintf(stderr, "No attached device found?!\n");
-	}
-    }
-    close(sfd);
-*/
 
     return 0;
 }
