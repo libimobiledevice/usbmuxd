@@ -24,7 +24,7 @@ struct	usbmuxd_connect_request {
 	uint16_t reserved;   // set to zero
 } __attribute__((__packed__));
 
-struct usbmuxd_device_info {
+struct am_device_info {
 	uint32_t device_id;
 	uint16_t product_id;
 	char serial_number[40];
@@ -32,7 +32,7 @@ struct usbmuxd_device_info {
 
 struct usbmuxd_device_info_request {
 	struct usbmuxd_header header;
-	struct usbmuxd_device_info device_info;
+	struct am_device_info device_info;
 	char padding[222];
 } __attribute__((__packed__));
 
