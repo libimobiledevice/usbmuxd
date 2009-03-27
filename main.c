@@ -464,7 +464,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 {
     struct client_data *cdata;
     struct usbmuxd_scan_request *s_req = NULL;
-    struct usbmuxd_device_info_request dev_info_req;
+    struct usbmuxd_device_info_record dev_info_rec;
     struct usbmuxd_connect_request *c_req = NULL;
 
     struct usb_bus *bus;
@@ -534,28 +534,28 @@ static void *usbmuxd_client_init_thread(void *arg)
 		found++;
 
 		// construct packet
-		memset(&dev_info_req, 0, sizeof(dev_info_req));
-		dev_info_req.header.length = sizeof(dev_info_req);
-		dev_info_req.header.type = USBMUXD_DEVICE_INFO;
-		dev_info_req.device_info.device_id = dev->devnum;
-		dev_info_req.device_info.product_id = dev->descriptor.idProduct;
+		memset(&dev_info_rec, 0, sizeof(dev_info_rec));
+		dev_info_rec.header.length = sizeof(dev_info_rec);
+		dev_info_rec.header.type = USBMUXD_DEVICE_INFO;
+		dev_info_rec.device_info.device_id = dev->devnum;
+		dev_info_rec.device_info.product_id = dev->descriptor.idProduct;
 		if (dev->descriptor.iSerialNumber) {
 		    usb_dev_handle *udev;
 		    //pthread_mutex_lock(&usbmux_mutex);
 		    udev = usb_open(dev);
 		    if (udev) {
-			usb_get_string_simple(udev, dev->descriptor.iSerialNumber, dev_info_req.device_info.serial_number, sizeof(dev_info_req.device_info.serial_number)+1);
+			usb_get_string_simple(udev, dev->descriptor.iSerialNumber, dev_info_rec.device_info.serial_number, sizeof(dev_info_rec.device_info.serial_number)+1);
 			usb_close(udev);
 		    }
 		    //pthread_mutex_unlock(&usbmux_mutex);
 		}
 
 #ifdef DEBUG
-		if (verbose >= 4) print_buffer(stderr, (char*)&dev_info_req, sizeof(dev_info_req));
+		if (verbose >= 4) print_buffer(stderr, (char*)&dev_info_rec, sizeof(dev_info_rec));
 #endif
 
 		// send it
-		if (send_buf(cdata->socket, &dev_info_req, sizeof(dev_info_req)) <= 0) {
+		if (send_buf(cdata->socket, &dev_info_rec, sizeof(dev_info_rec)) <= 0) {
 		    if (verbose >= 3) fprintf(stderr, "%s: Error: Could not send device info: %s\n", __func__, strerror(errno));
 		    found--;
 		}

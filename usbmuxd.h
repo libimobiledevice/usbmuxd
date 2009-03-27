@@ -30,7 +30,7 @@ struct am_device_info {
 	char serial_number[40];
 } __attribute__((__packed__));
 
-struct usbmuxd_device_info_request {
+struct usbmuxd_device_info_record {
 	struct usbmuxd_header header;
 	struct am_device_info device_info;
 	char padding[222];
