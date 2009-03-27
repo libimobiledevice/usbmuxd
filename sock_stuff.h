@@ -23,5 +23,7 @@ int recv_buf_timeout(int fd, void *data, size_t size, int flags, unsigned int ti
 
 int send_buf(int fd, void *data, size_t size);
 
+void sock_stuff_set_verbose(int level);
+
 #endif /* __SOCK_STUFF_H */
 

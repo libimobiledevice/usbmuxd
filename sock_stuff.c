@@ -13,6 +13,13 @@
 
 #define RECV_TIMEOUT 10000
 
+static int verbose = 0;
+
+void sock_stuff_set_verbose(int level)
+{
+    verbose = level;
+}
+
 int create_unix_socket (const char *filename)
 {
     struct sockaddr_un name;
@@ -68,19 +75,19 @@ int connect_unix_socket(const char *filename)
 
     // check if socket file exists...
     if (stat(filename, &fst) != 0) {
-	fprintf(stderr, "%s: stat '%s': %s\n", __func__, filename, strerror(errno));
+    	if (verbose >= 2) fprintf(stderr, "%s: stat '%s': %s\n", __func__, filename, strerror(errno));
 	return -1;
     }
 
     // ... and if it is a unix domain socket
     if (!S_ISSOCK(fst.st_mode)) {
-	fprintf(stderr, "%s: File '%s' is not a socket!\n", __func__, filename);
+	if (verbose >= 2) fprintf(stderr, "%s: File '%s' is not a socket!\n", __func__, filename);
 	return -1;
     }
 
     // make a new socket
     if ((sfd = socket(PF_LOCAL, SOCK_STREAM, 0)) < 0) {
-	fprintf(stderr, "%s: socket: %s\n", __func__, strerror(errno));
+	if (verbose >= 2) fprintf(stderr, "%s: socket: %s\n", __func__, strerror(errno));
 	return -1;
     }
 
@@ -94,7 +101,7 @@ int connect_unix_socket(const char *filename)
 
     if (connect(sfd, (struct sockaddr*)&name, size) < 0) {
 	close(sfd);
-	fprintf(stderr, "%s: connect: %s\n", __func__, strerror(errno));
+	if (verbose >= 2) fprintf(stderr, "%s: connect: %s\n", __func__, strerror(errno));
 	return -1;
     }
 
@@ -151,12 +158,12 @@ int connect_socket(const char *addr, uint16_t port)
     }
 
     if ((hp = gethostbyname(addr)) == NULL) {
-	fprintf(stderr, "%s: unknown host '%s'\n", __func__, addr);
+	if (verbose >= 2) fprintf(stderr, "%s: unknown host '%s'\n", __func__, addr);
 	return -1;
     }
 
     if (!hp->h_addr) {
-	fprintf(stderr, "%s: gethostbyname returned NULL address!\n", __func__);
+	if (verbose >= 2) fprintf(stderr, "%s: gethostbyname returned NULL address!\n", __func__);
 	return -1;
     }
 
@@ -193,7 +200,7 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
     struct timeval to;
 
     if (fd <= 0) {
-	fprintf(stderr, "ERROR: invalid fd in check_fd %d\n", fd);
+	if (verbose >= 2) fprintf(stderr, "ERROR: invalid fd in check_fd %d\n", fd);
 	return -1;
     }
 
@@ -223,14 +230,14 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	    switch(errno) {
 		case EINTR:
 		    // interrupt signal in select
-		    fprintf(stderr, "%s: EINTR\n", __func__);
+		    if (verbose >= 2) fprintf(stderr, "%s: EINTR\n", __func__);
 		    eagain = 1;
 		    break;
 		case EAGAIN:
-		    fprintf(stderr, "%s: EAGAIN\n", __func__);
+		    if (verbose >= 2) fprintf(stderr, "%s: EAGAIN\n", __func__);
 		    break;
 		default:
-		    fprintf(stderr, "%s: select failed: %s\n", __func__, strerror(errno));
+		    if (verbose >= 2) fprintf(stderr, "%s: select failed: %s\n", __func__, strerror(errno));
 		    return -1;
 	    }
 	}
@@ -264,7 +271,7 @@ int recv_buf_timeout(int fd, void *data, size_t length, int flags, unsigned int 
     result = recv(fd, data, length, flags);
     if (res > 0 && result == 0) {
 	// but this is an error condition
-	fprintf(stderr, "%s: fd=%d recv returned 0\n", __func__, fd);
+	if (verbose >= 3) fprintf(stderr, "%s: fd=%d recv returned 0\n", __func__, fd);
 	return -1;
     }
     return result;
