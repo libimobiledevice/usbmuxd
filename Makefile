@@ -2,6 +2,7 @@ TARGETS=usbmuxd iproxy testclient
 CFLAGS=-Wall -g -DDEBUG
 LIBS=-lpthread -lusb -lrt
 LDFLAGS=
+INSTALL_PREFIX=/usr
 
 all:	$(TARGETS)
 
@@ -27,5 +28,9 @@ clean:
 
 realclean: clean
 	rm -f *~
+
+install: all
+	cp usbmuxd $(INSTALL_PREFIX)/sbin/
+	cp usbmuxd.h $(INSTALL_PREFIX)/include/
 
 .PHONY: all clean realclean
