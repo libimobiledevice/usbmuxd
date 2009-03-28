@@ -31,8 +31,9 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include "usbmuxd.h"
+#include <usbmuxd.h>
 #include "sock_stuff.h"
+#include "libusbmuxd.h"
 
 static uint16_t listen_port = 0;
 static uint16_t device_port = 0;
@@ -45,43 +46,6 @@ struct client_data {
     volatile int stop_ctos;
     volatile int stop_stoc;
 };
-
-int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
-{
-    struct usbmuxd_result res;
-    int recv_len;
-    int i;
-    uint32_t rrr[5];
-
-    if (!result) {
-	return -EINVAL;
-    }
-
-    if ((recv_len = recv_buf(sfd, &res, sizeof(res))) <= 0) {
-	perror("recv");
-	return -errno;
-    } else {
-	memcpy(&rrr, &res, recv_len);
-	for (i = 0; i < recv_len/4; i++) {
-	    fprintf(stderr, "%08x ", rrr[i]);
-	}
-	fprintf(stderr, "\n");
-	if ((recv_len == sizeof(res))
-	    && (res.header.length == recv_len)
-	    && (res.header.reserved == 0)
-	    && (res.header.type == USBMUXD_RESULT)
-	   ) {
-	    *result = res.result;
-	    if (res.header.tag == tag) {
-		return 1;
-	    } else {
-		return 0;
-	    }
-        }
-    }
-
-    return -1;
-}
 
 void *run_stoc_loop(void *arg)
 {
@@ -178,13 +142,7 @@ void *run_ctos_loop(void *arg)
 void *acceptor_thread(void *arg)
 {
     struct client_data *cdata;
-    int recv_len = 0;
-    int scan_done;
-    int connected;
-    uint32_t pktlen;
-    unsigned char *buf;
-    struct usbmuxd_scan_request scan;
-    struct am_device_info device_info;
+    usbmuxd_device_t *dev_list = NULL;
     pthread_t ctos;
 
     if (!arg) {
@@ -194,102 +152,36 @@ void *acceptor_thread(void *arg)
 
     cdata = (struct client_data*)arg;
 
-    cdata->sfd = connect_unix_socket(USBMUXD_SOCKET_FILE);
-    if (cdata->sfd < 0) {
-	printf("error opening socket, terminating.\n");
+    if (usbmuxd_scan(&dev_list) != 0) {
+	printf("Connecting to usbmuxd failed, terminating.\n");
+	free(dev_list);
 	return NULL;
     }
 
-    // send scan
-    scan.header.length = sizeof(struct usbmuxd_scan_request);
-    scan.header.reserved = 0;
-    scan.header.type = USBMUXD_SCAN;
-    scan.header.tag = 2;
-
-    scan_done = 0;
-    connected = 0;
-
-    fprintf(stdout, "sending scan packet\n");
-    if (send(cdata->sfd, &scan, scan.header.length, 0) == scan.header.length) {
-	uint32_t res = -1;
-	// get response
-	if (usbmuxd_get_result(cdata->sfd, scan.header.tag, &res) && (res==0)) {
-	    fprintf(stdout, "Got response to scan request!\n");
-	    scan_done = 1;
-	} else {
-	    fprintf(stderr, "Did not get response to scan request (with result=0)...\n");
-	    close(cdata->sfd);
-	    cdata->sfd = -1;
-	    return NULL;
-	}
-
-	device_info.device_id = 0;
-
-	if (scan_done) {
-	    // get all devices
-	    while (1) {
-		if (recv_buf_timeout(cdata->sfd, &pktlen, 4, MSG_PEEK, 1000) == 4) {
-		    buf = (unsigned char*)malloc(pktlen);
-		    if (!buf) {
-			exit(-ENOMEM);
-		    }
-		    recv_len = recv_buf(cdata->sfd, buf, pktlen);
-		    if (recv_len < pktlen) {
-			fprintf(stdout, "received less data than specified in header!\n");
-		    }
-		    fprintf(stdout, "Received device data\n");
-		    //log_debug_buffer(stdout, (char*)buf, pktlen);
-		    memcpy(&device_info, buf + sizeof(struct usbmuxd_header), sizeof(device_info));
-		    free(buf);
-		} else {
-		    // we _should_ have all of them now.
-		    // or perhaps an error occured.
-		    break;
-		}
-	    }
-	}
-
-	if (device_info.device_id > 0) {
-	    struct usbmuxd_connect_request c_req;
-
-	    fprintf(stdout, "Requesting connecion to device %d port %d\n", device_info.device_id, device_port);
-
-	    // try to connect to last device found
-	    c_req.header.length = sizeof(c_req);
-	    c_req.header.reserved = 0;
-	    c_req.header.type = USBMUXD_CONNECT;
-	    c_req.header.tag = 3;
-	    c_req.device_id = device_info.device_id;
-	    c_req.tcp_dport = htons(device_port);
-	    c_req.reserved = 0;
-
-	    if (send_buf(cdata->sfd, &c_req, sizeof(c_req)) < 0) {
-		perror("send");
-	    } else {
-		// read ACK
-		res = -1;
-		fprintf(stdout, "Reading connect result...\n");
-		if (usbmuxd_get_result(cdata->sfd, c_req.header.tag, &res)) {
-		    if (res == 0) {
-			fprintf(stdout, "Connect success!\n");
-			connected = 1;
-		    } else {
-			fprintf(stderr, "Connect failed, Error code=%d\n", res);
-		    }
-		}
-	    }
-	}
-
-	if (connected) {
-		cdata->stop_ctos = 0;
-		pthread_create(&ctos, NULL, run_ctos_loop, cdata);
-		pthread_join(ctos, NULL);
-	} else {
-	    fprintf(stderr, "Error connecting to device!\n");
-	}
+    if (!dev_list || dev_list[0].device_id == 0) {
+	printf("No connected device found, terminating.\n");
+	free(dev_list);
+	return NULL;
     }
-    close(cdata->fd);
-    close(cdata->sfd);
+
+    fprintf(stdout, "Requesting connecion to device %d port %d\n", dev_list[0].device_id, device_port);
+
+    cdata->sfd = usbmuxd_connect(dev_list[0].device_id, device_port);
+    free(dev_list);
+    if (cdata->sfd < 0) {
+    	fprintf(stderr, "Error connecting to device!\n");
+    } else {
+	cdata->stop_ctos = 0;
+	pthread_create(&ctos, NULL, run_ctos_loop, cdata);
+	pthread_join(ctos, NULL);
+    }
+
+    if (cdata->fd > 0) {
+	close(cdata->fd);
+    }
+    if (cdata->sfd > 0) {
+	close(cdata->sfd);
+    }
 
     return NULL;
 }

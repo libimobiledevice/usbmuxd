@@ -114,7 +114,7 @@ static int clients = 0;
 
 /**
  */
-int toto_debug = 0;
+int toto_debug = 1;
 void log_debug_msg(const char *format, ...)
 {
 #ifndef STRIP_DEBUG_CODE
@@ -124,7 +124,7 @@ void log_debug_msg(const char *format, ...)
 	va_start(args, format);
 
 	if (toto_debug)
-		fprintf(stderr, format, args);
+		vfprintf(stderr, format, args);
 
 	va_end(args);
 
@@ -215,6 +215,12 @@ static iphone_error_t iphone_config_usb_device(iphone_device_t phone)
 	int bytes;
 	char buf[512];
 
+	log_debug_msg("checking configuration...\n");
+	if (phone->__device->config->bConfigurationValue != 3) {
+		log_debug_msg("WARNING: usb device configuration is not 3 as expected!\n");
+	}
+
+#if 0
 	log_debug_msg("setting configuration...\n");
 	ret = usb_set_configuration(phone->device, 3);
 	if (ret != 0) {
@@ -242,6 +248,7 @@ static iphone_error_t iphone_config_usb_device(iphone_device_t phone)
         } else {
 		log_debug_msg("done.\n");
 	}
+#endif
 
         log_debug_msg("claiming interface... ");
 	ret = usb_claim_interface(phone->device, 1);
@@ -307,8 +314,9 @@ iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t 
 				if (dev->devnum == dev_n) {
 					phone->__device = dev;
 					phone->device = usb_open(phone->__device);
-					iphone_config_usb_device(phone);
-					goto found;
+					if (iphone_config_usb_device(phone) == IPHONE_E_SUCCESS) {
+						goto found;
+					}
 				}
 
 	iphone_free_device(phone);

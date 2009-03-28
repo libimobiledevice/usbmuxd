@@ -92,10 +92,10 @@ static void print_buffer(FILE *fp, const char *data, const int length)
 		if (verbose >= 4) fprintf(fp, "%04x: ", i);
 		for (j=0;j<16;j++) {
 			if (i+j >= length) {
-				printf("   ");
+				if (verbose >= 4) fprintf(fp, "   ");
 				continue;
 			}
-			if (verbose >= 4) printf("%02hhx ", *(data+i+j));
+			if (verbose >= 4) fprintf(fp, "%02hhx ", *(data+i+j));
 		}
 		if (verbose >= 4) fprintf(fp, "  | ");
 		for(j=0;j<16;j++) {
@@ -103,7 +103,7 @@ static void print_buffer(FILE *fp, const char *data, const int length)
 				break;
 			c = *(data+i+j);
 			if ((c < 32) || (c > 127)) {
-				printf(".");
+				if (verbose >= 4) fprintf(fp, ".");
 				continue;
 			}
 			if (verbose >= 4) fprintf(fp, "%c", c);
@@ -491,14 +491,14 @@ static void *usbmuxd_client_init_thread(void *arg)
     if (verbose >= 2) fprintf(stderr, "%s: started (fd=%d)\n", __func__, cdata->socket);
 
     if ((recv_len = usbmuxd_get_request(cdata->socket, (void**)&s_req, 0)) <= 0) {
-        if (verbose >= 2) fprintf(stderr, "%s: No Hello packet received, error %s\n", __func__, strerror(errno));
+        if (verbose >= 2) fprintf(stderr, "%s: No scan packet received, error %s\n", __func__, strerror(errno));
 	goto leave;
     }
 
     if ((recv_len == sizeof(struct usbmuxd_scan_request)) && (s_req->header.length == sizeof(struct usbmuxd_scan_request))
 	&& (s_req->header.reserved == 0) && (s_req->header.type == USBMUXD_SCAN)) {
     	// send success response
-	if (verbose >= 3) fprintf(stderr, "%s: Got Hello packet!\n", __func__);
+	if (verbose >= 3) fprintf(stderr, "%s: Got scan packet!\n", __func__);
 	usbmuxd_send_result(cdata->socket, s_req->header.tag, 0);
     } else if ((recv_len == sizeof(struct usbmuxd_connect_request)) && (s_req->header.type == USBMUXD_CONNECT)) {
 	c_req = (struct usbmuxd_connect_request*)s_req;
@@ -506,7 +506,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 	goto connect;
     } else {
 	// send error response and exit
-        if (verbose >= 2) fprintf(stderr, "%s: Invalid Hello packet received.\n", __func__);
+        if (verbose >= 2) fprintf(stderr, "%s: Invalid scan packet received.\n", __func__);
 	// TODO is this required?!
 	usbmuxd_send_result(cdata->socket, s_req->header.tag, EINVAL);
 	goto leave;
@@ -537,14 +537,14 @@ static void *usbmuxd_client_init_thread(void *arg)
 		memset(&dev_info_rec, 0, sizeof(dev_info_rec));
 		dev_info_rec.header.length = sizeof(dev_info_rec);
 		dev_info_rec.header.type = USBMUXD_DEVICE_INFO;
-		dev_info_rec.device_info.device_id = dev->devnum;
-		dev_info_rec.device_info.product_id = dev->descriptor.idProduct;
+		dev_info_rec.device.device_id = dev->devnum;
+		dev_info_rec.device.product_id = dev->descriptor.idProduct;
 		if (dev->descriptor.iSerialNumber) {
 		    usb_dev_handle *udev;
 		    //pthread_mutex_lock(&usbmux_mutex);
 		    udev = usb_open(dev);
 		    if (udev) {
-			usb_get_string_simple(udev, dev->descriptor.iSerialNumber, dev_info_rec.device_info.serial_number, sizeof(dev_info_rec.device_info.serial_number)+1);
+			usb_get_string_simple(udev, dev->descriptor.iSerialNumber, dev_info_rec.device.serial_number, sizeof(dev_info_rec.device.serial_number)+1);
 			usb_close(udev);
 		    }
 		    //pthread_mutex_unlock(&usbmux_mutex);
