@@ -1,4 +1,4 @@
-TARGETS=usbmuxd iproxy libusbmuxd.so
+TARGETS=usbmuxd libusbmuxd.so iproxy
 CFLAGS=-I. -Wall -g -DDEBUG -fPIC
 LIBS=-lpthread -lusb -lrt
 LDFLAGS=-L.
