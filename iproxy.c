@@ -31,7 +31,6 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include <usbmuxd.h>
 #include "sock_stuff.h"
 #include "libusbmuxd.h"
 
@@ -142,7 +141,7 @@ void *run_ctos_loop(void *arg)
 void *acceptor_thread(void *arg)
 {
     struct client_data *cdata;
-    usbmuxd_device_t *dev_list = NULL;
+    usbmuxd_scan_result *dev_list = NULL;
     pthread_t ctos;
 
     if (!arg) {
@@ -152,21 +151,21 @@ void *acceptor_thread(void *arg)
 
     cdata = (struct client_data*)arg;
 
-    if (usbmuxd_scan(&dev_list) != 0) {
+    if (usbmuxd_scan(&dev_list) < 0) {
 	printf("Connecting to usbmuxd failed, terminating.\n");
 	free(dev_list);
 	return NULL;
     }
 
-    if (!dev_list || dev_list[0].device_id == 0) {
+    if (dev_list == NULL || dev_list[0].handle == 0) {
 	printf("No connected device found, terminating.\n");
 	free(dev_list);
 	return NULL;
     }
 
-    fprintf(stdout, "Requesting connecion to device %d port %d\n", dev_list[0].device_id, device_port);
+    fprintf(stdout, "Requesting connecion to device handle == %d, port %d\n", dev_list[0].handle, device_port);
 
-    cdata->sfd = usbmuxd_connect(dev_list[0].device_id, device_port);
+    cdata->sfd = usbmuxd_connect(dev_list[0].handle, device_port);
     free(dev_list);
     if (cdata->sfd < 0) {
     	fprintf(stderr, "Error connecting to device!\n");
@@ -191,7 +190,7 @@ int main(int argc, char **argv)
     int mysock = -1;
 
     if (argc != 3) {
-	printf("usage: %s LOCAL_PORT DEVICE_PORT\n", argv[0]);
+	printf("usage: %s LOCAL_TCP_PORT DEVICE_TCP_PORT\n", argv[0]);
 	return 0;
     }
 

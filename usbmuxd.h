@@ -1,3 +1,5 @@
+/* Protocol defintion for usbmuxd proxy protocol */
+
 #ifndef __USBMUXD_H
 #define __USBMUXD_H
 
@@ -29,7 +31,6 @@ struct usbmuxd_device {
 	uint16_t product_id;
 	char serial_number[40];
 } __attribute__((__packed__));
-typedef struct usbmuxd_device usbmuxd_device_t;
 
 struct usbmuxd_device_info_record {
 	struct usbmuxd_header header;

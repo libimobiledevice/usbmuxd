@@ -1,27 +1,45 @@
 #ifndef __LIBUSBMUXD_H
 #define __LIBUSBMUXD_H
 
-#include <usbmuxd.h>
+/**
+ * Array entry returned by 'usbmuxd_scan()' scanning.
+ *
+ * If more than one device is available, 'product_id' and
+ * 'serial_number' and be analysed to help make a selection.
+ * The relevant 'handle' should be passed to 'usbmuxd_connect()', to
+ * start a proxy connection.  The value 'handle' should be considered
+ * opaque and no presumption made about the meaning of its value.
+ */
+typedef struct {
+	int handle;
+	int product_id;
+	char serial_number[41];
+} usbmuxd_scan_result;
 
 /**
- * Contacts usbmuxd via it's unix domain socket and performs a scan for
- *  connected devices.
+ * Contacts usbmuxd and performs a scan for connected devices.
  *
- * @param devices Pointer to an array of usbmuxd_device_t.
- * 	 Assumed initially NULL, will be allocated by this function.
+ * @param available_devices pointer to array of usbmuxd_scan_result.
+ * 	Array of available devices.  The required 'handle'
+ *	should be passed to 'usbmuxd_connect()'.  The returned array
+ *	is zero-terminated for convenience; the final (unused)
+ *	entry containing handle == 0.  The returned array pointer
+ *	should be freed by passing to 'free()' after use.
  *
- * @return number of devices found, negative on error
+ * @return number of available devices, zero on no devices, or negative on error
  */
-int usbmuxd_scan(usbmuxd_device_t **devices);
+int usbmuxd_scan(usbmuxd_scan_result **available_devices);
 
 /**
- * Performs the connect procedure via usbmuxd.
+ * Request proxy connect to 
  *
- * @param device_id USB device number of the device to connect to
- * @param port Port number to connect to
+ * @param handle returned by 'usbmuxd_scan()'
  *
- * @return socket of the connection, negative on error
+ * @param tcp_port TCP port number on device, in range 0-65535.
+ *	common values are 62078 for lockdown, and 22 for SSH.
+ *
+ * @return file descriptor socket of the connection, or -1 on error
  */
-int usbmuxd_connect(uint32_t device_id, uint16_t port);
+int usbmuxd_connect(const int handle, const unsigned short tcp_port);
 
 #endif /* __LIBUSBMUXD_H */

@@ -7,7 +7,11 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+// usbmuxd public interface
+#include <libusbmuxd.h>
+// usbmuxd protocol 
 #include <usbmuxd.h>
+// socket utility functions
 #include "sock_stuff.h"
 
 static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
@@ -40,7 +44,7 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
     return -1;
 }
 
-int usbmuxd_scan(usbmuxd_device_t **devices)
+int usbmuxd_scan(usbmuxd_scan_result **available_devices)
 {
 	struct usbmuxd_scan_request s_req;
 	int sfd;
@@ -48,7 +52,7 @@ int usbmuxd_scan(usbmuxd_device_t **devices)
 	uint32_t res;
 	uint32_t pktlen;
 	int recv_len;
-	usbmuxd_device_t *newlist = NULL;
+	usbmuxd_scan_result *newlist = NULL;
 	struct usbmuxd_device_info_record dev_info_pkt;
 	int dev_cnt = 0;
 
@@ -81,7 +85,7 @@ int usbmuxd_scan(usbmuxd_device_t **devices)
 		return -1;
 	}
 
-	*devices = NULL;
+	*available_devices = NULL;
 	// receive device list
 	while (1) {
 		if (recv_buf_timeout(sfd, &pktlen, 4, MSG_PEEK, 500) == 4) {
@@ -99,10 +103,14 @@ int usbmuxd_scan(usbmuxd_device_t **devices)
 				fprintf(stderr, "%s: received less data than specified in header!\n", __func__);
 			} else {
 				//fprintf(stderr, "%s: got device record with id %d, UUID=%s\n", __func__, dev_info_pkt.device_info.device_id, dev_info_pkt.device_info.serial_number);
-				newlist = (usbmuxd_device_t*)realloc(*devices, sizeof(usbmuxd_device_t) * (dev_cnt+1));
+				newlist = (usbmuxd_scan_result *)realloc(*available_devices, sizeof(usbmuxd_scan_result) * (dev_cnt+1));
 				if (newlist) {
-					memcpy(newlist+dev_cnt, &dev_info_pkt.device, sizeof(usbmuxd_device_t));
-					*devices = newlist;
+					newlist[dev_cnt].handle = (int)dev_info_pkt.device.device_id;
+					newlist[dev_cnt].product_id = dev_info_pkt.device.product_id;
+					memset(newlist[dev_cnt].serial_number, '\0', sizeof(newlist[dev_cnt].serial_number));
+					memcpy(newlist[dev_cnt].serial_number, dev_info_pkt.device.serial_number,
+					       sizeof(dev_info_pkt.device.serial_number));
+					*available_devices = newlist;
 					dev_cnt++;
 				} else {
 					fprintf(stderr, "%s: ERROR: out of memory when trying to realloc!\n", __func__);
@@ -117,14 +125,14 @@ int usbmuxd_scan(usbmuxd_device_t **devices)
 	}
 
 	// terminating zero record
-	newlist = (usbmuxd_device_t*)realloc(*devices, sizeof(usbmuxd_device_t) * (dev_cnt+1));
-	memset(newlist+dev_cnt, 0, sizeof(usbmuxd_device_t));
-	*devices = newlist;
+	newlist = (usbmuxd_scan_result *)realloc(*available_devices, sizeof(usbmuxd_scan_result) * (dev_cnt+1));
+	memset(newlist+dev_cnt, 0, sizeof(usbmuxd_scan_result));
+	*available_devices = newlist;
 
-	return 0;
+	return dev_cnt;
 }
 
-int usbmuxd_connect(uint32_t device_id, uint16_t port)
+int usbmuxd_connect(const int handle, const unsigned short tcp_port)
 {
 	int sfd;
 	struct usbmuxd_connect_request c_req;
@@ -141,8 +149,8 @@ int usbmuxd_connect(uint32_t device_id, uint16_t port)
 	c_req.header.reserved = 0;
 	c_req.header.type = USBMUXD_CONNECT;
 	c_req.header.tag = 3;
-	c_req.device_id = device_id;
-	c_req.tcp_dport = htons(port);
+	c_req.device_id = (uint32_t)handle;
+	c_req.tcp_dport = htons(tcp_port);
 	c_req.reserved = 0;
 
 	if (send_buf(sfd, &c_req, sizeof(c_req)) < 0) {
