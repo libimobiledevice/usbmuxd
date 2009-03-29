@@ -1,6 +1,6 @@
 *~
 *.o
+*.so
 .*.swp
 iproxy
-testclient
 usbmuxd
