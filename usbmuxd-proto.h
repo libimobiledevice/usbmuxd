@@ -1,7 +1,7 @@
 /* Protocol defintion for usbmuxd proxy protocol */
 
-#ifndef __USBMUXD_H
-#define __USBMUXD_H
+#ifndef __USBMUXD_PROTO_H
+#define __USBMUXD_PROTO_H
 
 #include <stdint.h>
 

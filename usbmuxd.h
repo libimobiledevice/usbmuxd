@@ -1,5 +1,5 @@
-#ifndef __LIBUSBMUXD_H
-#define __LIBUSBMUXD_H
+#ifndef __USBMUXD_H
+#define __USBMUXD_H
 
 /**
  * Array entry returned by 'usbmuxd_scan()' scanning.
@@ -42,4 +42,4 @@ int usbmuxd_scan(usbmuxd_scan_result **available_devices);
  */
 int usbmuxd_connect(const int handle, const unsigned short tcp_port);
 
-#endif /* __LIBUSBMUXD_H */
+#endif /* __USBMUXD_H */
