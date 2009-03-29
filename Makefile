@@ -34,7 +34,8 @@ realclean: clean
 install: all
 	install -m 755 usbmuxd $(INSTALL_PREFIX)/sbin/
 	# udev crack
-	install -D -m 644 85-usbmuxd.rules $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
+	#install -D -m 644 85-usbmuxd.rules $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
+	install -m 644 85-usbmuxd.rules /etc/udev/rules.d/85-usbmuxd.rules
 	# protocol
 	install -m 644 usbmuxd-proto.h $(INSTALL_PREFIX)/include/
 	# iproxy
@@ -44,7 +45,8 @@ install: all
 
 uninstall:
 	-rm $(INSTALL_PREFIX)/sbin/usbmuxd
-	-rm $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
+	#-rm $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
+	-rm /etc/udev/rules.d/85-usbmuxd.rules
 	-rm $(INSTALL_PREFIX)/include/usbmuxd-proto.h
 	-rm $(INSTALL_PREFIX)/lib/libusbmuxd.so
 	-rm $(INSTALL_PREFIX)/include/usbmuxd.h
