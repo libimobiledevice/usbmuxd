@@ -2,7 +2,7 @@ TARGETS=usbmuxd iproxy libusbmuxd.so
 CFLAGS=-I. -Wall -g -DDEBUG -fPIC
 LIBS=-lpthread -lusb -lrt
 LDFLAGS=-L.
-INSTALL_PREFIX=/usr
+INSTALL_PREFIX=/usr/local
 
 all:	$(TARGETS)
 
@@ -33,11 +33,21 @@ realclean: clean
 
 install: all
 	install -m 755 usbmuxd $(INSTALL_PREFIX)/sbin/
+	# udev crack
+	install -m 644 85-usbmuxd.rules $(INSTALL_PREFIX)/lib/udev/rules.d/
 	# protocol
 	install -m 644 usbmuxd-proto.h $(INSTALL_PREFIX)/include/
 	# iproxy
 	install -m 644 libusbmux.so $(INSTALL_PREFIX)/lib/
 	install -m 644 usbmuxd.h $(INSTALL_PREFIX)/include/
 	install -m 755 iproxy $(INSTALL_PREFIX)/bin/
+
+uninstall:
+	-rm $(INSTALL_PREFIX)/sbin/usbmuxd
+	-rm $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
+	-rm $(INSTALL_PREFIX)/include/usbmuxd-proto.h
+	-rm $(INSTALL_PREFIX)/lib/libusbmux.so
+	-rm $(INSTALL_PREFIX)/include/usbmuxd.h
+	-rm $(INSTALL_PREFIX)/bin/iproxy
 
 .PHONY: all clean realclean
