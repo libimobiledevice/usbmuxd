@@ -8,9 +8,9 @@
 #include <unistd.h>
 
 // usbmuxd public interface
-#include <libusbmuxd.h>
-// usbmuxd protocol 
 #include <usbmuxd.h>
+// usbmuxd protocol 
+#include <usbmuxd-proto.h>
 // socket utility functions
 #include "sock_stuff.h"
 

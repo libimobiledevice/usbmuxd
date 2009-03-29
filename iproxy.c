@@ -32,7 +32,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "sock_stuff.h"
-#include "libusbmuxd.h"
+#include "usbmuxd.h"
 
 static uint16_t listen_port = 0;
 static uint16_t device_port = 0;

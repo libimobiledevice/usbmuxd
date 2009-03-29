@@ -34,7 +34,7 @@
 #include <stdint.h>
 #include <usb.h>
 
-#include "usbmuxd.h"
+#include "usbmuxd-proto.h"
 #include "sock_stuff.h"
 
 #include "iphone.h"
