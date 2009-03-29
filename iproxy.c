@@ -143,6 +143,7 @@ void *acceptor_thread(void *arg)
     struct client_data *cdata;
     usbmuxd_scan_result *dev_list = NULL;
     pthread_t ctos;
+    int count;
 
     if (!arg) {
 	fprintf(stderr, "invalid client_data provided!\n");
@@ -151,11 +152,13 @@ void *acceptor_thread(void *arg)
 
     cdata = (struct client_data*)arg;
 
-    if (usbmuxd_scan(&dev_list) < 0) {
+    if ((count = usbmuxd_scan(&dev_list)) < 0) {
 	printf("Connecting to usbmuxd failed, terminating.\n");
 	free(dev_list);
 	return NULL;
     }
+
+    fprintf(stdout, "Number of available devices == %d\n", count);
 
     if (dev_list == NULL || dev_list[0].handle == 0) {
 	printf("No connected device found, terminating.\n");
@@ -163,7 +166,7 @@ void *acceptor_thread(void *arg)
 	return NULL;
     }
 
-    fprintf(stdout, "Requesting connecion to device handle == %d, port %d\n", dev_list[0].handle, device_port);
+    fprintf(stdout, "Requesting connecion to device handle == %d (serial: %s), port %d\n", dev_list[0].handle, dev_list[0].serial_number, device_port);
 
     cdata->sfd = usbmuxd_connect(dev_list[0].handle, device_port);
     free(dev_list);
