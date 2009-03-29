@@ -1,26 +1,65 @@
-Build
-=====
+Background
+==========
+
+'usbmuxd' stands for "USB multiplexing daemon".  To the user/developer
+what it actually does is to proxy requests over a USB cable on directly
+to a listening TCP port on the iPhone.
+
+Multiple connections to different TCP ports can happen in parallel.
+An example (and useful) tool called 'iproxy' is included that allows
+you to forward localhost ports to the device---allows SSH over USB on
+jailbroken devices, or allowing access the lockdown daemon (and then
+to all of the file access, sync, notification and backup services
+running on the device).
+
+This higher-level layers are handled by libiphone.  The version of 
+libiphone compatible with the 'usbmuxd' infrastructure is called
+'libiphone-usbmuxd'.  'ifuse' is then able to sit on top of this.
+
+
+Building
+========
 
   make
+  sudo make install
 
-Use
-===
 
-  sudo ./usbmuxd &
+Running (with magic)
+====================
+
+  (Unplug + replug your iPhone)
   ./iproxy 2222 22 &
   ssh -p 2222 root@localhost
 
-Muwahahaha.  Hopefully you get the normal SSH login prompt.
+Hopefully you get the normal SSH login prompt.  You may still lots of
+debugging output for the moment.  If this is getting in the way of
+your ssh login, then run the 'ssh' command from a different xterminal
+or virtual console.
 
 
-SSH
-===
+Running (without magic)
+=======================
 
-If your iphone is rooted, but isn't running SSH, you will need to
-mount it with 'ifuse --afc2' (to access the root directory of the
-device).
+If 'udev' is _not_ automatically running on your machine and picking
+up the new .rules file, you will need to start usbmuxd by hand first.
+Check it's running and that there is only one copy with 'ps aux | grep
+usbmuxd'.
 
-And then edit:
+  sudo usbmuxd &
+  ./iproxy 2222 22 &
+  ssh -p 2222 root@localhost
+
+
+Tip: Starting SSH if disabled
+=============================
+
+If your iphone is rooted, but SSH isn't started and you _cannot_ (for
+instance, cracked/broken screen) get to the Services control panel on
+the device, then you can start the SSH service over the USB by
+mounting the (jailbroken) filesystem.
+
+You will need to mount it usbing 'ifuse --afc2' (to access the root
+directory of the device), and then edit:
 
   /Library/LaunchDaemons/com.openssh.sshd.plist
 
