@@ -1,52 +1,45 @@
-/* Protocol defintion for usbmuxd proxy protocol */
+#ifndef __LIBUSBMUXD_H
+#define __LIBUSBMUXD_H
 
-#ifndef __USBMUXD_H
-#define __USBMUXD_H
+/**
+ * Array entry returned by 'usbmuxd_scan()' scanning.
+ *
+ * If more than one device is available, 'product_id' and
+ * 'serial_number' and be analysed to help make a selection.
+ * The relevant 'handle' should be passed to 'usbmuxd_connect()', to
+ * start a proxy connection.  The value 'handle' should be considered
+ * opaque and no presumption made about the meaning of its value.
+ */
+typedef struct {
+	int handle;
+	int product_id;
+	char serial_number[41];
+} usbmuxd_scan_result;
 
-#include <stdint.h>
+/**
+ * Contacts usbmuxd and performs a scan for connected devices.
+ *
+ * @param available_devices pointer to array of usbmuxd_scan_result.
+ * 	Array of available devices.  The required 'handle'
+ *	should be passed to 'usbmuxd_connect()'.  The returned array
+ *	is zero-terminated for convenience; the final (unused)
+ *	entry containing handle == 0.  The returned array pointer
+ *	should be freed by passing to 'free()' after use.
+ *
+ * @return number of available devices, zero on no devices, or negative on error
+ */
+int usbmuxd_scan(usbmuxd_scan_result **available_devices);
 
-#define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
+/**
+ * Request proxy connect to 
+ *
+ * @param handle returned by 'usbmuxd_scan()'
+ *
+ * @param tcp_port TCP port number on device, in range 0-65535.
+ *	common values are 62078 for lockdown, and 22 for SSH.
+ *
+ * @return file descriptor socket of the connection, or -1 on error
+ */
+int usbmuxd_connect(const int handle, const unsigned short tcp_port);
 
-struct usbmuxd_header {
-	uint32_t length;    // length of message, including header
-	uint32_t reserved;  // always zero
-	uint32_t type;      // message type
-	uint32_t tag;       // responses to this query will echo back this tag
-} __attribute__((__packed__));
-
-struct usbmuxd_result {
-	struct usbmuxd_header header;
-	uint32_t result;
-} __attribute__((__packed__));
-
-struct	usbmuxd_connect_request {
-	struct usbmuxd_header header;
-	uint32_t device_id;
-	uint16_t tcp_dport;   // TCP port number
-	uint16_t reserved;   // set to zero
-} __attribute__((__packed__));
-
-struct usbmuxd_device {
-	uint32_t device_id;
-	uint16_t product_id;
-	char serial_number[40];
-} __attribute__((__packed__));
-
-struct usbmuxd_device_info_record {
-	struct usbmuxd_header header;
-	struct usbmuxd_device device;
-	char padding[222];
-} __attribute__((__packed__));
-
-struct usbmuxd_scan_request {
-	struct usbmuxd_header header;
-} __attribute__((__packed__));
-
-enum {
-	USBMUXD_RESULT  = 1,
-	USBMUXD_CONNECT = 2,
-	USBMUXD_SCAN = 3,
-	USBMUXD_DEVICE_INFO = 4,
-};
-
-#endif
+#endif /* __LIBUSBMUXD_H */
