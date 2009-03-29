@@ -34,11 +34,11 @@ realclean: clean
 install: all
 	install -m 755 usbmuxd $(INSTALL_PREFIX)/sbin/
 	# udev crack
-	install -m 644 85-usbmuxd.rules $(INSTALL_PREFIX)/lib/udev/rules.d/
+	install -D -m 644 85-usbmuxd.rules $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
 	# protocol
 	install -m 644 usbmuxd-proto.h $(INSTALL_PREFIX)/include/
 	# iproxy
-	install -m 644 libusbmux.so $(INSTALL_PREFIX)/lib/
+	install -m 644 libusbmuxd.so $(INSTALL_PREFIX)/lib/
 	install -m 644 usbmuxd.h $(INSTALL_PREFIX)/include/
 	install -m 755 iproxy $(INSTALL_PREFIX)/bin/
 
