@@ -46,7 +46,7 @@ uninstall:
 	-rm $(INSTALL_PREFIX)/sbin/usbmuxd
 	-rm $(INSTALL_PREFIX)/lib/udev/rules.d/85-usbmuxd.rules
 	-rm $(INSTALL_PREFIX)/include/usbmuxd-proto.h
-	-rm $(INSTALL_PREFIX)/lib/libusbmux.so
+	-rm $(INSTALL_PREFIX)/lib/libusbmuxd.so
 	-rm $(INSTALL_PREFIX)/include/usbmuxd.h
 	-rm $(INSTALL_PREFIX)/bin/iproxy
 
