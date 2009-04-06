@@ -157,10 +157,10 @@ int usbmuxd_connect(const int handle, const unsigned short tcp_port)
 	    perror("send");
 	} else {
 	    // read ACK
-	    fprintf(stderr, "%s: Reading connect result...\n", __func__);
+	    //fprintf(stderr, "%s: Reading connect result...\n", __func__);
 	    if (usbmuxd_get_result(sfd, c_req.header.tag, &res)) {
 		if (res == 0) {
-		    fprintf(stderr, "%s: Connect success!\n", __func__);
+		    //fprintf(stderr, "%s: Connect success!\n", __func__);
 		    connected = 1;
 		} else {
 		    fprintf(stderr, "%s: Connect failed, Error code=%d\n", __func__, res);
