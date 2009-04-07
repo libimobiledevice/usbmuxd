@@ -30,8 +30,8 @@ ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep04", SYMLINK+="usbm
 ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", SYMLINK+="usbmux/out"
 
 # Start and stop 'usbmuxd' as required.
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --start --oknodo --background --make-pidfile --pidfile /var/run/usbmuxd.pid --exec /usr/local/sbin/usbmuxd"
-ACTION=="remove", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --stop --signal 2 --pidfile /var/run/usbmuxd.pid --exec /usr/local/sbin/usbmuxd"
+ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --start --oknodo --exec /usr/local/sbin/usbmuxd"
+ACTION=="remove", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --stop --signal 2 --exec /usr/local/sbin/usbmuxd"
 
 # skip
 LABEL="usbmuxd_rules_end"

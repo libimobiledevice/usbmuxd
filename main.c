@@ -24,6 +24,10 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
+#include <stdarg.h>
+#include <syslog.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
@@ -43,9 +47,12 @@
 #define DEFAULT_CHILDREN_CAPACITY 10
 #define DEBUG_LEVEL 0
 
+#define LOCKFILE "/var/run/usbmuxd.lock"
+
 static int quit_flag = 0;
 static int fsock = -1;
 static int verbose = DEBUG_LEVEL;
+static int foreground = 0;
 
 struct device_use_info {
     uint32_t device_id;
@@ -764,7 +771,43 @@ leave:
  */
 static int daemonize()
 {
-    // TODO still to be implemented, also logging is missing!
+    pid_t pid;
+    pid_t sid;
+
+    // already a daemon
+    if (getppid() == 1) return 0;
+
+    pid = fork();
+    if (pid < 0) {
+	exit(EXIT_FAILURE);
+    }
+
+    if (pid > 0) {
+	// exit parent process
+	exit(EXIT_SUCCESS);
+    }
+
+    // At this point we are executing as the child process
+
+    // Change the file mode mask
+    umask(0);
+
+    // Create a new SID for the child process
+    sid = setsid();
+    if (sid < 0) {
+	return -1;
+    }
+
+    // Change the current working directory.
+    if ((chdir("/")) < 0) {
+	return -2;
+    }
+
+    // Redirect standard files to /dev/null
+    freopen("/dev/null", "r", stdin);
+    freopen("/dev/null", "w", stdout);
+    freopen("/dev/null", "w", stderr);
+
     return 0;
 }
 
@@ -779,12 +822,85 @@ static void clean_exit(int sig)
     quit_flag = 1;
 }
 
+static void logmsg(int prio, char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    if (!foreground) {
+	// daemon. log using syslog.
+	vsyslog(prio, format, args);
+    } else {
+	// running in foreground. log to stdout/stderr.
+	char msgbuf[256];
+	FILE *lfp = stdout;
+	switch(prio) {
+	    case LOG_EMERG:
+	    case LOG_ALERT:
+	    case LOG_CRIT:
+	    case LOG_ERR:
+	    case LOG_WARNING:
+		lfp = stderr;
+		break;
+	    default:
+		lfp = stdout;
+	}
+	strcpy(msgbuf, "usbmuxd: ");
+	vsnprintf(msgbuf+9, 244, format, args);
+	strcat(msgbuf, "\n");
+	fputs(msgbuf, lfp);
+    }
+
+    va_end(args);
+}
+
+static void usage()
+{
+    printf("usage: usbmuxd [options]\n");
+    printf("\t-h|--help        print this message.\n");
+    printf("\t-v|--verbose     be verbose\n");
+    printf("\t-f|--foreground  do not daemonize\n");
+    printf("\n");
+}
+
+static void parse_opts(int argc, char **argv)
+{
+    static struct option longopts[] = {
+	{ "help",       0, NULL, 'h' },
+	{ "foreground", 0, NULL, 'f' },
+	{ "verbose",    0, NULL, 'v' },
+	{ NULL,         0, NULL, 0}
+    };
+    int c;
+
+    while (1) {
+	c = getopt_long(argc, argv, "hfv", longopts, (int *) 0);
+	if (c == -1) {
+	    break;
+	}
+
+	switch (c) {
+	    case 'h':
+		usage();
+		exit(0);
+	    case 'f':
+		foreground = 1;
+		break;
+	    case 'v':
+		sock_stuff_set_verbose(++verbose);
+		break;
+	    default:
+		usage();
+		exit(2);
+	}
+    }
+}
+
 /**
  * main function. Initializes all stuff and then loops waiting in accept.
  */
 int main(int argc, char **argv)
 {
-    int foreground = 1;
     struct sockaddr_un c_addr;
     socklen_t len = sizeof(struct sockaddr_un);
     struct client_data *cdata = NULL;
@@ -793,30 +909,19 @@ int main(int argc, char **argv)
     int i;
     int result = 0;
     int cnt = 0;
+    FILE *lfd = NULL;
+    struct flock lock;
 
-    for (i = 1; i < argc; i++) {
-	if (argv[i] != NULL && (!strncmp("-v", argv[i], 2) || !strncmp("--verbose", argv[i], 10))) {
-	    sock_stuff_set_verbose(++verbose);
-	}
-    }
+    parse_opts(argc, argv);
 
-    if (verbose >= 2) fprintf(stderr, "usbmuxd: starting\n");
-
-    // TODO: Parameter checking.
-
-    fsock = create_unix_socket(USBMUXD_SOCKET_FILE);
-    if (fsock < 0) {
-	if (verbose >= 1) fprintf(stderr, "Could not create socket, exiting\n");
-	return -1;
-    }
-
-    chmod(USBMUXD_SOCKET_FILE, 0666);
+    argc -= optind;
+    argv += optind;
 
     if (!foreground) {
-	if (daemonize() < 0) {
-	    exit(EXIT_FAILURE);
-	}
+	openlog("usbmuxd", LOG_PID, 0);
     }
+
+    if (verbose >= 2) logmsg(LOG_NOTICE, "starting");
 
     // signal(SIGHUP, reload_conf); // none yet
     signal(SIGINT, clean_exit);
@@ -824,16 +929,64 @@ int main(int argc, char **argv)
     signal(SIGTERM, clean_exit);
     signal(SIGPIPE, SIG_IGN); 
 
+    // check for other running instance
+    lfd = fopen(LOCKFILE, "r");
+    if (lfd) {
+	lock.l_type = 0;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	fcntl(fileno(lfd), F_GETLK, &lock);
+	fclose(lfd);
+	if (lock.l_type != F_UNLCK) {
+	    logmsg(LOG_NOTICE, "another instance is already running. exiting.");
+	    return -1;
+	}
+    }
+
+    fsock = create_unix_socket(USBMUXD_SOCKET_FILE);
+    if (fsock < 0) {
+	logmsg(LOG_ERR, "Could not create socket, exiting");
+	if (!foreground) {
+	    closelog();
+	}
+	return -1;
+    }
+
+    chmod(USBMUXD_SOCKET_FILE, 0666);
+
+    if (!foreground) {
+	if (daemonize() < 0) {
+	    fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
+	    syslog(LOG_ERR, "FATAL: Could not daemonize!");
+	    closelog();
+	    exit(EXIT_FAILURE);
+	}
+    }
+
+    // now open the lockfile and place the lock
+    lfd = fopen(LOCKFILE, "w");
+    if (lfd) {
+	lock.l_type = F_WRLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	fcntl(fileno(lfd), F_SETLK, &lock);
+    }
+
     // Reserve space for 10 clients which should be enough. If not, the
     // buffer gets enlarged later.
     children = (struct client_data**)malloc(sizeof(struct client_data*) * children_capacity);
     if (!children) {
-	if (verbose >= 2) fprintf(stderr, "usbmuxd: Out of memory when allocating memory for child threads. Terminating.\n");
+	logmsg(LOG_ERR, "Out of memory when allocating memory for child threads. Terminating.");
+	if (!foreground) {
+	    closelog();
+	}
 	exit(EXIT_FAILURE);
     }
     memset(children, 0, sizeof(struct client_data*) * children_capacity);
 
-    if (verbose >= 2) fprintf(stderr, "usbmuxd: waiting for connection\n");
+    if (verbose >= 2) logmsg(LOG_NOTICE, "waiting for connection");
     while (!quit_flag) {	
 	// Check the file descriptor before accepting a connection.
 	// If no connection attempt is made, just repeat...
@@ -845,7 +998,7 @@ int main(int argc, char **argv)
 		    if (children[i]) {
 		        if (children[i]->dead != 0) {
 			    pthread_join(children[i]->thread, NULL);
-			    if (verbose >= 3) fprintf(stderr, "usbmuxd: reclaimed client thread (fd=%d)\n", children[i]->socket);
+			    if (verbose >= 3) logmsg(LOG_NOTICE, "reclaimed client thread (fd=%d)", children[i]->socket);
 			    free(children[i]);
 			    children[i] = NULL;
 			    cnt++;
@@ -864,7 +1017,7 @@ int main(int argc, char **argv)
 		}
 		continue;
 	    } else {
-		if (verbose >= 3) fprintf(stderr, "usbmuxd: select error: %s\n", strerror(errno));
+		if (verbose >= 3) logmsg(LOG_ERR, "usbmuxd: select error: %s", strerror(errno));
 		continue;
 	    }
 	}
@@ -873,7 +1026,7 @@ int main(int argc, char **argv)
 	memset(cdata, 0, sizeof(struct client_data));
 	if (!cdata) {
 	    quit_flag = 1;
-	    if (verbose >= 1) fprintf(stderr, "usbmuxd: Error: Out of memory! Terminating.\n");
+	    logmsg(LOG_ERR, "Error: Out of memory! Terminating.");
 	    break;
 	}
 
@@ -883,12 +1036,12 @@ int main(int argc, char **argv)
 	    if (errno == EINTR) {
 		continue;
 	    } else {
-		if (verbose >= 3) fprintf(stderr, "usbmuxd: Error in accept: %s\n", strerror(errno));
+		if (verbose >= 3) logmsg(LOG_ERR, "Error in accept: %s", strerror(errno));
 		continue;
 	    }
 	}
 
-	if (verbose >= 1) fprintf(stderr, "usbmuxd: new client connected (fd=%d)\n", cdata->socket);
+	if (verbose >= 1) logmsg(LOG_NOTICE, "new client connected (fd=%d)", cdata->socket);
 
 	// create client thread:
 	if (pthread_create(&cdata->thread, NULL, usbmuxd_client_init_thread, cdata) == 0) {
@@ -900,19 +1053,19 @@ int main(int argc, char **argv)
 		children_capacity++;
 		children = realloc(children, sizeof(struct client_data*) * children_capacity);
 		if (!children) {
-		    if (verbose >= 1) fprintf(stderr, "usbmuxd: Out of memory when enlarging child thread buffer\n");
+		    logmsg(LOG_ERR, "Out of memory when enlarging child thread buffer");
 		}
 	    }
 	    children[i] = cdata;
 	} else {
-	    if (verbose >= 3) fprintf(stderr, "usbmuxd: Failed to create client_init_thread.\n");
+	    logmsg(LOG_ERR, "Failed to create client_init_thread.");
 	    close(cdata->socket);
 	    free(cdata);
 	    cdata = NULL;
 	}
     }
 
-    if (verbose >= 3) fprintf(stderr, "usbmuxd: terminating\n");
+    if (verbose >= 3) logmsg(LOG_NOTICE, "terminating");
 
     // preparing for shutdown: wait for child threads to terminate (if any)
     if (verbose >= 2) fprintf(stderr, "usbmuxd: waiting for child threads to terminate...\n");
@@ -934,7 +1087,17 @@ int main(int argc, char **argv)
 
     unlink(USBMUXD_SOCKET_FILE);
 
-    if (verbose >= 1) fprintf(stderr, "usbmuxd: terminated\n");
+    // unlock lock file and close it.
+    if (lfd) {
+	lock.l_type = F_UNLCK;
+	fcntl(fileno(lfd), F_SETLK, lock);
+	fclose(lfd);
+    }
+
+    if (verbose >= 1) logmsg(LOG_NOTICE, "usbmuxd: terminated");
+    if (!foreground) {
+	closelog();
+    }
 
     return 0;
 }
