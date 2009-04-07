@@ -53,6 +53,7 @@ static int quit_flag = 0;
 static int fsock = -1;
 static int verbose = DEBUG_LEVEL;
 static int foreground = 0;
+static int exit_on_no_devices = 0;
 
 struct device_use_info {
     uint32_t device_id;
@@ -869,12 +870,13 @@ static void parse_opts(int argc, char **argv)
 	{ "help",       0, NULL, 'h' },
 	{ "foreground", 0, NULL, 'f' },
 	{ "verbose",    0, NULL, 'v' },
+	{ "exit-on-no-devices", 0, NULL, 'e' },
 	{ NULL,         0, NULL, 0}
     };
     int c;
 
     while (1) {
-	c = getopt_long(argc, argv, "hfv", longopts, (int *) 0);
+	c = getopt_long(argc, argv, "hfve", longopts, (int *) 0);
 	if (c == -1) {
 	    break;
 	}
@@ -889,11 +891,43 @@ static void parse_opts(int argc, char **argv)
 	    case 'v':
 		sock_stuff_set_verbose(++verbose);
 		break;
+	    case 'e':
+		exit_on_no_devices = 1;
+		break;
 	    default:
 		usage();
 		exit(2);
 	}
     }
+}
+
+/**
+ * checks for attached devices
+ *
+ * @return number of devices found
+ */
+static int devices_attached()
+{
+    struct usb_bus *bus;
+    struct usb_device *dev;
+    int res = 0;
+
+    usb_init();
+    usb_find_busses();
+    usb_find_devices();
+
+    for (bus = usb_get_busses(); bus; bus = bus->next) {
+	for (dev = bus->devices; dev; dev = dev->next) {
+	    if (dev->descriptor.idVendor == 0x05ac
+		&& dev->descriptor.idProduct >= 0x1290
+		&& dev->descriptor.idProduct <= 0x1293)
+	    {
+		res++;
+	    }
+	}
+    }
+
+    return res;
 }
 
 /**
@@ -941,6 +975,13 @@ int main(int argc, char **argv)
 	if (lock.l_type != F_UNLCK) {
 	    logmsg(LOG_NOTICE, "another instance is already running. exiting.");
 	    return -1;
+	}
+    }
+
+    if (exit_on_no_devices) {
+	if (devices_attached() <= 0) {
+	    logmsg(LOG_NOTICE, "no devices attached. exiting.");
+	    return 0;
 	}
     }
 
