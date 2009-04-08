@@ -88,7 +88,7 @@ int usbmuxd_scan(usbmuxd_scan_result **available_devices)
 	*available_devices = NULL;
 	// receive device list
 	while (1) {
-		if (recv_buf_timeout(sfd, &pktlen, 4, MSG_PEEK, 500) == 4) {
+		if (recv_buf_timeout(sfd, &pktlen, 4, MSG_PEEK, 1000) == 4) {
 			if (pktlen != sizeof(dev_info_pkt)) {
 				// invalid packet size received!
 				fprintf(stderr, "%s: Invalid packet size (%d) received when expecting a device info record.\n", __func__, pktlen);
