@@ -633,11 +633,11 @@ connect:
 	cur_dev->use_count = 1;
 	cur_dev->device_id = c_req->device_id;
 	cur_dev->phone = phone;
+	cur_dev->bulk_reader = 0;
 	pthread_mutex_init(&cur_dev->mutex, NULL);
 	pthread_mutex_init(&cur_dev->writer_mutex, NULL);
 
 	if (verbose >= 3) fprintf(stderr, "%s: device_use_count = %d\n", __func__, device_use_count);
-	pthread_create(&cur_dev->bulk_reader, NULL, usbmuxd_bulk_reader_thread, cur_dev);
 
 	pthread_mutex_lock(&usbmux_mutex);
 	device_use_list = (struct device_use_info**)realloc(device_use_list, sizeof(struct device_use_info*) * (device_use_count+1));
@@ -659,6 +659,11 @@ connect:
 	usbmuxd_send_result(cdata->socket, c_req->header.tag, res);
 	if (verbose >= 1) fprintf(stderr, "%s: mux_new_client returned %d, aborting.\n", __func__, res);
 	goto leave;
+    }
+
+    // start bulk reader thread (once per device)
+    if (cur_dev->bulk_reader == 0) {
+	pthread_create(&cur_dev->bulk_reader, NULL, usbmuxd_bulk_reader_thread, cur_dev);
     }
 
     // start connection handler thread
@@ -728,7 +733,9 @@ leave:
 	    if (verbose >= 3) fprintf(stderr, "%s: last client disconnected, cleaning up\n", __func__);
 	    cur_dev->use_count = 0;
 	    pthread_mutex_unlock(&cur_dev->mutex);
-	    pthread_join(cur_dev->bulk_reader, NULL);
+	    if (cur_dev->bulk_reader != 0) {
+		pthread_join(cur_dev->bulk_reader, NULL);
+	    }
 	    pthread_mutex_lock(&usb_mutex);
 	    iphone_free_device(cur_dev->phone);
 	    pthread_mutex_unlock(&usb_mutex);
