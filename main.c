@@ -244,10 +244,19 @@ static void *usbmuxd_client_reader_thread(void *arg)
 	cursor = rbuffer;
 	while (rlen > 0) {
     	    len = send_buf(cdata->socket, cursor, rlen);
+	    if (len <= 0) {
+		fprintf(stderr, "Error: send returned %d\n", len);
+		err = 1;
+		break;
+	    }
 	    // calculate remainder
 	    rlen -= len;
 	    // advance cursor
 	    cursor += len;
+	}
+	if (err != 0) {
+	    fprintf(stderr, "Error when writing to client...\n");
+	    break;
 	}
 	fsync(cdata->socket);
     }
@@ -432,7 +441,7 @@ leave:
 static void *usbmuxd_bulk_reader_thread(void *arg)
 {
     struct device_use_info *cur_dev;
-    
+
     if (!arg) {
 	if (verbose >= 3) fprintf(stderr, "%s: Invalid client_data provided\n", __func__);
 	return NULL;
@@ -443,7 +452,7 @@ static void *usbmuxd_bulk_reader_thread(void *arg)
     if (verbose >= 5) fprintf(stderr, "%s: started\n", __func__);
 
     while (!quit_flag && cur_dev) {
-       	
+
 	pthread_mutex_lock(&cur_dev->mutex);
 	if (cur_dev->use_count <= 0) {
 	    pthread_mutex_unlock(&cur_dev->mutex);
@@ -458,7 +467,7 @@ static void *usbmuxd_bulk_reader_thread(void *arg)
 	//}
     }
 
-    if (verbose >= 5) fprintf(stderr, "%s: terminated\n", __func__);
+    if (verbose >= 0) fprintf(stderr, "%s: terminated\n", __func__);
 
     return NULL;
 }
@@ -726,7 +735,7 @@ leave:
     if (cur_dev) {
 	pthread_mutex_lock(&cur_dev->mutex);
 	if (cur_dev->use_count > 1) {
-	    if (verbose >= 5) fprintf(stderr, "%s: decreasing device use count\n", __func__);
+	    if (verbose >= 0) fprintf(stderr, "%s: decreasing device use count (from %d to %d)\n", __func__, cur_dev->use_count, cur_dev->use_count-1);
 	    cur_dev->use_count--;
 	    pthread_mutex_unlock(&cur_dev->mutex);
 	} else {
@@ -734,6 +743,7 @@ leave:
 	    cur_dev->use_count = 0;
 	    pthread_mutex_unlock(&cur_dev->mutex);
 	    if (cur_dev->bulk_reader != 0) {
+		fprintf(stderr, "%s: joining bulk_reader...\n", __func__);
 		pthread_join(cur_dev->bulk_reader, NULL);
 	    }
 	    pthread_mutex_lock(&usb_mutex);
@@ -1035,7 +1045,7 @@ int main(int argc, char **argv)
     memset(children, 0, sizeof(struct client_data*) * children_capacity);
 
     if (verbose >= 2) logmsg(LOG_NOTICE, "waiting for connection");
-    while (!quit_flag) {	
+    while (!quit_flag) {
 	// Check the file descriptor before accepting a connection.
 	// If no connection attempt is made, just repeat...
 	result = check_fd(fsock, FD_READ, 1000);
@@ -1119,7 +1129,7 @@ int main(int argc, char **argv)
     if (verbose >= 2) fprintf(stderr, "usbmuxd: waiting for child threads to terminate...\n");
     for (i = 0; i < children_capacity; i++) {
         if (children[i] != NULL) {
-            pthread_join(children[i]->thread, NULL);
+	    pthread_join(children[i]->thread, NULL);
 	    free(children[i]);
         }
     }
