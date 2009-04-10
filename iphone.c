@@ -215,12 +215,12 @@ static iphone_error_t iphone_config_usb_device(iphone_device_t phone)
 	int bytes;
 	char buf[512];
 
+#if 0
 	log_debug_msg("checking configuration...\n");
 	if (phone->__device->config->bConfigurationValue != 3) {
 		log_debug_msg("WARNING: usb device configuration is not 3 as expected!\n");
 	}
 
-#if 0
 	log_debug_msg("setting configuration...\n");
 	ret = usb_set_configuration(phone->device, 3);
 	if (ret != 0) {
