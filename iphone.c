@@ -114,7 +114,13 @@ static int clients = 0;
 
 /**
  */
-int toto_debug = 1;
+int toto_debug = 0;
+
+void iphone_set_debug(int e)
+{
+    toto_debug = e;
+}
+
 void log_debug_msg(const char *format, ...)
 {
 #ifndef STRIP_DEBUG_CODE
@@ -518,13 +524,11 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
  */
 int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int timeoutmillis)
 {
-	if (!phone)
-		return -1;
 	int bytes = 0;
 
 	if (!phone)
-		return -1;
-	log_debug_msg("recv_from_phone(): attempting to receive %i bytes\n", datalen);
+		return -EINVAL;
+	//log_debug_msg("recv_from_phone(): attempting to receive %i bytes\n", datalen);
 
 	bytes = usb_bulk_read(phone->device, BULKIN, data, datalen, timeoutmillis);
 	if (bytes < 0) {
@@ -534,6 +538,7 @@ int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int 
         if (bytes == -ETIMEDOUT) {
             // ignore this.  it just means timeout reached before we
             // picked up any data.  no problem.
+	    return 0;
         }
         else {
             fprintf(stderr, "recv_from_phone(): libusb gave me the error %d: %s (%s)\n", bytes, usb_strerror(),
@@ -541,7 +546,7 @@ int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int 
             log_debug_msg("recv_from_phone(): libusb gave me the error %d: %s (%s)\n", bytes, usb_strerror(),
                           strerror(-bytes));
         }
-		return -1;
+		return bytes;
 	}
 
 #ifdef DEBUG
@@ -736,7 +741,7 @@ iphone_error_t iphone_mux_new_client(iphone_device_t device, uint16_t src_port, 
         add_connection(new_connection);
         new_connection->error = IPHONE_E_SUCCESS;
 		hton_header(new_connection->header);
-		printf("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(new_connection->header->sport), ntohs(new_connection->header->dport));
+		log_debug_msg("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(new_connection->header->sport), ntohs(new_connection->header->dport));
 		if (send_to_phone(device, (char *) new_connection->header, sizeof(usbmux_tcp_header)) >= 0) {
             *client = new_connection;
             return IPHONE_E_SUCCESS;
@@ -842,7 +847,7 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
     memcpy(buffer, client->header, sizeof(usbmux_tcp_header));
     memcpy(buffer + sizeof(usbmux_tcp_header), data, datalen);
 
-    printf("%s: send_to_phone(%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
+    log_debug_msg("%s: send_to_phone(%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
     sendresult = send_to_phone(client->phone, buffer, blocksize);
     // Now that we've sent it off, we can clean up after our sloppy selves.
     if (buffer)
@@ -907,9 +912,9 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
     // falls on our responsibility because we are the ones reading in
     // feedback.
     if (client->header->scnt == 0 && client->header->ocnt == 0 ) {
-        fprintf(stdout, "client is still waiting for handshake.\n");
+        log_debug_msg("client is still waiting for handshake.\n");
         if (header->tcp_flags == (TCP_SYN | TCP_ACK)) {
-            fprintf(stdout, "yes, got syn+ack ; replying with ack.\n");
+            log_debug_msg("yes, got syn+ack ; replying with ack.\n");
             client->header->tcp_flags = TCP_ACK;
             client->header->length = sizeof(usbmux_tcp_header);
             client->header->length16 = sizeof(usbmux_tcp_header);
@@ -918,9 +923,9 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
 	    hton_header(client->header);
             // push it to USB
             // TODO: need to check for error in the send here.... :(
-	    printf("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
+	    log_debug_msg("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
 	    if (send_to_phone(client->phone, (char *)client->header, sizeof(usbmux_tcp_header)) <= 0) {
-		fprintf(stdout, "%s: error when pushing to usb...\n", __func__);
+		log_debug_msg("%s: error when pushing to usb...\n", __func__);
 	    }
             // need to revert some of the fields back to host notation.
 	    ntoh_header(client->header);
@@ -929,7 +934,7 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
             client->error = IPHONE_E_ECONNABORTED;
             // woah... this connection failed us.
             // TODO: somehow signal that this stream is a no-go.
-            fprintf(stderr, "WOAH! client failed to get proper syn+ack.\n");
+            log_debug_msg("WOAH! client failed to get proper syn+ack.\n");
         }
     }
 
@@ -1002,7 +1007,7 @@ uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
 
     // ensure there is enough space, either by first malloc or realloc
     if (datalen > 0) {
-	fprintf(stderr, "%s: putting %d bytes into client's recv_buffer\n", __func__, datalen);
+	log_debug_msg("%s: putting %d bytes into client's recv_buffer\n", __func__, datalen);
         if (client->r_len == 0) dobroadcast = 1;
 
         if (client->recv_buffer == NULL) {
@@ -1061,13 +1066,14 @@ iphone_umux_client_t find_client(usbmux_tcp_header* recv_header)
 
 /** pull in a big USB bulk packet and distribute it to queues appropriately.
  */
-void iphone_mux_pullbulk(iphone_device_t phone)
+int iphone_mux_pullbulk(iphone_device_t phone)
 {
     if (!phone) {
 	fprintf(stderr, "iphone_mux_pullbulk: invalid argument\n");
-	return;
+	return -EINVAL;
     }
 
+    int res = 0;
     static const int DEFAULT_CAPACITY = 128*1024;
     if (phone->usbReceive.buffer == NULL) {
         phone->usbReceive.capacity = DEFAULT_CAPACITY;
@@ -1080,6 +1086,7 @@ void iphone_mux_pullbulk(iphone_device_t phone)
     // pull in content, note that the amount we can pull is capacity minus leftover
     int readlen = recv_from_phone_timeout(phone, cursor, phone->usbReceive.capacity - phone->usbReceive.leftover, 5000);
     if (readlen < 0) {
+	res = readlen;
         //fprintf(stderr, "recv_from_phone_timeout gave us an error.\n");
         readlen = 0;
     }
@@ -1099,24 +1106,24 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         if (phone->usbReceive.leftover < HEADERLEN) break;
         usbmux_tcp_header *header = (usbmux_tcp_header *) cursor;
 
-    	printf("%s: recv_from_phone_timeout (%d --> %d)\n", __func__, ntohs(header->sport), ntohs(header->dport));
+    	log_debug_msg("%s: recv_from_phone_timeout (%d --> %d)\n", __func__, ntohs(header->sport), ntohs(header->dport));
 
         // now that we have a header, check if there is sufficient data
         // to construct a full packet, including its data
         uint32 packetlen = ntohl(header->length);
         if (phone->usbReceive.leftover < packetlen) {
-	    printf("%s: not enough data to construct a full packet\n", __func__);
+	    fprintf(stderr, "%s: not enough data to construct a full packet\n", __func__);
             break;
         }
 
         // ok... find the client this packet will get stuffed to.
         iphone_umux_client_t client = find_client(header);
         if (client == NULL) {
-            fprintf(stderr, "WARNING: client for packet cannot be found. dropping packet.\n");
+            log_debug_msg("WARNING: client for packet cannot be found. dropping packet.\n");
         }
         else {
             // stuff the data
-	    fprintf(stderr, "%s: found client, calling append_receive_buffer\n", __func__);
+	    log_debug_msg("%s: found client, calling append_receive_buffer\n", __func__);
             append_receive_buffer(client, cursor);
         }
 
@@ -1141,6 +1148,8 @@ void iphone_mux_pullbulk(iphone_device_t phone)
         phone->usbReceive.buffer = newbuff;
         phone->usbReceive.capacity = DEFAULT_CAPACITY;
     }
+
+    return res;
 }    
 
 /**

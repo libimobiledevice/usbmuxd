@@ -50,6 +50,7 @@
 #define IPHONE_E_ETIMEDOUT    -ETIMEDOUT
 #define IPHONE_E_ECONNREFUSED -ECONNREFUSED
 
+void iphone_set_debug(int e);
 
 typedef int16_t iphone_error_t;
 
@@ -72,7 +73,7 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
 iphone_error_t iphone_mux_recv(iphone_umux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes);
 iphone_error_t iphone_mux_recv_timeout(iphone_umux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes, int timeout);
 
-void iphone_mux_pullbulk(iphone_device_t phone);
+int iphone_mux_pullbulk(iphone_device_t phone);
 
 iphone_error_t iphone_mux_get_error(iphone_umux_client_t client);
 
