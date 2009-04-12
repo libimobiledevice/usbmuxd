@@ -66,7 +66,7 @@ void *run_stoc_loop(void *arg)
 		break;
 	    }
 	} else {
-	    printf("received %d bytes from server\n", recv_len);
+//	    printf("received %d bytes from server\n", recv_len);
 	    // send to socket
 	    sent = send_buf(cdata->fd, buffer, recv_len);
 	    if (sent < recv_len) {
@@ -78,7 +78,7 @@ void *run_stoc_loop(void *arg)
 		}
 	    } else {
 		// sending succeeded, receive from device
-		printf("pushed %d bytes to client\n", sent);
+//		printf("pushed %d bytes to client\n", sent);
 	    }
 	}
     }
@@ -113,7 +113,7 @@ void *run_ctos_loop(void *arg)
 		break;
 	    }
 	} else {
-	    printf("pulled %d bytes from client\n", recv_len);
+//	    printf("pulled %d bytes from client\n", recv_len);
 	    // send to local socket
 	    sent = send_buf(cdata->sfd, buffer, recv_len);
 	    if (sent < recv_len) {
@@ -125,7 +125,7 @@ void *run_ctos_loop(void *arg)
 		}
 	    } else {
 		// sending succeeded, receive from device
-		printf("sent %d bytes to server\n", sent);
+//		printf("sent %d bytes to server\n", sent);
 	    }
 	}
     }
