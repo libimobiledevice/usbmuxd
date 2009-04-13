@@ -653,7 +653,7 @@ connect:
 	devices = (struct device_info**)realloc(devices, sizeof(struct device_info*) * (device_count+1));
 	if (devices) {
 	    devices[device_count] = cur_dev;
-	    devices++;
+	    device_count++;
 	}
 	pthread_mutex_unlock(&usbmux_mutex);
     } else {
