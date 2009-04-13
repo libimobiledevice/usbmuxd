@@ -427,9 +427,11 @@ iphone_error_t iphone_free_device(iphone_device_t device)
 		return IPHONE_E_INVALID_ARG;
 	iphone_error_t ret = IPHONE_E_UNKNOWN_ERROR;
 
-	do {
-	    bytes = usb_bulk_read(device->device, BULKIN, buf, 512, 800);
-	} while (bytes > 0);
+	if (device->device) {
+		do {
+			bytes = usb_bulk_read(device->device, BULKIN, buf, 512, 800);
+		} while (bytes > 0);
+	}
 
 	if (device->buffer) {
 		free(device->buffer);
