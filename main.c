@@ -605,11 +605,11 @@ connect:
     if (verbose >= 3) fprintf(stderr, "%s: Setting up connection to usb device #%d on port %d\n", __func__, c_req->device_id, ntohs(c_req->tcp_dport));
 
     // find the device, and open usb connection
+    pthread_mutex_lock(&usbmux_mutex);
     phone = NULL;
     cur_dev = NULL;
     // first check if we already have an open connection
     if (devices) {
-	pthread_mutex_lock(&usbmux_mutex);
 	for (i = 0; i < device_count; i++) {
 	    if (devices[i]) {
 		if (devices[i]->device_id == c_req->device_id) {
@@ -620,7 +620,6 @@ connect:
 		}
 	    }
 	}
-	pthread_mutex_unlock(&usbmux_mutex);
     }
     if (!phone) {
 	// if not found, make a new connection
@@ -629,6 +628,7 @@ connect:
 	pthread_mutex_lock(&usb_mutex);
 	if (iphone_get_specific_device(0, c_req->device_id, &phone) != IPHONE_E_SUCCESS) {
 	    pthread_mutex_unlock(&usb_mutex);
+    	    pthread_mutex_unlock(&usbmux_mutex);
 	    if (verbose >= 1) fprintf(stderr, "%s: device_id %d could not be opened\n", __func__, c_req->device_id);
 	    usbmuxd_send_result(cdata->socket, c_req->header.tag, ENODEV);
 	    goto leave;
@@ -636,7 +636,6 @@ connect:
 	pthread_mutex_unlock(&usb_mutex);
 	
 	// create device object
-	pthread_mutex_lock(&usbmux_mutex);
 	if (verbose >= 3) fprintf(stderr, "%s: add to device list\n", __func__);
 	cur_dev = (struct device_info*)malloc(sizeof(struct device_info));
 	memset(cur_dev, 0, sizeof(struct device_info));
@@ -655,10 +654,10 @@ connect:
 	    devices[device_count] = cur_dev;
 	    device_count++;
 	}
-	pthread_mutex_unlock(&usbmux_mutex);
     } else {
 	if (verbose >= 3) fprintf(stderr, "%s: reusing usb connection, device_id=%d\n", __func__, c_req->device_id);
     }
+    pthread_mutex_unlock(&usbmux_mutex);
 
     // setup connection to iPhone/iPod
 //    pthread_mutex_lock(&usbmux_mutex);
@@ -712,6 +711,7 @@ leave:
 
     // this has to be freed only if it's not in use anymore as it closes
     // the USB connection
+    pthread_mutex_lock(&usbmux_mutex);
     if (cur_dev) {
 	pthread_mutex_lock(&cur_dev->mutex);
 	if (cur_dev->use_count > 1) {
@@ -733,7 +733,6 @@ leave:
 	    pthread_mutex_destroy(&cur_dev->mutex);
 	    free(cur_dev);
 	    cur_dev = NULL;
-	    pthread_mutex_lock(&usbmux_mutex);
 	    if (device_count > 1) {
 		struct device_info **newlist;
 		int j;
@@ -752,9 +751,9 @@ leave:
 		devices = NULL;
 		device_count = 0;
 	    }
-	    pthread_mutex_unlock(&usbmux_mutex);
 	}
     }
+    pthread_mutex_unlock(&usbmux_mutex);
 
     cdata->dead = 1;
     close(cdata->socket);

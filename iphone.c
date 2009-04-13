@@ -1086,7 +1086,7 @@ int iphone_mux_pullbulk(iphone_device_t phone)
     // start the cursor off just ahead of the leftover.
     char* cursor = &phone->usbReceive.buffer[phone->usbReceive.leftover];
     // pull in content, note that the amount we can pull is capacity minus leftover
-    int readlen = recv_from_phone_timeout(phone, cursor, phone->usbReceive.capacity - phone->usbReceive.leftover, 5000);
+    int readlen = recv_from_phone_timeout(phone, cursor, phone->usbReceive.capacity - phone->usbReceive.leftover, 3000);
     if (readlen < 0) {
 	res = readlen;
         //fprintf(stderr, "recv_from_phone_timeout gave us an error.\n");

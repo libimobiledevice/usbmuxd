@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #include "sock_stuff.h"
 
-#define RECV_TIMEOUT 10000
+#define RECV_TIMEOUT 20000
 
 static int verbose = 0;
 
@@ -75,7 +75,7 @@ int connect_unix_socket(const char *filename)
 
     // check if socket file exists...
     if (stat(filename, &fst) != 0) {
-    	if (verbose >= 2) fprintf(stderr, "%s: stat '%s': %s\n", __func__, filename, strerror(errno));
+	if (verbose >= 2) fprintf(stderr, "%s: stat '%s': %s\n", __func__, filename, strerror(errno));
 	return -1;
     }
 
