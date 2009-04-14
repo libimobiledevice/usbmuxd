@@ -143,7 +143,8 @@ void log_debug_msg(const char *format, ...)
  */
 static void print_buffer(const char *data, const int length)
 {
-    	int i;
+    if (toto_debug > 0) {
+	int i;
 	int j;
 	unsigned char c;
 
@@ -170,6 +171,7 @@ static void print_buffer(const char *data, const int length)
 		printf("\n");
 	}
 	printf("\n");
+    }
 }
 #endif
 
@@ -356,7 +358,7 @@ iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t 
 	// Check for correct version
 	if (ntohl(version->major) == 1 && ntohl(version->minor) == 0) {
 		// We're all ready to roll.
-		fprintf(stderr, "get_iPhone() success\n");
+		log_debug_msg("get_iPhone() success\n");
 		free(version);
 		*device = phone;
 		return IPHONE_E_SUCCESS;
@@ -513,10 +515,12 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
 
 #ifdef DEBUG
     if (bytes > 0) {
+	if (toto_debug > 0) {
 	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 	printf("%s: sent to phone\n", __func__);
     	print_buffer(data, bytes);
 	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+	}
     }
 #endif
     return bytes;
@@ -553,10 +557,12 @@ int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int 
 
 #ifdef DEBUG
 	if (bytes > 0) {
+	    if (toto_debug > 0) {
 	    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 	    printf("%s: received from phone:\n", __func__);
 	    print_buffer(data, bytes);
 	    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+	    }
 	}
 #endif
 
