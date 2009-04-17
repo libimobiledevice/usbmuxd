@@ -70,7 +70,6 @@ iphone_error_t iphone_mux_free_client ( iphone_umux_client_t client );
 
 iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, uint32_t datalen, uint32_t * sent_bytes);
 
-iphone_error_t iphone_mux_recv(iphone_umux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes);
 iphone_error_t iphone_mux_recv_timeout(iphone_umux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes, int timeout);
 
 int iphone_mux_pullbulk(iphone_device_t phone);

@@ -1133,21 +1133,14 @@ iphone_error_t iphone_mux_get_error(iphone_umux_client_t client)
     return client->error;
 }
 
-/** This is a higher-level USBMuxTCP-like function
+/** This function reads from the client's recv_buffer.
  *
- * @param connection The connection to receive data on.
+ * @param client The client to receive data from.
  * @param data Where to put the data we receive. 
  * @param datalen How much data to read.
+ * @param timeout How many milliseconds to wait for data
  *
  * @return IPHONE_E_SUCCESS or error code if failure.
- */
-iphone_error_t iphone_mux_recv(iphone_umux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes)
-{
-    return  iphone_mux_recv_timeout(client, data, datalen, recv_bytes, 0);
-}
-
-/**
-   @param timeout
  */
 iphone_error_t iphone_mux_recv_timeout(iphone_umux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes, int timeout)
 {
