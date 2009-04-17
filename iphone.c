@@ -30,16 +30,12 @@
 #define BULKOUT 0x04
 #define HEADERLEN 28
 
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint8_t uint8;
-
-static const uint8 TCP_FIN = 1;
-static const uint8 TCP_SYN = 1 << 1;
-static const uint8 TCP_RST = 1 << 2;
-static const uint8 TCP_PSH = 1 << 3;
-static const uint8 TCP_ACK = 1 << 4;
-static const uint8 TCP_URG = 1 << 5;
+static const uint8_t TCP_FIN = 1;
+static const uint8_t TCP_SYN = 1 << 1;
+static const uint8_t TCP_RST = 1 << 2;
+static const uint8_t TCP_PSH = 1 << 3;
+static const uint8_t TCP_ACK = 1 << 4;
+static const uint8_t TCP_URG = 1 << 5;
 
 // I have trouble figuring out how to properly manage the windowing to
 // the iPhone.  It keeps sending back 512 and seems to drop off a cliff
@@ -50,8 +46,8 @@ static const uint8 TCP_URG = 1 << 5;
 // Since I'm not sure how in the hell to interpret the window sizes that
 // the phone is sending back to us, I've figured out some magic number
 // constants which seem to work okay.
-static const uint32 WINDOW_MAX = 5 * 1024;
-static const uint32 WINDOW_INCREMENT = 512;
+static const uint32_t WINDOW_MAX = 5 * 1024;
+static const uint32_t WINDOW_INCREMENT = 512;
 
 typedef struct {
     char* buffer;
@@ -67,15 +63,15 @@ struct iphone_device_int {
 };
 
 typedef struct {
-	uint32 type, length, major, minor, allnull;
+	uint32_t type, length, major, minor, allnull;
 } usbmux_version_header;
 
 typedef struct {
-	uint32 type, length;
-	uint16 sport, dport;
-	uint32 scnt, ocnt;
-	uint8 offset, tcp_flags;
-	uint16 window, nullnull, length16;
+	uint32_t type, length;
+	uint16_t sport, dport;
+	uint32_t scnt, ocnt;
+	uint8_t offset, tcp_flags;
+	uint16_t window, nullnull, length16;
 } usbmux_tcp_header;
 
 struct iphone_umux_client_int {
@@ -93,7 +89,7 @@ struct iphone_umux_client_int {
     // just record the most recent scnt that we are expecting to hear
     // back on.  We will actually halt progress by limiting the number
     // of outstanding un-acked bulk sends that we have beamed out.
-    uint32 wr_pending_scnt;
+    uint32_t wr_pending_scnt;
     long wr_window;
 
     pthread_mutex_t mutex;
@@ -526,7 +522,15 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
     return bytes;
 }
 
-/**
+/** Receives data from the phone
+ * This function is a low-level (i.e. direct from iPhone) function.
+ * 
+ * @param phone The iPhone to receive data from
+ * @param data Where to put data read
+ * @param datalen How much data to read in
+ * @param timeout How many milliseconds to wait for data
+ * 
+ * @return How many bytes were read in, or -1 on error.
  */
 int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int timeoutmillis)
 {
@@ -589,7 +593,7 @@ int recv_from_phone(iphone_device_t phone, char *data, int datalen) {
  *
  * @return A USBMux packet
  */
-usbmux_tcp_header *new_mux_packet(uint16 s_port, uint16 d_port)
+usbmux_tcp_header *new_mux_packet(uint16_t s_port, uint16_t d_port)
 {
 	usbmux_tcp_header *conn = (usbmux_tcp_header *) malloc(sizeof(usbmux_tcp_header));
 	conn->type = htonl(6);
@@ -828,7 +832,7 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
     pthread_mutex_lock(&client->mutex);
 
     int sendresult = 0;
-    uint32 blocksize = 0;
+    uint32_t blocksize = 0;
     if (client->wr_window <= 0) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
@@ -903,14 +907,14 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
  * 
  * @return number of bytes consumed (header + data)
  */
-uint32 append_receive_buffer(iphone_umux_client_t client, char* packet)
+uint32_t append_receive_buffer(iphone_umux_client_t client, char* packet)
 {
     if (client == NULL || packet == NULL) return 0;
 
     usbmux_tcp_header *header = (usbmux_tcp_header *) packet;
     char* data = &packet[HEADERLEN];
-    uint32 packetlen = ntohl(header->length);
-    uint32 datalen = packetlen-HEADERLEN;
+    uint32_t packetlen = ntohl(header->length);
+    uint32_t datalen = packetlen-HEADERLEN;
 
     int dobroadcast = 0;
 
@@ -1053,14 +1057,14 @@ iphone_umux_client_t find_client(usbmux_tcp_header* recv_header)
     iphone_umux_client_t retval = NULL;
 
     // just for debugging check, I'm going to convert the numbers to host-endian.
-    uint16 hsport = ntohs(recv_header->sport);
-    uint16 hdport = ntohs(recv_header->dport);
+    uint16_t hsport = ntohs(recv_header->sport);
+    uint16_t hdport = ntohs(recv_header->dport);
 
     pthread_mutex_lock(&iphonemutex);
     int i;
     for (i = 0; i < clients; i++) {
-        uint16 csport = ntohs(connlist[i]->header->sport);
-        uint16 cdport = ntohs(connlist[i]->header->dport);
+        uint16_t csport = ntohs(connlist[i]->header->sport);
+        uint16_t cdport = ntohs(connlist[i]->header->dport);
 
         if (hsport == cdport  && hdport == csport) {
             retval = connlist[i];
@@ -1118,7 +1122,7 @@ int iphone_mux_pullbulk(iphone_device_t phone)
 
         // now that we have a header, check if there is sufficient data
         // to construct a full packet, including its data
-        uint32 packetlen = ntohl(header->length);
+        uint32_t packetlen = ntohl(header->length);
         if (phone->usbReceive.leftover < packetlen) {
 	    fprintf(stderr, "%s: not enough data to construct a full packet\n", __func__);
             break;
