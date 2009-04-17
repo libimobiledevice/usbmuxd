@@ -474,28 +474,28 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
 #endif
     do {
         if (retrycount > 3) {
-            fprintf(stderr, "EPIC FAIL! aborting on retry count overload.\n");
+            log_debug_msg("EPIC FAIL! aborting on retry count overload.\n");
             return -1;
         }
 
         bytes = usb_bulk_write(phone->device, BULKOUT, data, datalen, timeout);
         if (bytes == -ETIMEDOUT) {
             // timed out waiting for write.
-            fprintf(stderr, "usb_bulk_write timeout error.\n");
+            log_debug_msg("usb_bulk_write timeout error.\n");
             return bytes;
         }
         else if (bytes < 0) {
-            fprintf(stderr, "usb_bulk_write failed with error. err:%d (%s)(%s)\n", bytes, usb_strerror(), strerror(-bytes));
+            log_debug_msg("usb_bulk_write failed with error. err:%d (%s)(%s)\n", bytes, usb_strerror(), strerror(-bytes));
             return -1;
         }
         else if (bytes == 0) {
-            fprintf(stderr, "usb_bulk_write sent nothing. retrying.\n");
+            log_debug_msg("usb_bulk_write sent nothing. retrying.\n");
             timeout = timeout * 4;
             retrycount++;
             continue;
         }
         else if (bytes < datalen) {
-            fprintf(stderr, "usb_bulk_write failed to send full dataload. %d of %d\n", bytes, datalen);
+            log_debug_msg("usb_bulk_write failed to send full dataload. %d of %d\n", bytes, datalen);
             timeout = timeout * 4;
             retrycount++;
             data += bytes;
@@ -946,20 +946,20 @@ uint32_t append_receive_buffer(iphone_umux_client_t client, char* packet)
 	    switch(data[0]) {
 		case 0:
 		    // this is not an error, it's just a status message.
-		    fprintf(stdout, "received status message: %s\n", e_msg);
+		    log_debug_msg("received status message: %s\n", e_msg);
 		    datalen = 0;
 		    break;
 		case 1:
-		    fprintf(stderr, "received error message: %s\n", e_msg);
+		    log_debug_msg("received error message: %s\n", e_msg);
 		    datalen = 0;
 		    break;
 		default:
-		    fprintf(stderr, "received unknown message (type 0x%02x): %s\n", data[0], e_msg);
+		    log_debug_msg("received unknown message (type 0x%02x): %s\n", data[0], e_msg);
 		    //datalen = 0; // <-- we let this commented out for testing
 		    break;
 	    }
 	} else {
-	    fprintf(stderr, "peer sent connection reset. setting error: %d\n", client->error);
+	    log_debug_msg("peer sent connection reset. setting error: %d\n", client->error);
 	}
     }
 
@@ -1056,10 +1056,8 @@ iphone_umux_client_t find_client(usbmux_tcp_header* recv_header)
  */
 int iphone_mux_pullbulk(iphone_device_t phone)
 {
-    if (!phone) {
-	fprintf(stderr, "iphone_mux_pullbulk: invalid argument\n");
+    if (!phone)
 	return -EINVAL;
-    }
 
     int res = 0;
     static const int DEFAULT_CAPACITY = 128*1024;
@@ -1142,7 +1140,7 @@ int iphone_mux_pullbulk(iphone_device_t phone)
     // if there are no leftovers, we just leave the datastructure as is,
     // and re-use the block next time.
     if (phone->usbReceive.leftover > 0 && cursor != phone->usbReceive.buffer) {
-	fprintf(stderr, "%s: we got a leftover, so handle it\n", __func__);
+	log_debug_msg("%s: we got a leftover, so handle it\n", __func__);
         char* newbuff = malloc(DEFAULT_CAPACITY);
         memcpy(newbuff, cursor, phone->usbReceive.leftover);
         free(phone->usbReceive.buffer);
