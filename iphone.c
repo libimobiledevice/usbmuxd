@@ -1116,7 +1116,7 @@ int iphone_mux_pullbulk(iphone_device_t phone)
 
 	    // perhaps this is too general, == IPHONE_E_ECONNRESET 
 	    //  might be a better check here
-	    if (client->error != IPHONE_E SUCCESS) {
+	    if (client->error != IPHONE_E_SUCCESS) {
 		pthread_mutex_lock(&client->mutex);
 		if (client->cleanup) {
 			pthread_mutex_unlock(&client->mutex);
