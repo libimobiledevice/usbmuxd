@@ -37,6 +37,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <usb.h>
+#include <pwd.h>
 
 #include "usbmuxd-proto.h"
 #include "sock_stuff.h"
@@ -1018,7 +1019,27 @@ int main(int argc, char **argv)
 	lock.l_whence = SEEK_SET;
 	lock.l_start = 0;
 	lock.l_len = 0;
-	fcntl(fileno(lfd), F_SETLK, &lock);
+	if (fcntl(fileno(lfd), F_SETLK, &lock) == -1) {
+	    logmsg(LOG_ERR, "ERROR: lockfile locking failed!");
+	}
+    }
+
+    // drop elevated privileges
+    if (getuid() == 0 || geteuid() == 0) {
+	struct passwd *pw = getpwnam("nobody");
+	if (pw) {
+	    setuid(pw->pw_uid);
+	} else {
+	    logmsg(LOG_ERR, "ERROR: Dropping privileges failed, check if user 'nobody' exists! Will now terminate.");
+	    exit(EXIT_FAILURE);
+	}
+
+	// security check
+	if (setuid(0) != -1) {
+	    logmsg(LOG_ERR, "ERROR: Failed to drop privileges properly!");
+	    exit(EXIT_FAILURE);
+	}
+	if (verbose >= 2) logmsg(LOG_NOTICE, "Successfully dropped privileges");
     }
 
     // Reserve space for 10 clients which should be enough. If not, the
@@ -1137,7 +1158,7 @@ int main(int argc, char **argv)
     // unlock lock file and close it.
     if (lfd) {
 	lock.l_type = F_UNLCK;
-	fcntl(fileno(lfd), F_SETLK, lock);
+	fcntl(fileno(lfd), F_SETLK, &lock);
 	fclose(lfd);
     }
 
