@@ -99,6 +99,8 @@ struct iphone_umux_client_int {
     // this will then be set to the error that caused the broken stream.
     // no further operations other than free_client will be allowed.
     iphone_error_t error;
+
+    int cleanup;
 };
 
 
@@ -728,6 +730,7 @@ iphone_error_t iphone_mux_new_client(iphone_device_t device, uint16_t src_port, 
         new_connection->wr_window = 0;
         add_connection(new_connection);
         new_connection->error = IPHONE_E_SUCCESS;
+	new_connection->cleanup = 0;
 		hton_header(new_connection->header);
 		log_debug_msg("%s: send_to_phone (%d --> %d)\n", __func__, ntohs(new_connection->header->sport), ntohs(new_connection->header->dport));
 		if (send_to_phone(device, (char *) new_connection->header, sizeof(usbmux_tcp_header)) >= 0) {
@@ -754,36 +757,33 @@ iphone_error_t iphone_mux_free_client(iphone_umux_client_t client)
 	if (!client || !client->phone)
 		return IPHONE_E_INVALID_ARG;
 
-    pthread_mutex_lock(&client->mutex);
+	iphone_error_t result = IPHONE_E_SUCCESS;
+	pthread_mutex_lock(&client->mutex);
 	client->header->tcp_flags = TCP_FIN;
 	client->header->length = 0x1C;
 	client->header->window = 0;
 	client->header->length16 = 0x1C;
 	hton_header(client->header);
-	int bytes = 0;
 
-	bytes = usb_bulk_write(client->phone->device, BULKOUT, (char *) client->header, sizeof(usbmux_tcp_header), 800);
-	if (bytes < 0)
-		log_debug_msg("iphone_mux_free_client(): when writing, libusb gave me the error: %s\n", usb_strerror());
+	if (send_to_phone(client->phone, (char*)client->header, sizeof(usbmux_tcp_header)) < 0) {
+		log_debug_msg("%s: error sending TCP_FIN\n", __func__);
+		result = IPHONE_E_UNKNOWN_ERROR;
+	}
 
-	bytes = usb_bulk_read(client->phone->device, BULKIN, (char *) client->header, sizeof(usbmux_tcp_header), 800);
-	if (bytes < 0)
-		log_debug_msg("get_iPhone(): when reading, libusb gave me the error: %s\n", usb_strerror());
-    
-    pthread_mutex_unlock(&client->mutex);
-    // make sure we don't have any last-minute laggards waiting on this.
-    // I put it after the mutex unlock because we have cases where the
-    // conditional wait is dependent on re-grabbing that mutex.
-    pthread_cond_broadcast(&client->wait);
-    pthread_cond_destroy(&client->wait);
-    pthread_cond_broadcast(&client->wr_wait);
-    pthread_cond_destroy(&client->wr_wait);
+	client->cleanup = 1;
 
-	delete_connection(client);
+	// make sure we don't have any last-minute laggards waiting on this.
+	// I put it after the mutex unlock because we have cases where the
+	// conditional wait is dependent on re-grabbing that mutex.
+	pthread_cond_broadcast(&client->wait);
+	pthread_cond_destroy(&client->wait);
+	pthread_cond_broadcast(&client->wr_wait);
+	pthread_cond_destroy(&client->wr_wait);
 
-	return IPHONE_E_SUCCESS;
+	pthread_mutex_unlock(&client->mutex);
+
+	return result;
 }
-
 
 /** Sends the given data over the selected connection.
  *
@@ -1113,6 +1113,19 @@ int iphone_mux_pullbulk(iphone_device_t phone)
             // stuff the data
 	    log_debug_msg("%s: found client, calling append_receive_buffer\n", __func__);
             append_receive_buffer(client, cursor);
+
+	    // perhaps this is too general, == IPHONE_E_ECONNRESET 
+	    //  might be a better check here
+	    if (client->error != IPHONE_E SUCCESS) {
+		pthread_mutex_lock(&client->mutex);
+		if (client->cleanup) {
+			pthread_mutex_unlock(&client->mutex);
+			log_debug_msg("freeing up connection (%d->%d)\n", ntohs(client->header->sport), ntohs(client->header->dport));
+			delete_connection(client);
+		} else {
+			pthread_mutex_unlock(&client->mutex);
+		}
+	    }
         }
 
         // move the cursor and account for the consumption
