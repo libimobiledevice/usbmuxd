@@ -1,5 +1,5 @@
 TARGETS=usbmuxd libusbmuxd.so iproxy
-CFLAGS=-I. -Wall -g -DDEBUG -fPIC
+CFLAGS=-I. -g -DDEBUG -fPIC -Wall -Wextra -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter
 LIBS=-lpthread -lusb -lrt
 LDFLAGS=-L.
 INSTALL_PREFIX=/usr/local
