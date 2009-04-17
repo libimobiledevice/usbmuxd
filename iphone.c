@@ -105,7 +105,6 @@ struct iphone_umux_client_int {
 static pthread_mutex_t iphonemutex = PTHREAD_MUTEX_INITIALIZER;
 static iphone_umux_client_t *connlist = NULL;
 static int clients = 0;
-//static receivebuf_t usbReceive = {NULL, 0, 0};
 
 
 /**
@@ -395,8 +394,6 @@ iphone_error_t iphone_get_device(iphone_device_t * device)
 	struct usb_bus *bus;
 	struct usb_device *dev;
 
-    pthread_mutex_init(&iphonemutex, NULL);
-
 	usb_init();
 	usb_find_busses();
 	usb_find_devices();
@@ -443,8 +440,6 @@ iphone_error_t iphone_free_device(iphone_device_t device)
 		ret = IPHONE_E_SUCCESS;
 	}
 	free(device);
-    
-    pthread_mutex_destroy(&iphonemutex);
 
 	return ret;
 }
@@ -488,8 +483,7 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
             return bytes;
         }
         else if (bytes < 0) {
-            fprintf(stderr, "usb_bulk_write failed with error. err:%d (%s)(%s)\n", 
-                    bytes, usb_strerror(), strerror(-bytes));
+            fprintf(stderr, "usb_bulk_write failed with error. err:%d (%s)(%s)\n", bytes, usb_strerror(), strerror(-bytes));
             return -1;
         }
         else if (bytes == 0) {
@@ -534,28 +528,23 @@ int send_to_phone(iphone_device_t phone, char *data, int datalen)
  */
 int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int timeoutmillis)
 {
-	int bytes = 0;
-
 	if (!phone)
 		return -EINVAL;
 	//log_debug_msg("recv_from_phone(): attempting to receive %i bytes\n", datalen);
 
-	bytes = usb_bulk_read(phone->device, BULKIN, data, datalen, timeoutmillis);
+	int bytes = usb_bulk_read(phone->device, BULKIN, data, datalen, timeoutmillis);
+	// There are some things which are errors, others which are no problem.
+	// It's not documented in libUSB, but it seems that the error values
+	// returned are just negated ERRNO values.
 	if (bytes < 0) {
-        // there are some things which are errors, others which are no problem.
-        // it's not documented in libUSB, but it seems that the error returns are
-        // just negated ERRNO values.
-        if (bytes == -ETIMEDOUT) {
-            // ignore this.  it just means timeout reached before we
-            // picked up any data.  no problem.
-	    return 0;
-        }
-        else {
-            fprintf(stderr, "recv_from_phone(): libusb gave me the error %d: %s (%s)\n", bytes, usb_strerror(),
-                    strerror(-bytes));
-            log_debug_msg("recv_from_phone(): libusb gave me the error %d: %s (%s)\n", bytes, usb_strerror(),
-                          strerror(-bytes));
-        }
+		if (bytes == -ETIMEDOUT) {
+			// ignore this. it just means timeout reached before we
+			//  picked up any data. no problem.
+			return 0;
+		} else {
+			fprintf(stderr, "recv_from_phone(): libusb gave me the error %d: %s (%s)\n", bytes, usb_strerror(), strerror(-bytes));
+			log_debug_msg("recv_from_phone(): libusb gave me the error %d: %s (%s)\n", bytes, usb_strerror(), strerror(-bytes));
+		}
 		return bytes;
 	}
 
@@ -572,19 +561,6 @@ int recv_from_phone_timeout(iphone_device_t phone, char *data, int datalen, int 
 
 	return bytes;
 }
-
-/** This function is a low-level (i.e. direct to iPhone) function.
- * 
- * @param phone The iPhone to receive data from
- * @param data Where to put data read
- * @param datalen How much data to read in
- * 
- * @return How many bytes were read in, or -1 on error.
- */
-int recv_from_phone(iphone_device_t phone, char *data, int datalen) {
-    return recv_from_phone_timeout(phone, data, datalen, 100);
-}
-
 
 /** Creates a USBMux packet for the given set of ports.
  * 
@@ -1239,7 +1215,7 @@ iphone_error_t iphone_mux_recv_timeout(iphone_umux_client_t client, char *data, 
     }
     
     pthread_mutex_unlock(&client->mutex);
-    
+
 
     return IPHONE_E_SUCCESS;
 }
