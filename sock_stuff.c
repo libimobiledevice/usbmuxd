@@ -224,6 +224,8 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
             case FD_EXCEPT:
                 sret = select(fd+1,NULL,NULL,&fds,&to);
                 break;
+	    default:
+		return -1;
 	}
 	
 	if (sret < 0) {

@@ -28,7 +28,7 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result)
 	return -errno;
     } else {
 	if ((recv_len == sizeof(res))
-	    && (res.header.length == recv_len)
+	    && (res.header.length == (uint32_t)recv_len)
 	    && (res.header.reserved == 0)
 	    && (res.header.type == USBMUXD_RESULT)
 	   ) {
@@ -68,7 +68,7 @@ int usbmuxd_scan(usbmuxd_scan_result **available_devices)
 	s_req.header.tag = 2;
 
 	// send scan request packet
-	if (send_buf(sfd, &s_req, s_req.header.length) == s_req.header.length) {
+	if (send_buf(sfd, &s_req, s_req.header.length) == (int)s_req.header.length) {
 		res = -1;
 		// get response
 		if (usbmuxd_get_result(sfd, s_req.header.tag, &res) && (res == 0)) {
@@ -99,7 +99,7 @@ int usbmuxd_scan(usbmuxd_scan_result **available_devices)
 			if (recv_len <= 0) {
 				fprintf(stderr, "%s: Error when receiving device info record\n", __func__);
 				break;
-			} else if (recv_len < pktlen) {
+			} else if ((uint32_t)recv_len < pktlen) {
 				fprintf(stderr, "%s: received less data than specified in header!\n", __func__);
 			} else {
 				//fprintf(stderr, "%s: got device record with id %d, UUID=%s\n", __func__, dev_info_pkt.device_info.device_id, dev_info_pkt.device_info.serial_number);

@@ -314,7 +314,7 @@ iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t 
 
 	// Set the device configuration
 	for (bus = usb_get_busses(); bus; bus = bus->next)
-		if (bus->location == bus_n)
+		//if (bus->location == bus_n)
 			for (dev = bus->devices; dev != NULL; dev = dev->next)
 				if (dev->devnum == dev_n) {
 					phone->__device = dev;
@@ -372,41 +372,6 @@ iphone_error_t iphone_get_specific_device(int bus_n, int dev_n, iphone_device_t 
 	iphone_free_device(phone);
 	free(version);
 	return IPHONE_E_UNKNOWN_ERROR;	// if it got to this point it's gotta be bad
-}
-
-
-/**
- * Scans all USB busses and devices for a known AFC-compatible device and
- * returns a handle to the first such device it finds. Known devices include
- * those with vendor ID 0x05ac and product ID between 0x1290 and 0x1293
- * inclusive.
- *
- * This function is convenient, but on systems where higher-level abstractions
- * (such as HAL) are available it may be preferable to use
- * iphone_get_specific_device instead, because it can deal with multiple
- * connected devices as well as devices not known to libiphone.
- * 
- * @param device Upon calling this function, a pointer to a location of type
- *  iphone_device_t, which must have the value NULL. On return, this location
- *  will be filled with a handle to the device.
- * @return IPHONE_E_SUCCESS if ok, otherwise an error code.
- */
-iphone_error_t iphone_get_device(iphone_device_t * device)
-{
-	struct usb_bus *bus;
-	struct usb_device *dev;
-
-	usb_init();
-	usb_find_busses();
-	usb_find_devices();
-
-	for (bus = usb_get_busses(); bus != NULL; bus = bus->next)
-		for (dev = bus->devices; dev != NULL; dev = dev->next)
-			if (dev->descriptor.idVendor == 0x05ac
-				&& dev->descriptor.idProduct >= 0x1290 && dev->descriptor.idProduct <= 0x1293)
-				return iphone_get_specific_device(bus->location, dev->devnum, device);
-
-	return IPHONE_E_NO_DEVICE;
 }
 
 /** Cleans up an iPhone structure, then frees the structure itself.  
@@ -845,7 +810,7 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
     ntoh_header(client->header);
 
     // update counts ONLY if the send succeeded.
-    if (sendresult == blocksize) {
+    if ((uint32_t)sendresult == blocksize) {
         // Re-calculate scnt
 	client->header->scnt += datalen;
         client->wr_window -= blocksize;
@@ -863,7 +828,7 @@ iphone_error_t iphone_mux_send(iphone_umux_client_t client, const char *data, ui
     else if (sendresult < 0) {
         return IPHONE_E_UNKNOWN_ERROR;
     }
-    else if (sendresult == blocksize) {
+    else if ((uint32_t)sendresult == blocksize) {
         // actual number of data bytes sent.
         *sent_bytes = sendresult - HEADERLEN;
         return IPHONE_E_SUCCESS;
@@ -1097,7 +1062,7 @@ int iphone_mux_pullbulk(iphone_device_t phone)
         // now that we have a header, check if there is sufficient data
         // to construct a full packet, including its data
         uint32_t packetlen = ntohl(header->length);
-        if (phone->usbReceive.leftover < packetlen) {
+        if ((uint32_t)phone->usbReceive.leftover < packetlen) {
 	    fprintf(stderr, "%s: not enough data to construct a full packet\n", __func__);
             break;
         }
@@ -1205,7 +1170,7 @@ iphone_error_t iphone_mux_recv_timeout(iphone_umux_client_t client, char *data, 
     *recv_bytes = 0;
     if (client->recv_buffer != NULL && client->r_len > 0) {
         uint32_t foolen = datalen;
-        if (foolen > client->r_len) foolen = client->r_len;
+        if ((int)foolen > client->r_len) foolen = client->r_len;
         memcpy(data, client->recv_buffer, foolen);
         *recv_bytes = foolen;
             

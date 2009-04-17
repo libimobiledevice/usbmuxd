@@ -95,7 +95,7 @@ static pthread_mutex_t usb_mutex = PTHREAD_MUTEX_INITIALIZER;
  * @param prio The logging priority.
  * @param format The message to be printed.
  */
-static void logmsg(int prio, char *format, ...)
+static void logmsg(int prio, const char *format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -179,7 +179,7 @@ static int usbmuxd_get_request(int fd, void **data, size_t len)
     uint32_t pktlen;
     int recv_len;
 
-    if (peek_buf(fd, &pktlen, sizeof(pktlen)) < sizeof(pktlen)) {
+    if (peek_buf(fd, &pktlen, sizeof(pktlen)) < (int)sizeof(pktlen)) {
 	return -errno;
     }
 
@@ -193,7 +193,7 @@ static int usbmuxd_get_request(int fd, void **data, size_t len)
     }
 
     recv_len = recv_buf(fd, *data, pktlen);
-    if ((recv_len > 0) && (recv_len < pktlen)) {
+    if ((recv_len > 0) && ((uint32_t)recv_len < pktlen)) {
 	if (verbose >= 2) logmsg(LOG_WARNING, "%s: Uh-oh, we got less than the packet's size, %d instead of %d...", __func__, recv_len, pktlen);
     }
 
