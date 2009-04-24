@@ -42,7 +42,7 @@
 #include "usbmuxd-proto.h"
 #include "sock_stuff.h"
 
-#include "iphone.h"
+#include "usbmux.h"
 
 #define DEFAULT_TIMEOUT 4000
 #define DEFAULT_CHILDREN_CAPACITY 10
@@ -60,11 +60,11 @@ static int exit_on_no_devices = 0;
 
 struct device_info {
     uint32_t device_id;
-    iphone_device_t phone;
+    usbmux_device_t phone;
     int use_count;
     pthread_t bulk_reader;
     pthread_mutex_t mutex;
-    /* mutex for mutual exclusion of calling the iphone_mux_send function
+    /* mutex for mutual exclusion of calling the usbmux_send function
      * TODO: I don't know if we need really need this? */
     pthread_mutex_t writer_mutex;
 };
@@ -80,7 +80,7 @@ struct client_data {
     int reader_dead;
     int handler_dead;
     int connected;
-    iphone_umux_client_t muxclient;
+    usbmux_client_t muxclient;
     struct device_info *dev;
 };
 
@@ -249,7 +249,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
     char rbuffer[512];
     uint32_t rbuffersize = 512;
     uint32_t rlen;
-    iphone_error_t err;
+    int err;
     char *cursor;
     ssize_t len;
     int result;
@@ -276,7 +276,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
 	}
 
 	rlen = 0;
-	err = iphone_mux_recv_timeout(cdata->muxclient, rbuffer, rbuffersize, &rlen, DEFAULT_TIMEOUT);
+	err = usbmux_recv_timeout(cdata->muxclient, rbuffer, rbuffersize, &rlen, DEFAULT_TIMEOUT);
 	if (err != 0) {
 	    if (verbose >= 2) logmsg(LOG_ERR, "%s[%d:%d]: encountered USB read error: %d", __func__, cdata->dev->device_id, cdata->dev->use_count, err);
 	    break;
@@ -327,7 +327,7 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
     int err_code;
     ssize_t maxlen = 512;
     uint32_t rlen;
-    iphone_error_t err;
+    int err;
 
     if (!cdata) {
 	if (verbose >= 2) logmsg(LOG_ERR, "%s: Invalid client_data provided!", __func__);
@@ -342,8 +342,8 @@ static int usbmuxd_handleConnectResult(struct client_data *cdata)
 	}
     } else {
 	result = 0;
-	err = iphone_mux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, 100);
-	if (err != 0) {
+	err = usbmux_recv_timeout(cdata->muxclient, buffer, maxlen, &rlen, 100);
+	if (err < 0) {
 	    if (verbose >= 2) logmsg(LOG_ERR, "%s: encountered USB read error: %d", __func__, err);
 	    usbmuxd_send_result(cdata->socket, cdata->tag, -err);
 	    return err;
@@ -390,7 +390,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
     ssize_t len;
     ssize_t maxlen = sizeof(buffer);
     uint32_t wlen;
-    iphone_error_t err;
+    int err;
 
     if (!arg) {
 	if (verbose >= 2) logmsg(LOG_ERR, "%s: invalid client_data provided!", __func__);
@@ -441,10 +441,10 @@ static void *usbmuxd_client_handler_thread(void *arg)
 	pthread_mutex_lock(&cdata->dev->writer_mutex);
 	do {
 	    wlen = 0;
-	    err = iphone_mux_send(cdata->muxclient, cursor, len, &wlen);
-	    if (err == IPHONE_E_TIMEOUT) {
+	    err = usbmux_send(cdata->muxclient, cursor, len, &wlen);
+	    if (err == -ETIMEDOUT) {
 		// some kind of timeout... just be patient and retry.
-	    } else if (err != IPHONE_E_SUCCESS) {
+	    } else if (err < 0) {
 		if (verbose >= 2) logmsg(LOG_ERR, "%s[%d:%d]: USB write error: %d", __func__, cdata->dev->device_id, cdata->dev->use_count, err);
 		len = -1;
 		break;
@@ -502,7 +502,7 @@ static void *usbmuxd_bulk_reader_thread(void *arg)
 	}
 	pthread_mutex_unlock(&cur_dev->mutex);
 
-	if ((err = iphone_mux_pullbulk(cur_dev->phone)) < 0) {
+	if ((err = usbmux_pullbulk(cur_dev->phone)) < 0) {
 	    if (verbose >= 1) logmsg(LOG_ERR, "%s: error %d when reading from device", __func__, err);
 	    break;
 	}
@@ -532,10 +532,8 @@ static void *usbmuxd_client_init_thread(void *arg)
     int found = 0;    
     int res;
     int i;
-//    int sent_result;
-//    iphone_error_t err;
 
-    iphone_device_t phone = NULL;
+    usbmux_device_t phone = NULL;
     struct device_info *cur_dev = NULL;
 
     if (!arg) {
@@ -667,7 +665,7 @@ connect:
 	if (verbose >= 2) logmsg(LOG_NOTICE, "%s[%x]: creating new usb connection, device_id=%d", __func__, THREAD, c_req->device_id);
 
 	pthread_mutex_lock(&usb_mutex);
-	if (iphone_get_specific_device(0, c_req->device_id, &phone) != IPHONE_E_SUCCESS) {
+	if (usbmux_get_specific_device(0, c_req->device_id, &phone) < 0) {
 	    pthread_mutex_unlock(&usb_mutex);
     	    pthread_mutex_unlock(&usbmux_mutex);
 	    if (verbose >= 1) logmsg(LOG_ERR, "%s[%x]: device_id %d could not be opened", __func__, THREAD, c_req->device_id);
@@ -702,7 +700,7 @@ connect:
 
     // setup connection to iPhone/iPod
 //    pthread_mutex_lock(&usbmux_mutex);
-    res = iphone_mux_new_client(cur_dev->phone, 0, ntohs(c_req->tcp_dport), &(cdata->muxclient));
+    res = usbmux_new_client(cur_dev->phone, 0, ntohs(c_req->tcp_dport), &(cdata->muxclient));
 //    pthread_mutex_unlock(&usbmux_mutex);
 
     if (res != 0) {
@@ -737,7 +735,7 @@ connect:
 
     // time to clean up
     if (cdata && cdata->muxclient) { // should be non-NULL
-	iphone_mux_free_client(cdata->muxclient);
+	usbmux_free_client(cdata->muxclient);
     }
 
 leave:
@@ -768,7 +766,7 @@ leave:
 		pthread_join(cur_dev->bulk_reader, NULL);
 	    }
 	    pthread_mutex_lock(&usb_mutex);
-	    iphone_free_device(cur_dev->phone);
+	    usbmux_free_device(cur_dev->phone);
 	    pthread_mutex_unlock(&usb_mutex);
 	    pthread_mutex_destroy(&cur_dev->writer_mutex);
 	    pthread_mutex_destroy(&cur_dev->mutex);
@@ -1001,7 +999,7 @@ int main(int argc, char **argv)
 
     chmod(USBMUXD_SOCKET_FILE, 0666);
 
-    if (verbose >= 3) iphone_set_debug(1);
+    if (verbose >= 3) usbmux_set_debug(1);
 
     if (!foreground) {
 	if (daemonize() < 0) {

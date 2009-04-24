@@ -6,8 +6,8 @@ INSTALL_PREFIX=/usr/local
 
 all:	$(TARGETS)
 
-main.o: main.c usbmuxd-proto.h sock_stuff.h iphone.h
-iphone.o: iphone.c iphone.h usbmuxd.h sock_stuff.h
+main.o: main.c usbmuxd-proto.h sock_stuff.h usbmux.h
+usbmux.o: usbmux.c usbmux.h usbmuxd.h sock_stuff.h
 sock_stuff.o: sock_stuff.c sock_stuff.h
 libusbmuxd.o: libusbmuxd.c usbmuxd.h usbmuxd-proto.h
 iproxy.o: iproxy.c sock_stuff.h
@@ -19,7 +19,7 @@ libusbmuxd.so: libusbmuxd.o sock_stuff.o
 %.o:    %.c
 	$(CC) -o $@ $(CFLAGS) -c $< 
 
-usbmuxd: main.o sock_stuff.o iphone.o
+usbmuxd: main.o sock_stuff.o usbmux.o
 	$(CC) -o $@ $(LDFLAGS) $^ $(LIBS)
 
 iproxy: iproxy.o
