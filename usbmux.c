@@ -56,7 +56,6 @@ typedef struct {
 } receivebuf_t;
 
 struct usbmux_device_int {
-	char *buffer;
 	struct usb_dev_handle *usbdev;
 	struct usb_device *__device;
 	receivebuf_t usbReceive;
@@ -312,7 +311,6 @@ int usbmux_get_specific_device(int bus_n, int dev_n,
 	// Initialize the struct
 	newdevice->usbdev = NULL;
 	newdevice->__device = NULL;
-	newdevice->buffer = NULL;
 
 	// don't forget these:
 	newdevice->usbReceive.buffer = NULL;
@@ -422,9 +420,6 @@ int usbmux_free_device(usbmux_device_t device)
 		ret = bytes;
 	}
 
-	if (device->buffer) {
-		free(device->buffer);
-	}
 	if (device->usbReceive.buffer) {
 		free(device->usbReceive.buffer);
 	}
@@ -624,10 +619,14 @@ static void delete_connection(usbmux_client_t connection)
 
 	// free up this connection
 	pthread_mutex_lock(&connection->mutex);
-	if (connection->recv_buffer)
+	if (connection->recv_buffer) {
 		free(connection->recv_buffer);
-	if (connection->header)
+		connection->recv_buffer = NULL;
+	}
+	if (connection->header) {
 		free(connection->header);
+		connection->header = NULL;
+	}
 	connection->r_len = 0;
 	pthread_mutex_unlock(&connection->mutex);
 	pthread_mutex_destroy(&connection->mutex);
