@@ -50,7 +50,7 @@ static const uint32_t WINDOW_MAX = 5 * 1024;
 static const uint32_t WINDOW_INCREMENT = 512;
 
 typedef struct {
-	char* buffer;
+	char *buffer;
 	int leftover;
 	int capacity;
 } receivebuf_t;
@@ -145,20 +145,20 @@ static void print_buffer(const char *data, const int length)
 	int j;
 	unsigned char c;
 
-	for(i=0; i<length; i+=16) {
+	for (i = 0; i < length; i += 16) {
 		printf("%04x: ", i);
-		for (j=0;j<16;j++) {
-			if (i+j >= length) {
+		for (j = 0; j < 16; j++) {
+			if (i + j >= length) {
 				printf("   ");
 				continue;
 			}
-			printf("%02hhx ", *(data+i+j));
+			printf("%02hhx ", *(data + i + j));
 		}
 		printf("  | ");
-		for(j=0;j<16;j++) {
-			if (i+j >= length)
+		for (j = 0; j < 16; j++) {
+			if (i + j >= length)
 				break;
-			c = *(data+i+j);
+			c = *(data + i + j);
 			if ((c < 32) || (c > 127)) {
 				printf(".");
 				continue;
@@ -171,7 +171,7 @@ static void print_buffer(const char *data, const int length)
 }
 #endif
 
-void hton_header(usbmux_tcp_header *hdr)
+void hton_header(usbmux_tcp_header * hdr)
 {
 	if (hdr) {
 		hdr->length = htonl(hdr->length);
@@ -181,7 +181,7 @@ void hton_header(usbmux_tcp_header *hdr)
 	}
 }
 
-void ntoh_header(usbmux_tcp_header *hdr)
+void ntoh_header(usbmux_tcp_header * hdr)
 {
 	if (hdr) {
 		hdr->length = ntohl(hdr->length);
@@ -197,7 +197,8 @@ void ntoh_header(usbmux_tcp_header *hdr)
  */
 usbmux_version_header *version_header()
 {
-	usbmux_version_header *version = (usbmux_version_header *) malloc(sizeof(usbmux_version_header));
+	usbmux_version_header *version =
+		(usbmux_version_header *) malloc(sizeof(usbmux_version_header));
 	version->type = 0;
 	version->length = htonl(20);
 	version->major = htonl(1);
@@ -222,25 +223,34 @@ static int usbmux_config_usb_device(usbmux_device_t device)
 #if 0
 	log_debug_msg("checking configuration...\n");
 	if (device->__device->config->bConfigurationValue != 3) {
-		log_debug_msg("WARNING: usb device configuration is not 3 as expected!\n");
+		log_debug_msg
+			("WARNING: usb device configuration is not 3 as expected!\n");
 	}
 
 	log_debug_msg("setting configuration...\n");
 	ret = usb_set_configuration(device->device, 3);
 	if (ret != 0) {
-		log_debug_msg("Hm, usb_set_configuration returned %d: %s\n", ret, strerror(-ret));
+		log_debug_msg("Hm, usb_set_configuration returned %d: %s\n", ret,
+					  strerror(-ret));
 #if LIBUSB_HAS_GET_DRIVER_NP
 		log_debug_msg("trying to fix:\n");
 		log_debug_msg("-> detaching kernel driver... ");
-		ret = usb_detach_kernel_driver_np(device->device, device->__device->config->interface->altsetting->bInterfaceNumber);
+		ret =
+			usb_detach_kernel_driver_np(device->device,
+										device->__device->config->
+										interface->altsetting->
+										bInterfaceNumber);
 		if (ret != 0) {
-			log_debug_msg("usb_detach_kernel_driver_np returned %d: %s\n", ret, strerror(-ret));
+			log_debug_msg("usb_detach_kernel_driver_np returned %d: %s\n",
+						  ret, strerror(-ret));
 		} else {
 			log_debug_msg("done.\n");
 			log_debug_msg("setting configuration again... ");
 			ret = usb_set_configuration(device->device, 3);
 			if (ret != 0) {
-				log_debug_msg("Error: usb_set_configuration returned %d: %s\n", ret, strerror(-ret));
+				log_debug_msg
+					("Error: usb_set_configuration returned %d: %s\n", ret,
+					 strerror(-ret));
 				log_debug_msg("--> trying to continue anyway...\n");
 			} else {
 				log_debug_msg("done.\n");
@@ -257,7 +267,8 @@ static int usbmux_config_usb_device(usbmux_device_t device)
 	log_debug_msg("claiming interface... ");
 	ret = usb_claim_interface(device->usbdev, 1);
 	if (ret != 0) {
-		log_debug_msg("Error: usb_claim_interface returned %d: %s\n", ret, strerror(-ret));
+		log_debug_msg("Error: usb_claim_interface returned %d: %s\n", ret,
+					  strerror(-ret));
 		return -ENODEV;
 	} else {
 		log_debug_msg("done.\n");
@@ -266,7 +277,7 @@ static int usbmux_config_usb_device(usbmux_device_t device)
 	do {
 		bytes = usb_bulk_read(device->usbdev, BULKIN, buf, 512, 800);
 	} while (bytes > 0);
-	
+
 	return 0;
 }
 
@@ -283,7 +294,8 @@ static int usbmux_config_usb_device(usbmux_device_t device)
  *      descriptor on return. 
  * @return 0 if ok, otherwise a negative errno value.
  */
-int usbmux_get_specific_device(int bus_n, int dev_n, usbmux_device_t * device)
+int usbmux_get_specific_device(int bus_n, int dev_n,
+							   usbmux_device_t * device)
 {
 	struct usb_bus *bus;
 	struct usb_device *dev;
@@ -294,7 +306,8 @@ int usbmux_get_specific_device(int bus_n, int dev_n, usbmux_device_t * device)
 	if (!device || (device && *device))
 		return -EINVAL;
 
-	usbmux_device_t newdevice = (usbmux_device_t) malloc(sizeof(struct usbmux_device_int));
+	usbmux_device_t newdevice =
+		(usbmux_device_t) malloc(sizeof(struct usbmux_device_int));
 
 	// Initialize the struct
 	newdevice->usbdev = NULL;
@@ -314,40 +327,49 @@ int usbmux_get_specific_device(int bus_n, int dev_n, usbmux_device_t * device)
 	// Set the device configuration
 	for (bus = usb_get_busses(); bus; bus = bus->next)
 		//if (bus->location == bus_n)
-			for (dev = bus->devices; dev != NULL; dev = dev->next)
-				if (dev->devnum == dev_n) {
-					newdevice->__device = dev;
-					newdevice->usbdev = usb_open(newdevice->__device);
-					if (usbmux_config_usb_device(newdevice) == 0) {
-						goto found;
-					}
+		for (dev = bus->devices; dev != NULL; dev = dev->next)
+			if (dev->devnum == dev_n) {
+				newdevice->__device = dev;
+				newdevice->usbdev = usb_open(newdevice->__device);
+				if (usbmux_config_usb_device(newdevice) == 0) {
+					goto found;
 				}
+			}
 
 	usbmux_free_device(newdevice);
 
 	log_debug_msg("usbmux_get_specific_device: device not found\n");
 	return -ENODEV;
 
-found:
+  found:
 	// Send the version command to the device
 	version = version_header();
-	bytes = usb_bulk_write(newdevice->usbdev, BULKOUT, (char *) version, sizeof(*version), 800);
+	bytes =
+		usb_bulk_write(newdevice->usbdev, BULKOUT, (char *) version,
+					   sizeof(*version), 800);
 	if (bytes < 20) {
 		log_debug_msg("%s: libusb did NOT send enough!\n", __func__);
 		if (bytes < 0) {
-			log_debug_msg("%s: libusb gave me the error %d: %s (%s)\n", __func__, bytes, usb_strerror(), strerror(-bytes));
+			log_debug_msg("%s: libusb gave me the error %d: %s (%s)\n",
+						  __func__, bytes, usb_strerror(),
+						  strerror(-bytes));
 		}
 	}
 	// Read the device's response
-	bytes = usb_bulk_read(newdevice->usbdev, BULKIN, (char *) version, sizeof(*version), 800);
+	bytes =
+		usb_bulk_read(newdevice->usbdev, BULKIN, (char *) version,
+					  sizeof(*version), 800);
 
 	// Check for bad response
 	if (bytes < 20) {
 		free(version);
 		usbmux_free_device(newdevice);
-		log_debug_msg("%s: Invalid version message -- header too short.\n", __func__);
+		log_debug_msg("%s: Invalid version message -- header too short.\n",
+					  __func__);
 		if (bytes < 0) {
-			log_debug_msg("%s: libusb error message %d: %s (%s)\n", __func__, bytes, usb_strerror(), strerror(-bytes));
+			log_debug_msg("%s: libusb error message %d: %s (%s)\n",
+						  __func__, bytes, usb_strerror(),
+						  strerror(-bytes));
 			return bytes;
 		}
 		return -EBADMSG;
@@ -363,7 +385,8 @@ found:
 		// Bad header
 		usbmux_free_device(newdevice);
 		free(version);
-		log_debug_msg("%s: Received a bad header/invalid version number.", __func__);
+		log_debug_msg("%s: Received a bad header/invalid version number.",
+					  __func__);
 		return -EBADMSG;
 	}
 
@@ -371,7 +394,7 @@ found:
 	log_debug_msg("%s: Unknown error.\n", __func__);
 	usbmux_free_device(newdevice);
 	free(version);
-	return -EBADMSG;	// if it got to this point it's gotta be bad
+	return -EBADMSG;			// if it got to this point it's gotta be bad
 }
 
 /** Cleans up an usbmux_device_t structure, then frees the structure itself.
@@ -435,25 +458,31 @@ int send_to_device(usbmux_device_t device, char *data, int datalen)
 	int bytes = 0;
 
 #ifdef DEBUG
-	#ifdef DEBUG_MORE
-	printf("===============================\n%s: trying to send\n", __func__);
+#ifdef DEBUG_MORE
+	printf("===============================\n%s: trying to send\n",
+		   __func__);
 	print_buffer(data, datalen);
 	printf("===============================\n");
-	#endif
+#endif
 #endif
 	do {
 		if (retrycount > 3) {
-			log_debug_msg("EPIC FAIL! aborting on retry count overload.\n");
+			log_debug_msg
+				("EPIC FAIL! aborting on retry count overload.\n");
 			return -ECOMM;
 		}
 
-		bytes = usb_bulk_write(device->usbdev, BULKOUT, data, datalen, timeout);
+		bytes =
+			usb_bulk_write(device->usbdev, BULKOUT, data, datalen,
+						   timeout);
 		if (bytes == -ETIMEDOUT) {
 			// timed out waiting for write.
 			log_debug_msg("usb_bulk_write timeout error.\n");
 			return bytes;
 		} else if (bytes < 0) {
-			log_debug_msg("usb_bulk_write failed with error. err:%d (%s)(%s)\n", bytes, usb_strerror(), strerror(-bytes));
+			log_debug_msg
+				("usb_bulk_write failed with error. err:%d (%s)(%s)\n",
+				 bytes, usb_strerror(), strerror(-bytes));
 			return bytes;
 		} else if (bytes == 0) {
 			log_debug_msg("usb_bulk_write sent nothing. retrying.\n");
@@ -461,22 +490,24 @@ int send_to_device(usbmux_device_t device, char *data, int datalen)
 			retrycount++;
 			continue;
 		} else if (bytes < datalen) {
-			log_debug_msg("usb_bulk_write failed to send full dataload. %d of %d\n", bytes, datalen);
+			log_debug_msg
+				("usb_bulk_write failed to send full dataload. %d of %d\n",
+				 bytes, datalen);
 			timeout = timeout * 4;
 			retrycount++;
 			data += bytes;
 			datalen -= bytes;
 			continue;
 		}
-	} while(0); // fall out
+	} while (0);				// fall out
 
 #ifdef DEBUG
 	if (bytes > 0) {
 		if (toto_debug > 0) {
-		printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-		printf("%s: sent to device\n", __func__);
-		print_buffer(data, bytes);
-		printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+			printf("%s: sent to device\n", __func__);
+			print_buffer(data, bytes);
+			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 		}
 	}
 #endif
@@ -493,13 +524,16 @@ int send_to_device(usbmux_device_t device, char *data, int datalen)
  * 
  * @return How many bytes were read in, or -1 on error.
  */
-int recv_from_device_timeout(usbmux_device_t device, char *data, int datalen, int timeoutmillis)
+int recv_from_device_timeout(usbmux_device_t device, char *data,
+							 int datalen, int timeoutmillis)
 {
 	if (!device)
 		return -EINVAL;
 	//log_debug_msg("%s: attempting to receive %i bytes\n", __func__, datalen);
 
-	int bytes = usb_bulk_read(device->usbdev, BULKIN, data, datalen, timeoutmillis);
+	int bytes =
+		usb_bulk_read(device->usbdev, BULKIN, data, datalen,
+					  timeoutmillis);
 	// There are some things which are errors, others which are no problem.
 	// It's not documented in libUSB, but it seems that the error values
 	// returned are just negated ERRNO values.
@@ -509,12 +543,14 @@ int recv_from_device_timeout(usbmux_device_t device, char *data, int datalen, in
 			//  picked up any data. no problem.
 			return 0;
 		} else {
-			fprintf(stderr, "%s: libusb gave me the error %d: %s (%s)\n", __func__, bytes, usb_strerror(), strerror(-bytes));
-			log_debug_msg("%s: libusb gave me the error %d: %s (%s)\n", __func__, bytes, usb_strerror(), strerror(-bytes));
+			fprintf(stderr, "%s: libusb gave me the error %d: %s (%s)\n",
+					__func__, bytes, usb_strerror(), strerror(-bytes));
+			log_debug_msg("%s: libusb gave me the error %d: %s (%s)\n",
+						  __func__, bytes, usb_strerror(),
+						  strerror(-bytes));
 		}
 		return bytes;
 	}
-
 #ifdef DEBUG
 	if (bytes > 0) {
 		if (toto_debug > 0) {
@@ -538,7 +574,8 @@ int recv_from_device_timeout(usbmux_device_t device, char *data, int datalen, in
  */
 usbmux_tcp_header *new_mux_packet(uint16_t s_port, uint16_t d_port)
 {
-	usbmux_tcp_header *conn = (usbmux_tcp_header *) malloc(sizeof(usbmux_tcp_header));
+	usbmux_tcp_header *conn =
+		(usbmux_tcp_header *) malloc(sizeof(usbmux_tcp_header));
 	conn->type = htonl(6);
 	conn->length = HEADERLEN;
 	conn->sport = htons(s_port);
@@ -566,7 +603,9 @@ static void delete_connection(usbmux_client_t connection)
 
 	// update the global list of connections
 	if (clients > 1) {
-		newlist = (usbmux_client_t *) malloc(sizeof(usbmux_client_t) * (clients - 1));
+		newlist =
+			(usbmux_client_t *) malloc(sizeof(usbmux_client_t) *
+									   (clients - 1));
 		int i = 0, j = 0;
 		for (i = 0; i < clients; i++) {
 			if (connlist[i] == connection)
@@ -607,7 +646,9 @@ static void add_connection(usbmux_client_t connection)
 {
 	pthread_mutex_lock(&usbmuxmutex);
 	usbmux_client_t *newlist =
-		(usbmux_client_t *) realloc(connlist, sizeof(usbmux_client_t) * (clients + 1));
+		(usbmux_client_t *) realloc(connlist,
+									sizeof(usbmux_client_t) * (clients +
+															   1));
 	newlist[clients] = connection;
 	connlist = newlist;
 	clients++;
@@ -661,7 +702,8 @@ static uint16_t get_free_port()
  * @param client A mux TCP header for the connection which is used for tracking and data transfer.
  * @return 0 on success, a negative errno value otherwise.
  */
-int usbmux_new_client(usbmux_device_t device, uint16_t src_port, uint16_t dst_port, usbmux_client_t * client)
+int usbmux_new_client(usbmux_device_t device, uint16_t src_port,
+					  uint16_t dst_port, usbmux_client_t * client)
 {
 	if (!device || !dst_port)
 		return -EINVAL;
@@ -670,11 +712,11 @@ int usbmux_new_client(usbmux_device_t device, uint16_t src_port, uint16_t dst_po
 
 	if (!src_port) {
 		// this is a special case, if we get 0, this is not good, so
-		return -EISCONN; // TODO: error code suitable?
+		return -EISCONN;		// TODO: error code suitable?
 	}
-
 	// Initialize connection stuff
-	usbmux_client_t new_connection = (usbmux_client_t) malloc(sizeof(struct usbmux_client_int));
+	usbmux_client_t new_connection =
+		(usbmux_client_t) malloc(sizeof(struct usbmux_client_int));
 	new_connection->header = new_mux_packet(src_port, dst_port);
 
 	// send TCP syn
@@ -682,7 +724,8 @@ int usbmux_new_client(usbmux_device_t device, uint16_t src_port, uint16_t dst_po
 		int err = 0;
 		new_connection->header->tcp_flags = TCP_SYN;
 		new_connection->header->length = new_connection->header->length;
-		new_connection->header->length16 = new_connection->header->length16;
+		new_connection->header->length16 =
+			new_connection->header->length16;
 		new_connection->header->scnt = 0;
 		new_connection->header->ocnt = 0;
 		new_connection->device = device;
@@ -697,8 +740,12 @@ int usbmux_new_client(usbmux_device_t device, uint16_t src_port, uint16_t dst_po
 		new_connection->error = 0;
 		new_connection->cleanup = 0;
 		hton_header(new_connection->header);
-		log_debug_msg("%s: send_to_device (%d --> %d)\n", __func__, ntohs(new_connection->header->sport), ntohs(new_connection->header->dport));
-		err = send_to_device(device, (char *) new_connection->header, sizeof(usbmux_tcp_header));
+		log_debug_msg("%s: send_to_device (%d --> %d)\n", __func__,
+					  ntohs(new_connection->header->sport),
+					  ntohs(new_connection->header->dport));
+		err =
+			send_to_device(device, (char *) new_connection->header,
+						   sizeof(usbmux_tcp_header));
 		if (err >= 0) {
 			*client = new_connection;
 			return 0;
@@ -732,7 +779,9 @@ int usbmux_free_client(usbmux_client_t client)
 	client->header->length16 = 0x1C;
 	hton_header(client->header);
 
-	err = send_to_device(client->device, (char*)client->header, sizeof(usbmux_tcp_header));
+	err =
+		send_to_device(client->device, (char *) client->header,
+					   sizeof(usbmux_tcp_header));
 	if (err < 0) {
 		log_debug_msg("%s: error sending TCP_FIN\n", __func__);
 		result = err;
@@ -762,7 +811,8 @@ int usbmux_free_client(usbmux_client_t client)
  *
  * @return 0 on success or a negative errno value on error.
  */
-int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint32_t * sent_bytes)
+int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
+				uint32_t * sent_bytes)
 {
 	if (!client->device || !client || !sent_bytes)
 		return -EINVAL;
@@ -781,7 +831,8 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint
 		clock_gettime(CLOCK_REALTIME, &ts);
 		//ts.tv_sec += 1;
 		ts.tv_nsec += 750 * 1000;
-		if (pthread_cond_timedwait(&client->wait, &client->mutex, &ts) == ETIMEDOUT) {
+		if (pthread_cond_timedwait(&client->wait, &client->mutex, &ts) ==
+			ETIMEDOUT) {
 			// timed out. optimistically grow the window and try to make progress
 			client->wr_window += WINDOW_INCREMENT;
 		}
@@ -791,7 +842,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint
 
 	// client->scnt and client->ocnt should already be in host notation...
 	// we don't need to change them juuuust yet. 
-	char *buffer = (char *) malloc(blocksize + 2); // allow 2 bytes of safety padding
+	char *buffer = (char *) malloc(blocksize + 2);	// allow 2 bytes of safety padding
 	// Set the length
 	client->header->length = blocksize;
 	client->header->length16 = blocksize;
@@ -802,7 +853,9 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint
 	memcpy(buffer, client->header, sizeof(usbmux_tcp_header));
 	memcpy(buffer + sizeof(usbmux_tcp_header), data, datalen);
 
-	log_debug_msg("%s: send_to_device(%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
+	log_debug_msg("%s: send_to_device(%d --> %d)\n", __func__,
+				  ntohs(client->header->sport),
+				  ntohs(client->header->dport));
 	sendresult = send_to_device(client->device, buffer, blocksize);
 	// Now that we've sent it off, we can clean up after our sloppy selves.
 	if (buffer)
@@ -812,7 +865,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint
 	ntoh_header(client->header);
 
 	// update counts ONLY if the send succeeded.
-	if ((uint32_t)sendresult == blocksize) {
+	if ((uint32_t) sendresult == blocksize) {
 		// Re-calculate scnt
 		client->header->scnt += datalen;
 		client->wr_window -= blocksize;
@@ -826,12 +879,14 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint
 		return -ETIMEDOUT;
 	} else if (sendresult < 0) {
 		return sendresult;
-	} else if ((uint32_t)sendresult == blocksize) {
+	} else if ((uint32_t) sendresult == blocksize) {
 		// actual number of data bytes sent.
 		*sent_bytes = sendresult - HEADERLEN;
 		return 0;
 	} else {
-		fprintf(stderr, "usbsend managed to dump a packet that is not full size. %d of %d\n", sendresult, blocksize);
+		fprintf(stderr,
+				"usbsend managed to dump a packet that is not full size. %d of %d\n",
+				sendresult, blocksize);
 		return -EBADMSG;
 	}
 }
@@ -844,14 +899,15 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen, uint
  * 
  * @return number of bytes consumed (header + data)
  */
-uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
+uint32_t append_receive_buffer(usbmux_client_t client, char *packet)
 {
-	if (client == NULL || packet == NULL) return 0;
+	if (client == NULL || packet == NULL)
+		return 0;
 
 	usbmux_tcp_header *header = (usbmux_tcp_header *) packet;
-	char* data = &packet[HEADERLEN];
+	char *data = &packet[HEADERLEN];
 	uint32_t packetlen = ntohl(header->length);
-	uint32_t datalen = packetlen-HEADERLEN;
+	uint32_t datalen = packetlen - HEADERLEN;
 
 	int dobroadcast = 0;
 
@@ -860,7 +916,7 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 	// we need to handle a few corner case tasks and book-keeping which
 	// falls on our responsibility because we are the ones reading in
 	// feedback.
-	if (client->header->scnt == 0 && client->header->ocnt == 0 ) {
+	if (client->header->scnt == 0 && client->header->ocnt == 0) {
 		log_debug_msg("client is still waiting for handshake.\n");
 		if (header->tcp_flags == (TCP_SYN | TCP_ACK)) {
 			log_debug_msg("yes, got syn+ack ; replying with ack.\n");
@@ -872,9 +928,14 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 			hton_header(client->header);
 			// push it to USB
 			// TODO: need to check for error in the send here.... :(
-			log_debug_msg("%s: send_to_device (%d --> %d)\n", __func__, ntohs(client->header->sport), ntohs(client->header->dport));
-			if (send_to_device(client->device, (char *)client->header, sizeof(usbmux_tcp_header)) <= 0) {
-				log_debug_msg("%s: error when pushing to usb...\n", __func__);
+			log_debug_msg("%s: send_to_device (%d --> %d)\n", __func__,
+						  ntohs(client->header->sport),
+						  ntohs(client->header->dport));
+			if (send_to_device
+				(client->device, (char *) client->header,
+				 sizeof(usbmux_tcp_header)) <= 0) {
+				log_debug_msg("%s: error when pushing to usb...\n",
+							  __func__);
 			}
 			// need to revert some of the fields back to host notation.
 			ntoh_header(client->header);
@@ -885,7 +946,6 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 			log_debug_msg("WOAH! client failed to get proper syn+ack.\n");
 		}
 	}
-
 	// update TCP counters and windows.
 	//
 	// save the window that we're getting from the USB device.
@@ -899,30 +959,33 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 			char e_msg[128];
 			e_msg[0] = 0;
 			if (datalen > 1) {
-				memcpy(e_msg, data+1, datalen-1);
-				e_msg[datalen-1] = 0;
+				memcpy(e_msg, data + 1, datalen - 1);
+				e_msg[datalen - 1] = 0;
 			}
 			// fetch the message
-			switch(data[0]) {
-				case 0:
-					// this is not an error, it's just a status message.
-					log_debug_msg("received status message: %s\n", e_msg);
-					datalen = 0;
-					break;
-				case 1:
-					log_debug_msg("received error message: %s\n", e_msg);
-					datalen = 0;
-					break;
-				default:
-					log_debug_msg("received unknown message (type 0x%02x): %s\n", data[0], e_msg);
-					//datalen = 0; // <-- we let this commented out for testing
-					break;
+			switch (data[0]) {
+			case 0:
+				// this is not an error, it's just a status message.
+				log_debug_msg("received status message: %s\n", e_msg);
+				datalen = 0;
+				break;
+			case 1:
+				log_debug_msg("received error message: %s\n", e_msg);
+				datalen = 0;
+				break;
+			default:
+				log_debug_msg
+					("received unknown message (type 0x%02x): %s\n",
+					 data[0], e_msg);
+				//datalen = 0; // <-- we let this commented out for testing
+				break;
 			}
 		} else {
-			log_debug_msg("peer sent connection reset. setting error: %d\n", client->error);
+			log_debug_msg
+				("peer sent connection reset. setting error: %d\n",
+				 client->error);
 		}
 	}
-
 	// the packet's ocnt tells us how much of our data the device has received.
 	if (header->tcp_flags & TCP_ACK) {
 		// this is a hacky magic number condition. it seems that once
@@ -930,7 +993,7 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 		// number, we quickly fall into connection reset problems.
 		// Once we see the reported window size start falling off,
 		// ut off and wait for solid acks to come back.
-		if (ntohs(header->window) < 256) 
+		if (ntohs(header->window) < 256)
 			client->wr_window = 0;
 
 		// check what just got acked.
@@ -938,21 +1001,24 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 			// we got some kind of ack, but it hasn't caught up
 			// with the pending that have been sent.
 			pthread_cond_broadcast(&client->wr_wait);
-		} else if (ntohl(header->ocnt) > /*client->wr_pending_scnt*/ client->header->scnt) {
-			fprintf(stderr, "WTF?! acks overtook pending outstanding.  %u,%u\n", ntohl(header->ocnt), client->wr_pending_scnt);
+		} else if (ntohl(header->ocnt) >
+				   /*client->wr_pending_scnt */ client->header->scnt) {
+			fprintf(stderr,
+					"WTF?! acks overtook pending outstanding.  %u,%u\n",
+					ntohl(header->ocnt), client->wr_pending_scnt);
 		} else {
 			// reset the window
 			client->wr_window = WINDOW_MAX;
 			pthread_cond_broadcast(&client->wr_wait);
 		}
 	}
-
 	// the packet's scnt will be our new ocnt.
 	client->header->ocnt = ntohl(header->scnt);
 
 	// ensure there is enough space, either by first malloc or realloc
 	if (datalen > 0) {
-		log_debug_msg("%s: putting %d bytes into client's recv_buffer\n", __func__, datalen);
+		log_debug_msg("%s: putting %d bytes into client's recv_buffer\n",
+					  __func__, datalen);
 		if (client->r_len == 0)
 			dobroadcast = 1;
 
@@ -960,7 +1026,8 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
 			client->recv_buffer = malloc(datalen);
 			client->r_len = 0;
 		} else {
-			client->recv_buffer = realloc(client->recv_buffer, client->r_len + datalen);
+			client->recv_buffer =
+				realloc(client->recv_buffer, client->r_len + datalen);
 		}
 
 		memcpy(&client->recv_buffer[client->r_len], data, datalen);
@@ -982,7 +1049,7 @@ uint32_t append_receive_buffer(usbmux_client_t client, char* packet)
  * because we're only called from one location, pullbulk, where the lock
  * is already held.
  */
-usbmux_client_t find_client(usbmux_tcp_header* recv_header)
+usbmux_client_t find_client(usbmux_tcp_header * recv_header)
 {
 	// remember, as we're looking for the client, the receive header is
 	// coming from the USB into our client. This means that when we check
@@ -1017,17 +1084,19 @@ int usbmux_pullbulk(usbmux_device_t device)
 		return -EINVAL;
 
 	int res = 0;
-	static const int DEFAULT_CAPACITY = 128*1024;
+	static const int DEFAULT_CAPACITY = 128 * 1024;
 	if (device->usbReceive.buffer == NULL) {
 		device->usbReceive.capacity = DEFAULT_CAPACITY;
 		device->usbReceive.buffer = malloc(device->usbReceive.capacity);
 		device->usbReceive.leftover = 0;
 	}
-
 	// start the cursor off just ahead of the leftover.
-	char* cursor = &device->usbReceive.buffer[device->usbReceive.leftover];
+	char *cursor = &device->usbReceive.buffer[device->usbReceive.leftover];
 	// pull in content, note that the amount we can pull is capacity minus leftover
-	int readlen = recv_from_device_timeout(device, cursor, device->usbReceive.capacity - device->usbReceive.leftover, 3000);
+	int readlen =
+		recv_from_device_timeout(device, cursor,
+								 device->usbReceive.capacity -
+								 device->usbReceive.leftover, 3000);
 	if (readlen < 0) {
 		res = readlen;
 		//fprintf(stderr, "recv_from_device_timeout gave us an error.\n");
@@ -1036,7 +1105,6 @@ int usbmux_pullbulk(usbmux_device_t device)
 	if (readlen > 0) {
 		//fprintf(stdout, "recv_from_device_timeout pulled an extra %d bytes\n", readlen);
 	}
-
 	// the amount of content we have to work with is the remainder plus
 	// what we managed to read
 	device->usbReceive.leftover += readlen;
@@ -1050,23 +1118,29 @@ int usbmux_pullbulk(usbmux_device_t device)
 			break;
 		usbmux_tcp_header *header = (usbmux_tcp_header *) cursor;
 
-		log_debug_msg("%s: recv_from_device_timeout (%d --> %d)\n", __func__, ntohs(header->sport), ntohs(header->dport));
+		log_debug_msg("%s: recv_from_device_timeout (%d --> %d)\n",
+					  __func__, ntohs(header->sport),
+					  ntohs(header->dport));
 
 		// now that we have a header, check if there is sufficient data
 		// to construct a full packet, including its data
 		uint32_t packetlen = ntohl(header->length);
-		if ((uint32_t)device->usbReceive.leftover < packetlen) {
-			fprintf(stderr, "%s: not enough data to construct a full packet\n", __func__);
+		if ((uint32_t) device->usbReceive.leftover < packetlen) {
+			fprintf(stderr,
+					"%s: not enough data to construct a full packet\n",
+					__func__);
 			break;
 		}
-
 		// ok... find the client this packet will get stuffed to.
 		usbmux_client_t client = find_client(header);
 		if (client == NULL) {
-			log_debug_msg("WARNING: client for packet cannot be found. dropping packet.\n");
+			log_debug_msg
+				("WARNING: client for packet cannot be found. dropping packet.\n");
 		} else {
 			// stuff the data
-			log_debug_msg("%s: found client, calling append_receive_buffer\n", __func__);
+			log_debug_msg
+				("%s: found client, calling append_receive_buffer\n",
+				 __func__);
 			append_receive_buffer(client, cursor);
 
 			// perhaps this is too general, == -ECONNRESET
@@ -1075,7 +1149,9 @@ int usbmux_pullbulk(usbmux_device_t device)
 				pthread_mutex_lock(&client->mutex);
 				if (client->cleanup) {
 					pthread_mutex_unlock(&client->mutex);
-					log_debug_msg("freeing up connection (%d->%d)\n", ntohs(client->header->sport), ntohs(client->header->dport));
+					log_debug_msg("freeing up connection (%d->%d)\n",
+								  ntohs(client->header->sport),
+								  ntohs(client->header->dport));
 					delete_connection(client);
 				} else {
 					pthread_mutex_unlock(&client->mutex);
@@ -1096,9 +1172,10 @@ int usbmux_pullbulk(usbmux_device_t device)
 	//
 	// if there are no leftovers, we just leave the datastructure as is,
 	// and re-use the block next time.
-	if (device->usbReceive.leftover > 0 && cursor != device->usbReceive.buffer) {
+	if (device->usbReceive.leftover > 0
+		&& cursor != device->usbReceive.buffer) {
 		log_debug_msg("%s: we got a leftover, so handle it\n", __func__);
-		char* newbuff = malloc(DEFAULT_CAPACITY);
+		char *newbuff = malloc(DEFAULT_CAPACITY);
 		memcpy(newbuff, cursor, device->usbReceive.leftover);
 		free(device->usbReceive.buffer);
 		device->usbReceive.buffer = newbuff;
@@ -1133,7 +1210,9 @@ int usbmux_get_error(usbmux_client_t client)
  *
  * @return 0 on success or a negative errno value on failure.
  */
-int usbmux_recv_timeout(usbmux_client_t client, char *data, uint32_t datalen, uint32_t * recv_bytes, int timeout)
+int usbmux_recv_timeout(usbmux_client_t client, char *data,
+						uint32_t datalen, uint32_t * recv_bytes,
+						int timeout)
 {
 
 	if (!client || !data || datalen == 0 || !recv_bytes)
@@ -1147,15 +1226,15 @@ int usbmux_recv_timeout(usbmux_client_t client, char *data, uint32_t datalen, ui
 	if (timeout > 0 && (client->recv_buffer == NULL || client->r_len == 0)) {
 		struct timespec ts;
 		clock_gettime(CLOCK_REALTIME, &ts);
-		ts.tv_sec += timeout/1000;
-		ts.tv_nsec += (timeout-((int)(timeout/1000))*1000)*1000;
+		ts.tv_sec += timeout / 1000;
+		ts.tv_nsec += (timeout - ((int) (timeout / 1000)) * 1000) * 1000;
 		pthread_cond_timedwait(&client->wait, &client->mutex, &ts);
 	}
 
 	*recv_bytes = 0;
 	if (client->recv_buffer != NULL && client->r_len > 0) {
 		uint32_t foolen = datalen;
-		if ((int)foolen > client->r_len)
+		if ((int) foolen > client->r_len)
 			foolen = client->r_len;
 		memcpy(data, client->recv_buffer, foolen);
 		*recv_bytes = foolen;
@@ -1163,7 +1242,7 @@ int usbmux_recv_timeout(usbmux_client_t client, char *data, uint32_t datalen, ui
 		// preserve any left-over unread amounts.
 		int remainder = client->r_len - foolen;
 		if (remainder > 0) {
-			char* newbuf = malloc(remainder);
+			char *newbuf = malloc(remainder);
 			memcpy(newbuf, client->recv_buffer + foolen, remainder);
 			client->r_len = remainder;
 			free(client->recv_buffer);
