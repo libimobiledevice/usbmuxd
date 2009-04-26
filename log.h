@@ -18,17 +18,21 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
+#ifndef __LOG_H__
+#define __LOG_H__
+
+enum loglevel {
+	LOG_SPEW = 0,
+	LOG_DEBUG,
+	LOG_INFO,
+	LOG_NOTICE,
+	LOG_WARNING,
+	LOG_ERROR,
+	LOG_FATAL,
+};
+
+extern int log_level;
+
+void usbmuxd_log(enum loglevel level, const char *fmt, ...);
+
 #endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdlib.h>
-
-#include <libusb.h>
-
-int usb_init(void)
-{
-	return 0;
-}

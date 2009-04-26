@@ -18,17 +18,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
+#ifndef __USB_H__
+#define __USB_H__
+
+#define BULK_IN 0x85
+#define BULK_OUT 0x04
+
+int usb_init(void);
+
 #endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdlib.h>
-
-#include <libusb.h>
-
-int usb_init(void)
-{
-	return 0;
-}

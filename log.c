@@ -24,11 +24,27 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
 
-#include <libusb.h>
+#include "log.h"
 
-int usb_init(void)
+int log_level = LOG_SPEW;
+
+void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 {
-	return 0;
+	va_list ap;
+	char *fs;
+	
+	if(level < log_level)
+		return;
+	
+	fs = malloc(10 + strlen(fmt));
+	sprintf(fs, "[%d] %s\n", level, fmt);
+	
+	va_start(ap, fmt);
+	vfprintf(stderr, fs, ap);
+	va_end(ap);
+	
+	free(fs);
 }

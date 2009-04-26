@@ -22,13 +22,36 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <config.h>
 #endif
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdlib.h>
+#include "utils.h"
 
-#include <libusb.h>
-
-int usb_init(void)
+void fdlist_create(fdlist *list)
 {
-	return 0;
+	list->count = 0;
+	list->capacity = 4;
+	list->owners = malloc(sizeof(*list->owners) * list->capacity);
+	list->fds = malloc(sizeof(*list->fds) * list->capacity);
+}
+void fdlist_add(fdlist *list, enum fdowner owner, int fd, short events)
+{
+	if(list->count == list->capacity) {
+		list->capacity *= 2;
+		list->owners = realloc(list->owners, sizeof(*list->owners) * list->capacity);
+		list->fds = realloc(list->fds, sizeof(*list->fds) * list->capacity);
+	}
+	list->owners[list->count] = owner;
+	list->fds[list->count].fd = fd;
+	list->fds[list->count].events = events;
+	list->fds[list->count].revents = 0;
+	list->count++;
+}
+
+void fdlist_free(fdlist *list)
+{
+	list->count = 0;
+	list->capacity = 0;
+	free(list->owners);
+	list->owners = NULL;
+	free(list->fds);
+	list->fds = NULL;
 }

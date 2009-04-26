@@ -18,17 +18,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
+#ifndef __MUX_H__
+#define __MUX_H__
+
 #endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdlib.h>
-
-#include <libusb.h>
-
-int usb_init(void)
-{
-	return 0;
-}
