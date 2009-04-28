@@ -80,6 +80,7 @@ int main_loop(int listenfd)
 		usbmuxd_log(LL_SPEW, "USB timeout is %d ms", to);
 		
 		fdlist_create(&pollfds);
+		fdlist_add(&pollfds, FD_LISTEN, listenfd, POLLIN);
 		usb_get_fds(&pollfds);
 		usbmuxd_log(LL_SPEW, "fd count is %d", pollfds.count);
 		
@@ -92,13 +93,15 @@ int main_loop(int listenfd)
 				return -1;
 			}
 		} else {
+			int done_usb = 0;
 			for(i=0; i<pollfds.count; i++) {
 				if(pollfds.fds[i].revents) {
-					if(pollfds.owners[i] == FD_USB) {
+					if(!done_usb && pollfds.owners[i] == FD_USB) {
 						if(usb_process() < 0) {
 							usbmuxd_log(LL_FATAL, "usb_process() failed");
 							return -1;
 						}
+						done_usb = 1;
 					}
 				}
 			}
