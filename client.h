@@ -18,7 +18,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifndef __MUX_H__
-#define __MUX_H__
+#ifndef __CLIENT_H__
+#define __CLIENT_H__
 
 #endif
+
+void client_accept(int fd);
+void client_get_fds(struct fdlist *list);

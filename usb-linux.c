@@ -42,13 +42,13 @@ struct usb_device {
 	uint8_t bus, address;
 	char serial[256];
 	int alive;
+	struct libusb_transfer *rx_xfer;
 };
 
-int num_devs;
-int device_id;
-struct usb_device *device_list;
+static int num_devs;
+static struct usb_device *device_list;
 
-struct timeval next_dev_poll_time;
+static struct timeval next_dev_poll_time;
 
 static int alloc_device(void)
 {
@@ -68,9 +68,128 @@ static void usb_disconnect(struct usb_device *dev)
 	if(!dev->dev) {
 		return;
 	}
+	if(dev->rx_xfer) {
+		// kill the rx xfer and try to make sure the rx callback gets called before we free the device
+		struct timeval tv;
+		int res;
+		// TODO: BUG: outstanding TX xfers are not listed but we need to free them
+		libusb_cancel_transfer(dev->rx_xfer);
+		tv.tv_sec = tv.tv_usec = 0;
+		if((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for device removal failed: %d", res);
+		}
+	}
 	libusb_release_interface(dev->dev, USB_INTERFACE);
 	libusb_close(dev->dev);
 	dev->dev = NULL;
+}
+
+static void tx_callback(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+	usbmuxd_log(LL_SPEW, "TX callback dev %d-%d len %d -> %d status %d", dev->bus, dev->address, xfer->length, xfer->actual_length, xfer->status);
+	if(xfer->status != LIBUSB_TRANSFER_COMPLETED) {
+		switch(xfer->status) {
+			case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
+			case LIBUSB_TRANSFER_ERROR:
+				// funny, this happens when we disconnect the device while waiting for a transfer, sometimes
+				usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to error or disconnect", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_TIMED_OUT:
+				usbmuxd_log(LL_ERROR, "TX transfer timed out for device %d-%d", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_CANCELLED:
+				usbmuxd_log(LL_ERROR, "TX transfer cancelled for device %d-%d", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_STALL:
+				usbmuxd_log(LL_ERROR, "TX transfer stalled for device %d-%d", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_NO_DEVICE:
+				// other times, this happens, and also even when we abort the transfer after device removal
+				usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to disconnect", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_OVERFLOW:
+				usbmuxd_log(LL_ERROR, "TX transfer overflow for device %d-%d", dev->bus, dev->address);
+				break;
+			// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+		}
+		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+		// we'll do device_remove there too
+		dev->alive = 0;
+	}
+	free(xfer->buffer);
+	libusb_free_transfer(xfer);
+}
+
+int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
+{
+	int res;
+	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
+	libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, (void*)buf, length, tx_callback, dev, 0);
+	xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
+	if((res = libusb_submit_transfer(xfer)) < 0) {
+		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %d", buf, length, dev->bus, dev->address, res);
+		libusb_free_transfer(xfer);
+		return res;
+	}
+	return 0;
+}
+
+static void rx_callback(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
+	if(xfer->status == LIBUSB_TRANSFER_COMPLETED) {
+		device_data_input(dev, xfer->buffer, xfer->actual_length);
+		libusb_submit_transfer(xfer);
+	} else {
+		switch(xfer->status) {
+			case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
+			case LIBUSB_TRANSFER_ERROR:
+				// funny, this happens when we disconnect the device while waiting for a transfer, sometimes
+				usbmuxd_log(LL_INFO, "Device %d-%d RX aborted due to error or disconnect", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_TIMED_OUT:
+				usbmuxd_log(LL_ERROR, "RX transfer timed out for device %d-%d", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_CANCELLED:
+				usbmuxd_log(LL_ERROR, "RX transfer cancelled for device %d-%d", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_STALL:
+				usbmuxd_log(LL_ERROR, "RX transfer stalled for device %d-%d", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_NO_DEVICE:
+				// other times, this happens, and also even when we abort the transfer after device removal
+				usbmuxd_log(LL_INFO, "Device %d-%d RX aborted due to disconnect", dev->bus, dev->address);
+				break;
+			case LIBUSB_TRANSFER_OVERFLOW:
+				usbmuxd_log(LL_ERROR, "RX transfer overflow for device %d-%d", dev->bus, dev->address);
+				break;
+			// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+		}
+		free(xfer->buffer);
+		dev->rx_xfer = NULL;
+		libusb_free_transfer(xfer);
+		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+		// we'll do device_remove there too
+		dev->alive = 0;
+	}
+}
+
+static int start_rx(struct usb_device *dev)
+{
+	int res;
+	void *buf;
+	dev->rx_xfer = libusb_alloc_transfer(0);
+	buf = malloc(USB_MTU);
+	libusb_fill_bulk_transfer(dev->rx_xfer, dev->dev, BULK_IN, buf, USB_MTU, rx_callback, dev, 0);
+	if((res = libusb_submit_transfer(dev->rx_xfer)) != 0) {
+		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device %d-%d: %d", dev->bus, dev->address, res);
+		libusb_free_transfer(dev->rx_xfer);
+		dev->rx_xfer = NULL;
+		return res;
+	}
+	return 0;
 }
 
 static int usb_discover(void)
@@ -135,7 +254,8 @@ static int usb_discover(void)
 		int idx = alloc_device();
 
 		if((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)device_list[idx].serial, 256)) <= 0) {
-			usbmuxd_log(LL_WARNING, "Could not get serial number for device %d-%d: %d", USB_INTERFACE, bus, address, res);
+			usbmuxd_log(LL_WARNING, "Could not get serial number for device %d-%d: %d", bus, address, res);
+			libusb_release_interface(handle, USB_INTERFACE);
 			libusb_close(handle);
 			continue;
 		}
@@ -145,7 +265,15 @@ static int usb_discover(void)
 		device_list[idx].dev = handle;
 		device_list[idx].alive = 1;
 		
-		device_add(&device_list[idx]);
+		if(device_add(&device_list[idx]) < 0) {
+			usb_disconnect(&device_list[j]);
+			continue;
+		}
+		if(start_rx(&device_list[idx]) < 0) {
+			device_remove(&device_list[j]);
+			usb_disconnect(&device_list[j]);
+			continue;
+		}
 		valid_count++;
 	}
 	for(j=0; j<num_devs; j++) {
@@ -232,7 +360,7 @@ int usb_get_timeout(void)
 
 int usb_process(void)
 {
-	int res;
+	int i, res;
 	struct timeval tv;
 	tv.tv_sec = tv.tv_usec = 0;
 	res = libusb_handle_events_timeout(NULL, &tv);
@@ -240,6 +368,14 @@ int usb_process(void)
 		usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %d", res);
 		return res;
 	}
+	// reap devices marked dead due to an RX error
+	for(i=0; i<num_devs; i++) {
+		if(device_list[i].dev && !device_list[i].alive) {
+			device_remove(&device_list[i]);
+			usb_disconnect(&device_list[i]);
+		}
+	}
+
 	if(dev_poll_remain_ms() <= 0) {
 		res = usb_discover();
 		if(res < 0) {
@@ -256,12 +392,12 @@ int usb_init(void)
 	usbmuxd_log(LL_DEBUG, "usb_init for linux / libusb 1.0");
 	
 	res = libusb_init(NULL);
+	//libusb_set_debug(NULL, 3);
 	if(res != 0) {
 		usbmuxd_log(LL_FATAL, "libusb_init failed: %d", res);
 		return -1;
 	}
 	
-	device_id = 1;
 	num_devs = 1;
 	device_list = malloc(sizeof(*device_list) * num_devs);
 	memset(device_list, 0, sizeof(*device_list) * num_devs);

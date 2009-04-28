@@ -34,8 +34,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "log.h"
 #include "usb.h"
+#include "device.h"
 
-const char *socket_path = "/tmp/usbmuxd"; //TODO: CHANGEME
+static const char *socket_path = "/tmp/usbmuxd"; //TODO: CHANGEME
 
 int create_socket(void) {
 	struct sockaddr_un bind_addr;
@@ -75,17 +76,17 @@ int main_loop(int listenfd)
 	struct fdlist pollfds;
 	
 	while(1) {
-		usbmuxd_log(LL_SPEW, "main_loop iteration");
+		usbmuxd_log(LL_FLOOD, "main_loop iteration");
 		to = usb_get_timeout();
-		usbmuxd_log(LL_SPEW, "USB timeout is %d ms", to);
+		usbmuxd_log(LL_FLOOD, "USB timeout is %d ms", to);
 		
 		fdlist_create(&pollfds);
 		fdlist_add(&pollfds, FD_LISTEN, listenfd, POLLIN);
 		usb_get_fds(&pollfds);
-		usbmuxd_log(LL_SPEW, "fd count is %d", pollfds.count);
+		usbmuxd_log(LL_FLOOD, "fd count is %d", pollfds.count);
 		
 		cnt = poll(pollfds.fds, pollfds.count, to);
-		usbmuxd_log(LL_SPEW, "poll() returned %d", cnt);
+		usbmuxd_log(LL_FLOOD, "poll() returned %d", cnt);
 		
 		if(cnt == 0) {
 			if(usb_process() < 0) {
@@ -122,6 +123,7 @@ int main(int argc, char *argv[])
 	if(listenfd < 0)
 		return 1;
 
+	device_init();
 	usbmuxd_log(LL_INFO, "Initializing USB");
 	if((res = usb_init()) < 0)
 		return 2;
@@ -135,8 +137,9 @@ int main(int argc, char *argv[])
 
 	usbmuxd_log(LL_NOTICE, "usbmux shutting down");
 	usb_shutdown();
+	device_shutdown();
 	usbmuxd_log(LL_NOTICE, "Shutdown complete");
-	
+
 	if(res < 0)
 		return -res;
 	return 0;

@@ -26,6 +26,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define BULK_IN 0x85
 #define BULK_OUT 0x04
 
+#define USB_MTU 65536
+
 #define VID_APPLE 0x5ac
 #define PID_IPHONE2G 0x1290
 #define PID_ITOUCH1G 0x1291
@@ -42,6 +44,7 @@ const char *usb_get_serial(struct usb_device *dev);
 int usb_get_location(struct usb_device *dev);
 void usb_get_fds(struct fdlist *list);
 int usb_get_timeout(void);
+int usb_send(struct usb_device *dev, const unsigned char *buf, int length);
 int usb_process(void);
 
 #endif

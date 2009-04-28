@@ -23,7 +23,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "usb.h"
 
-void device_add(struct usb_device *dev);
+void device_data_input(struct usb_device *dev, unsigned char *buf, int length);
+
+int device_add(struct usb_device *dev);
 void device_remove(struct usb_device *dev);
 
+void device_init(void);
+void device_shutdown(void);
 #endif

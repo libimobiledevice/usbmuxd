@@ -29,10 +29,12 @@ enum loglevel {
 	LL_INFO,
 	LL_DEBUG,
 	LL_SPEW,
+	LL_FLOOD,
 };
 
 extern int log_level;
 
-void usbmuxd_log(enum loglevel level, const char *fmt, ...);
+void usbmuxd_log(enum loglevel level, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+
 
 #endif
