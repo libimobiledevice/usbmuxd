@@ -25,14 +25,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <stdlib.h>
 #include "utils.h"
 
-void fdlist_create(fdlist *list)
+void fdlist_create(struct fdlist *list)
 {
 	list->count = 0;
 	list->capacity = 4;
 	list->owners = malloc(sizeof(*list->owners) * list->capacity);
 	list->fds = malloc(sizeof(*list->fds) * list->capacity);
 }
-void fdlist_add(fdlist *list, enum fdowner owner, int fd, short events)
+void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events)
 {
 	if(list->count == list->capacity) {
 		list->capacity *= 2;
@@ -46,7 +46,7 @@ void fdlist_add(fdlist *list, enum fdowner owner, int fd, short events)
 	list->count++;
 }
 
-void fdlist_free(fdlist *list)
+void fdlist_free(struct fdlist *list)
 {
 	list->count = 0;
 	list->capacity = 0;

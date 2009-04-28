@@ -18,8 +18,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifndef __LOG_H__
-#define __LOG_H__
+#ifndef __UTILS_H__
+#define __UTILS_H__
 
 #include <poll.h>
 
@@ -29,19 +29,17 @@ enum fdowner {
 	FD_USB
 };
 
-typedef struct {
+struct fdlist {
 	int count;
 	int capacity;
 	enum fdowner *owners;
 	struct pollfd *fds;
-} fdlist;
+};
 
-void fdlist_create(fdlist *list);
-void fdlist_add(fdlist *list, enum fdowner owner, int fd, short events);
-void fdlist_free(fdlist *list);
+void fdlist_create(struct fdlist *list);
+void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events);
+void fdlist_free(struct fdlist *list);
 
 #define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
-
-
 
 #endif

@@ -18,30 +18,39 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifndef __USB_H__
-#define __USB_H__
-
-#include "utils.h"
-
-#define BULK_IN 0x85
-#define BULK_OUT 0x04
-
-#define VID_APPLE 0x5ac
-#define PID_IPHONE2G 0x1290
-#define PID_ITOUCH1G 0x1291
-#define PID_IPHONE3G 0x1292
-
-#define USB_CONFIGURATION 3
-#define USB_INTERFACE 1
-
-struct usb_device;
-
-int usb_init(void);
-void usb_shutdown(void);
-const char *usb_get_serial(struct usb_device *dev);
-int usb_get_location(struct usb_device *dev);
-void usb_get_fds(struct fdlist *list);
-int usb_get_timeout(void);
-int usb_process(void);
-
+#ifdef HAVE_CONFIG_H
+#include <config.h>
 #endif
+
+#include <stdlib.h>
+#include "device.h"
+#include "usb.h"
+#include "log.h"
+
+int device_id;
+/*
+int get_next_device_id(void)
+{
+	int i;
+	while(1) {
+		for(i=0; i<num_devs; i++) {
+			if(device_list[i].dev && device_list[i].id == device_id) {
+				device_id++;
+				break;
+			}
+		}
+		if(i < num_devs)
+			break;
+	}
+	return device_id++;
+}
+*/
+void device_add(struct usb_device *dev)
+{
+	usbmuxd_log(LL_NOTICE, "Connected to new device on location 0x%x with serial number %s", usb_get_location(dev), usb_get_serial(dev));
+}
+
+void device_remove(struct usb_device *dev)
+{
+	usbmuxd_log(LL_NOTICE, "Removed device on location 0x%x with serial number %s", usb_get_location(dev), usb_get_serial(dev));
+}

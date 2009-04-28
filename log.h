@@ -22,13 +22,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define __LOG_H__
 
 enum loglevel {
-	LOG_SPEW = 0,
-	LOG_DEBUG,
-	LOG_INFO,
-	LOG_NOTICE,
-	LOG_WARNING,
-	LOG_ERROR,
-	LOG_FATAL,
+	LL_FATAL = 0,
+	LL_ERROR,
+	LL_WARNING,
+	LL_NOTICE,
+	LL_INFO,
+	LL_DEBUG,
+	LL_SPEW,
 };
 
 extern int log_level;

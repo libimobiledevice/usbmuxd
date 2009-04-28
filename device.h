@@ -18,30 +18,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#ifndef __USB_H__
-#define __USB_H__
+#ifndef __DEVICE_H__
+#define __DEVICE_H__
 
-#include "utils.h"
+#include "usb.h"
 
-#define BULK_IN 0x85
-#define BULK_OUT 0x04
-
-#define VID_APPLE 0x5ac
-#define PID_IPHONE2G 0x1290
-#define PID_ITOUCH1G 0x1291
-#define PID_IPHONE3G 0x1292
-
-#define USB_CONFIGURATION 3
-#define USB_INTERFACE 1
-
-struct usb_device;
-
-int usb_init(void);
-void usb_shutdown(void);
-const char *usb_get_serial(struct usb_device *dev);
-int usb_get_location(struct usb_device *dev);
-void usb_get_fds(struct fdlist *list);
-int usb_get_timeout(void);
-int usb_process(void);
+void device_add(struct usb_device *dev);
+void device_remove(struct usb_device *dev);
 
 #endif

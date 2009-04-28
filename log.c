@@ -26,21 +26,29 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include "log.h"
 
-int log_level = LOG_SPEW;
+int log_level = LL_SPEW;
 
 void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 {
 	va_list ap;
 	char *fs;
+	struct timeval ts;
+	struct tm *tp;
 	
-	if(level < log_level)
+	gettimeofday(&ts, NULL);
+	tp = localtime(&ts.tv_sec);
+	
+	if(level > log_level)
 		return;
 	
-	fs = malloc(10 + strlen(fmt));
-	sprintf(fs, "[%d] %s\n", level, fmt);
+	fs = malloc(20 + strlen(fmt));
+	strftime(fs, 10, "[%H:%M:%S", tp);
+	sprintf(fs+9, ".%03d][%d] %s\n", (int)(ts.tv_usec / 1000), level, fmt);
 	
 	va_start(ap, fmt);
 	vfprintf(stderr, fs, ap);
