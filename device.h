@@ -22,12 +22,31 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define __DEVICE_H__
 
 #include "usb.h"
+#include "client.h"
+
+struct device_info {
+	int id;
+	const char *serial;
+	uint32_t location;
+	uint16_t pid;
+};
 
 void device_data_input(struct usb_device *dev, unsigned char *buf, int length);
 
 int device_add(struct usb_device *dev);
 void device_remove(struct usb_device *dev);
 
+int device_start_connect(int device_id, uint16_t port, struct mux_client *client);
+void device_client_process(int device_id, struct mux_client *client, short events);
+void device_abort_connect(int device_id, struct mux_client *client);
+
+int device_get_count(void);
+int device_get_list(struct device_info *p);
+
+int device_get_timeout(void);
+void device_check_timeouts(void);
+
 void device_init(void);
+void device_kill_connections(void);
 void device_shutdown(void);
 #endif

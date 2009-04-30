@@ -21,12 +21,27 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #ifndef __USB_H__
 #define __USB_H__
 
+#include <stdint.h>
 #include "utils.h"
 
 #define BULK_IN 0x85
 #define BULK_OUT 0x04
 
-#define USB_MTU 65536
+// libusb fragments packets larger than this (usbfs limitation)
+// on input, this creates race conditions and other issues
+// I don't think the device uses larger packets
+// if it does then we're going to have to implement proper framing...
+#define USB_MRU 16384
+
+// max transmission packet size
+// libusb fragments these too, but doesn't send ZLPs so we're safe
+// but maybe we need to send a ZLP ourselves at the end (see usb-linux.h)
+// we're using 3 * 16384 to optimize for the fragmentation
+// this results in three URBs per full transfer, 32 USB packets each
+// if there are ZLP issues this should make them show up too
+#define USB_MTU (3 * 16384)
+
+#define USB_PACKET_SIZE 512
 
 #define VID_APPLE 0x5ac
 #define PID_IPHONE2G 0x1290
@@ -41,10 +56,12 @@ struct usb_device;
 int usb_init(void);
 void usb_shutdown(void);
 const char *usb_get_serial(struct usb_device *dev);
-int usb_get_location(struct usb_device *dev);
+uint32_t usb_get_location(struct usb_device *dev);
+uint16_t usb_get_pid(struct usb_device *dev);
 void usb_get_fds(struct fdlist *list);
 int usb_get_timeout(void);
 int usb_send(struct usb_device *dev, const unsigned char *buf, int length);
 int usb_process(void);
+int usb_process_timeout(int msec);
 
 #endif

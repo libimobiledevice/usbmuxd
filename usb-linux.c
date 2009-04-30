@@ -40,48 +40,50 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 struct usb_device {
 	libusb_device_handle *dev;
 	uint8_t bus, address;
+	uint16_t vid, pid;
 	char serial[256];
 	int alive;
 	struct libusb_transfer *rx_xfer;
+	struct collection tx_xfers;
 };
 
-static int num_devs;
-static struct usb_device *device_list;
+static struct collection device_list;
 
 static struct timeval next_dev_poll_time;
-
-static int alloc_device(void)
-{
-	int i;
-	for(i=0; i<num_devs; i++) {
-		if(!device_list[i].dev)
-			return i;
-	}
-	num_devs++;
-	device_list = realloc(device_list, sizeof(*device_list) * num_devs);
-	memset(&device_list[num_devs-1], 0, sizeof(*device_list));
-	return num_devs - 1;
-}
 
 static void usb_disconnect(struct usb_device *dev)
 {
 	if(!dev->dev) {
 		return;
 	}
+	
+	// kill the rx xfer and tx xfers and try to make sure the callbacks get called before we free the device
 	if(dev->rx_xfer) {
-		// kill the rx xfer and try to make sure the rx callback gets called before we free the device
+		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling RX xfer");
+		libusb_cancel_transfer(dev->rx_xfer);
+	}
+	FOREACH(struct libusb_transfer *xfer, &dev->tx_xfers) {
+		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling TX xfer %p", xfer);
+		libusb_cancel_transfer(xfer);
+	} ENDFOREACH
+
+	while(dev->rx_xfer || collection_count(&dev->tx_xfers)) {
 		struct timeval tv;
 		int res;
-		// TODO: BUG: outstanding TX xfers are not listed but we need to free them
-		libusb_cancel_transfer(dev->rx_xfer);
-		tv.tv_sec = tv.tv_usec = 0;
+		
+		tv.tv_sec = 0;
+		tv.tv_usec = 1000;
 		if((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
-			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for device removal failed: %d", res);
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for usb_disconnect failed: %d", res);
+			break;
 		}
 	}
+	collection_free(&dev->tx_xfers);
 	libusb_release_interface(dev->dev, USB_INTERFACE);
 	libusb_close(dev->dev);
 	dev->dev = NULL;
+	collection_remove(&device_list, dev);
+	free(dev);
 }
 
 static void tx_callback(struct libusb_transfer *xfer)
@@ -117,7 +119,9 @@ static void tx_callback(struct libusb_transfer *xfer)
 		// we'll do device_remove there too
 		dev->alive = 0;
 	}
-	free(xfer->buffer);
+	if(xfer->buffer)
+		free(xfer->buffer);
+	collection_remove(&dev->tx_xfers, xfer);
 	libusb_free_transfer(xfer);
 }
 
@@ -132,6 +136,21 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 		libusb_free_transfer(xfer);
 		return res;
 	}
+	collection_add(&dev->tx_xfers, xfer);/*
+	if((length % 512) == 0) {
+		usbmuxd_log(LL_DEBUG, "Send ZLP");
+		// Send Zero Length Packet
+		xfer = libusb_alloc_transfer(0);
+		void *buffer = malloc(1);
+		libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, buffer, 0, tx_callback, dev, 0);
+		xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
+		if((res = libusb_submit_transfer(xfer)) < 0) {
+			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %d", dev->bus, dev->address, res);
+			libusb_free_transfer(xfer);
+			return res;
+		}
+		collection_add(&dev->tx_xfers, xfer);
+	}*/
 	return 0;
 }
 
@@ -181,8 +200,8 @@ static int start_rx(struct usb_device *dev)
 	int res;
 	void *buf;
 	dev->rx_xfer = libusb_alloc_transfer(0);
-	buf = malloc(USB_MTU);
-	libusb_fill_bulk_transfer(dev->rx_xfer, dev->dev, BULK_IN, buf, USB_MTU, rx_callback, dev, 0);
+	buf = malloc(USB_MRU);
+	libusb_fill_bulk_transfer(dev->rx_xfer, dev->dev, BULK_IN, buf, USB_MRU, rx_callback, dev, 0);
 	if((res = libusb_submit_transfer(dev->rx_xfer)) != 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device %d-%d: %d", dev->bus, dev->address, res);
 		libusb_free_transfer(dev->rx_xfer);
@@ -194,7 +213,7 @@ static int start_rx(struct usb_device *dev)
 
 static int usb_discover(void)
 {
-	int cnt, i, j, res;
+	int cnt, i, res;
 	int valid_count = 0;
 	libusb_device **devs;
 	
@@ -206,23 +225,26 @@ static int usb_discover(void)
 
 	usbmuxd_log(LL_SPEW, "usb_discover: scanning %d devices", cnt);
 
-	for(j=0; j<num_devs; j++) {
-		device_list[j].alive = 0;
-	}
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		usbdev->alive = 0;
+	} ENDFOREACH
+
 	for(i=0; i<cnt; i++) {
 		// the following are non-blocking operations on the device list
 		libusb_device *dev = devs[i];
 		uint8_t bus = libusb_get_bus_number(dev);
 		uint8_t address = libusb_get_device_address(dev);
 		struct libusb_device_descriptor devdesc;
-		for(j=0; j<num_devs; j++) {
-			if(device_list[j].dev && device_list[j].bus == bus && device_list[j].address == address) {
+		int found = 0;
+		FOREACH(struct usb_device *usbdev, &device_list) {
+			if(usbdev->bus == bus && usbdev->address == address) {
 				valid_count++;
-				device_list[j].alive = 1;
+				usbdev->alive = 1;
+				found = 1;
 				break;
 			}
-		}
-		if(j < num_devs)
+		} ENDFOREACH
+		if(found)
 			continue; //device already found
 		if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %d", bus, address, res);
@@ -251,37 +273,45 @@ static int usb_discover(void)
 			libusb_close(handle);
 			continue;
 		}
-		int idx = alloc_device();
+		struct usb_device *usbdev;
+		usbdev = malloc(sizeof(struct usb_device));
 
-		if((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)device_list[idx].serial, 256)) <= 0) {
+		if((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)usbdev->serial, 256)) <= 0) {
 			usbmuxd_log(LL_WARNING, "Could not get serial number for device %d-%d: %d", bus, address, res);
 			libusb_release_interface(handle, USB_INTERFACE);
 			libusb_close(handle);
+			free(usbdev);
 			continue;
 		}
-		device_list[idx].serial[res] = 0;
-		device_list[idx].bus = bus;
-		device_list[idx].address = address;
-		device_list[idx].dev = handle;
-		device_list[idx].alive = 1;
+		usbdev->serial[res] = 0;
+		usbdev->bus = bus;
+		usbdev->address = address;
+		usbdev->vid = devdesc.idVendor;
+		usbdev->pid = devdesc.idProduct;
+		usbdev->dev = handle;
+		usbdev->alive = 1;
+		collection_init(&usbdev->tx_xfers);
+
+		collection_add(&device_list, usbdev);
 		
-		if(device_add(&device_list[idx]) < 0) {
-			usb_disconnect(&device_list[j]);
+		if(device_add(usbdev) < 0) {
+			usb_disconnect(usbdev);
 			continue;
 		}
-		if(start_rx(&device_list[idx]) < 0) {
-			device_remove(&device_list[j]);
-			usb_disconnect(&device_list[j]);
+		if(start_rx(usbdev) < 0) {
+			device_remove(usbdev);
+			usb_disconnect(usbdev);
 			continue;
 		}
 		valid_count++;
 	}
-	for(j=0; j<num_devs; j++) {
-		if(device_list[j].dev && !device_list[j].alive) {
-			device_remove(&device_list[j]);
-			usb_disconnect(&device_list[j]);
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		if(!usbdev->alive) {
+			device_remove(usbdev);
+			usb_disconnect(usbdev);
 		}
-	}
+	} ENDFOREACH
+	
 	libusb_free_device_list(devs, 1);
 	
 	gettimeofday(&next_dev_poll_time, NULL);
@@ -300,12 +330,20 @@ const char *usb_get_serial(struct usb_device *dev)
 	return dev->serial;
 }
 
-int usb_get_location(struct usb_device *dev)
+uint32_t usb_get_location(struct usb_device *dev)
 {
 	if(!dev->dev) {
 		return 0;
 	}
 	return (dev->bus << 16) | dev->address;
+}
+
+uint16_t usb_get_pid(struct usb_device *dev)
+{
+	if(!dev->dev) {
+		return 0;
+	}
+	return dev->pid;
 }
 
 void usb_get_fds(struct fdlist *list)
@@ -360,7 +398,7 @@ int usb_get_timeout(void)
 
 int usb_process(void)
 {
-	int i, res;
+	int res;
 	struct timeval tv;
 	tv.tv_sec = tv.tv_usec = 0;
 	res = libusb_handle_events_timeout(NULL, &tv);
@@ -369,12 +407,12 @@ int usb_process(void)
 		return res;
 	}
 	// reap devices marked dead due to an RX error
-	for(i=0; i<num_devs; i++) {
-		if(device_list[i].dev && !device_list[i].alive) {
-			device_remove(&device_list[i]);
-			usb_disconnect(&device_list[i]);
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		if(!usbdev->alive) {
+			device_remove(usbdev);
+			usb_disconnect(usbdev);
 		}
-	}
+	} ENDFOREACH
 
 	if(dev_poll_remain_ms() <= 0) {
 		res = usb_discover();
@@ -382,6 +420,39 @@ int usb_process(void)
 			usbmuxd_log(LL_ERROR, "usb_discover failed: %d", res);
 			return res;
 		}
+	}
+	return 0;
+}
+
+int usb_process_timeout(int msec)
+{
+	int res;
+	struct timeval tleft, tcur, tfin;
+	gettimeofday(&tcur, NULL);
+	tfin.tv_sec = tcur.tv_sec + (msec / 1000);
+	tfin.tv_usec = tcur.tv_usec + (msec % 1000) * 1000;
+	tfin.tv_sec += tfin.tv_usec / 1000000;
+	tfin.tv_usec %= 1000000;
+	while((tfin.tv_sec > tcur.tv_sec) || ((tfin.tv_sec == tcur.tv_sec) && (tfin.tv_usec > tcur.tv_usec))) {
+		tleft.tv_sec = tfin.tv_sec - tcur.tv_sec;
+		tleft.tv_usec = tfin.tv_usec - tcur.tv_usec;
+		if(tleft.tv_usec < 0) {
+			tleft.tv_usec += 1000000;
+			tleft.tv_sec -= 1;
+		}
+		res = libusb_handle_events_timeout(NULL, &tleft);
+		if(res < 0) {
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %d", res);
+			return res;
+		}
+		// reap devices marked dead due to an RX error
+		FOREACH(struct usb_device *usbdev, &device_list) {
+			if(!usbdev->alive) {
+				device_remove(usbdev);
+				usb_disconnect(usbdev);
+			}
+		} ENDFOREACH
+	gettimeofday(&tcur, NULL);
 	}
 	return 0;
 }
@@ -398,20 +469,18 @@ int usb_init(void)
 		return -1;
 	}
 	
-	num_devs = 1;
-	device_list = malloc(sizeof(*device_list) * num_devs);
-	memset(device_list, 0, sizeof(*device_list) * num_devs);
+	collection_init(&device_list);
 	
 	return usb_discover();
 }
 
 void usb_shutdown(void)
 {
-	int i;
 	usbmuxd_log(LL_DEBUG, "usb_shutdown");
-	for(i=0; i<num_devs; i++)
-		usb_disconnect(&device_list[i]);
-	free(device_list);
-	device_list = NULL;
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		device_remove(usbdev);
+		usb_disconnect(usbdev);
+	} ENDFOREACH
+	collection_free(&device_list);
 	libusb_exit(NULL);
 }

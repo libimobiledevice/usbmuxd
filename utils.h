@@ -40,6 +40,26 @@ void fdlist_create(struct fdlist *list);
 void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events);
 void fdlist_free(struct fdlist *list);
 
-#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
+struct collection {
+	void **list;
+	int capacity;
+};
+
+void collection_init(struct collection *col);
+void collection_add(struct collection *col, void *element);
+void collection_remove(struct collection *col, void *element);
+int collection_count(struct collection *col);
+void collection_free(struct collection *col);
+
+#define FOREACH(var, col) \
+	do { \
+		int _iter; \
+		for(_iter=0; _iter<(col)->capacity; _iter++) { \
+			if(!(col)->list[_iter]) continue; \
+			var = (col)->list[_iter];
+
+#define ENDFOREACH \
+		} \
+	} while(0);
 
 #endif

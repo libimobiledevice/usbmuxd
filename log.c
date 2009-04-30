@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "log.h"
 
-int log_level = LL_SPEW;
+int log_level = LL_INFO;
 
 void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 {
