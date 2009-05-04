@@ -1,0 +1,24 @@
+diff -ur libusb-1.0.0/libusb/os/linux_usbfs.c libusb-1.0.0-mod/libusb/os/linux_usbfs.c
+--- libusb-1.0.0/libusb/os/linux_usbfs.c	2008-12-13 20:43:20.000000000 +0100
++++ libusb-1.0.0-mod/libusb/os/linux_usbfs.c	2009-04-30 04:25:12.000000000 +0200
+@@ -1295,7 +1295,8 @@
+ 			urb->buffer_length = transfer->length % MAX_BULK_BUFFER_LENGTH;
+ 		else
+ 			urb->buffer_length = MAX_BULK_BUFFER_LENGTH;
+-
++		if ((!(transfer->endpoint & LIBUSB_ENDPOINT_DIR_MASK)) && (i == num_urbs - 1))
++			urb->flags = USBFS_URB_ZLP;
+ 		r = ioctl(dpriv->fd, IOCTL_USBFS_SUBMITURB, urb);
+ 		if (r < 0) {
+ 			int j;
+diff -ur libusb-1.0.0/libusb/os/linux_usbfs.h libusb-1.0.0-mod/libusb/os/linux_usbfs.h
+--- libusb-1.0.0/libusb/os/linux_usbfs.h	2008-07-16 16:17:57.000000000 +0200
++++ libusb-1.0.0-mod/libusb/os/linux_usbfs.h	2009-04-30 04:08:27.000000000 +0200
+@@ -63,6 +63,7 @@
+ #define USBFS_URB_DISABLE_SPD	1
+ #define USBFS_URB_ISO_ASAP	2
+ #define USBFS_URB_QUEUE_BULK	0x10
++#define USBFS_URB_ZLP	0x40
+ 
+ enum usbfs_urb_type {
+ 	USBFS_URB_TYPE_ISO = 0,
