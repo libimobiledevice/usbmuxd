@@ -10,7 +10,7 @@ set(LIBS ${LIBS} ${USB_LIBRARIES})
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
-add_definitions(-Wall -O0 -g)
+add_definitions(-Wall -O2 -g)
 add_executable(usbmuxd main.c usb-linux.c log.c utils.c device.c client.c)
 target_link_libraries(usbmuxd ${LIBS})
 
