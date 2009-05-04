@@ -51,6 +51,8 @@ static struct collection device_list;
 
 static struct timeval next_dev_poll_time;
 
+static int devlist_failures;
+
 static void usb_disconnect(struct usb_device *dev)
 {
 	if(!dev->dev) {
@@ -219,9 +221,21 @@ static int usb_discover(void)
 	
 	cnt = libusb_get_device_list(NULL, &devs);
 	if(cnt < 0) {
-		usbmuxd_log(LL_FATAL, "Could not get device list: %d", cnt);
-		return cnt;
+		usbmuxd_log(LL_WARNING, "Could not get device list: %d", cnt);
+		devlist_failures++;
+		// sometimes libusb fails getting the device list if you've just removed something
+		if(devlist_failures > 5) {
+			usbmuxd_log(LL_FATAL, "Too many errors getting device list\n");
+			return cnt;
+		} else {
+			gettimeofday(&next_dev_poll_time, NULL);
+			next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
+			next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
+			next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
+			return 0;
+		}
 	}
+	devlist_failures = 0;
 
 	usbmuxd_log(LL_SPEW, "usb_discover: scanning %d devices", cnt);
 
@@ -462,6 +476,7 @@ int usb_init(void)
 	int res;
 	usbmuxd_log(LL_DEBUG, "usb_init for linux / libusb 1.0");
 	
+	devlist_failures = 0;
 	res = libusb_init(NULL);
 	//libusb_set_debug(NULL, 3);
 	if(res != 0) {
