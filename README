@@ -1,0 +1,150 @@
+.This is an implementation of the iPhone/iPod Touch USB connection protocol.
+
+The server should be mostly compatible with the original Apple usbmuxd
+protocol. This means that a single client lib should be able to interoperate
+with both. Apple has now introduced a new plist-based version of the protocol
+which works in essentially the same way but uses XML-based plists as
+command/response payloads instead of binary blobs. The outer binary protocol is
+still the same used but now the only command/response format is 8 (plist).
+
+The server is under the usbmuxd directory. You'll need CMake and libusb 1.0 to
+build it. In addition, you need to apply the libusb patch in the patches/
+directory. If you want to debug using valgrind, apply the valgrind patch to
+improve the handling of the USB device filesystem ioctls.
+
+There is a Python client library in the python-client directory. It should be
+compatible with Windows, Linux, and OSX (using the Apple usbmuxd on Win and OSX)
+tcprelay.py implements a TCP connection forwarder that lets you pipe TCP
+connections to localhost to the phone. Run it with --help for usage. Note that
+under OSX you'll have to change the socket path from /tmp/usbmuxd to
+/var/run/usbmuxd (there is no socket path on Windows, only a TCP connection to
+localhost). The Python client lib is also compatible with the new plist-based
+protocol and should automatically select it if it sees such a server. However,
+you need Python 2.6 for Windows and Linux in this case, since the plistlib
+module doesn't come with older versions under these OSes (not that you'll have a
+server that supports this protocol under Linux. TODO: does Windows iTunes even
+use this yet?)
+
+ARCHITECTURE
+
+The iPhone / iPod Touch basically implements a rather strange USB networking
+system that operates at a higher level. It is of course completely proprietary.
+Generally speaking, this is what goes on in a typical usage scenario:
+
+0. iTunes opens a connection to usbmuxd and asks it for device notifications
+1. User inserts phone into computer
+2. usbmuxd notices the phone and pings it with a version packet
+3. phone replies
+4. usbmuxd now considers the phone to be connected and tells iTunes
+5. iTunes opens another separate connection to usbmuxd and asks it to connect
+to, say, the afc port on the device
+6. usbmuxd sends a pseudo-TCP SYN packet to the phone
+7. the phone's kernel driver receives the SYN packet and itself opens a
+   TCP connection to localhost on the afc port
+8. the phone replies with a pseudo-TCP SYN/ACK indicating that the port is open
+   and the connection can proceed
+7. usbmuxd sends a final ACK to the phone
+8. usbmuxd replies to iTunes with a "connection successful" message
+9. any data that iTunes writes to the usbmuxd socket from now on is forwarded,
+   through pseudo-TCP, through USB, back into a more regular TCP connection to
+   localhost, to the afc daemon on the phone, and vice versa
+
+The usbmuxd protocol is a relatively simple binary message protocol documented
+here:
+
+http://wikee.iphwn.org/usb:usbmux
+
+Note that once a connection is established the UNIX socket essentially becomes
+a dedicated pipe to the TCP connction and no more high-level control is
+possible (closing the socket closes the TCP connection). Ditto for the "listen
+for devices" mode - usbmuxd will reject any commands in such mode, and the
+socket essentially becomes a dedicated device notification pipe. This means
+that you need, at minimum, TWO connections to usbmuxd to do anything useful.
+
+On Windows, usbmuxd works the same way but a TCP connection to localhost port
+27015 replaces the UNIX socket. On OSX, the UNIX socket is /var/run/usbmuxd. The
+server and client implemented here default to /tmp/usbmuxd at the moment.
+
+The phone protocol operates over a pair of USB bulk endpoints. There is an outer
+layer used for packet size info and a "protocol" (version and TCP are the only
+two options), and that header is followed by TCP headers for actual data comms.
+However, the protocol isn't actual TCP, just a custom protocol which for some
+reason uses a standard TCP header and leaves most fields unused.
+
+There is no reordering or retransmission. There are no checksums, no URG, no
+PSH, no non-ACK, no FIN. What there *is* is the SEQ/ACK/window mechanism used
+for flow control, and RST is used as the only connection teardown mechanism (and
+also for "connection refused"), and the connection startup is SYN/SYNACK/ACK.
+
+Windows are constant-scaled by 8 bits. This is legal TCP as long as the
+corresponding option is negotiated. Of course, no such negotiation happens on
+this protocol.
+
+Note that, since there are no retransmissions, there is some overlap between ACK
+and window for flow control. For example, the server doesn't ever touch its
+window size, and just refuses to ACK stuff if its buffers are full and the
+client isn't reading data. The phone happily seems to stop sending stuff.
+
+Also, if the phone RSTs you out of nowhere, look at the packet payload for a
+textual error message. Note: if it claims to suffer from amnesia, that probably
+means you overflowed its input buffer by ignoring its flow control / window
+size. Go figure. Probably a logic bug in the kernel code.
+
+Note that all normal packets need to have flags set to ACK (and only ACK). There
+is no support for, erm, not-acking. Keep the ack number field valid at all
+times.
+
+
+GOTCHAS AND ANNOYANCES
+
+The usbmuxd CONNECT request port field is byte-swapped (network-endian). This is
+even more annoying for the plist based protocol, since it's even true there
+(where the field is plain text). So even for the plain text int, you need to
+swap the bytes (port 22 becomes <integer>5632</integer>).
+
+There are a bunch of gotchas due to the USB framing, and this is even worse
+because implementations tend to get it wrong (i.e. libusb, and this is the
+reason for the patch). Basically, USB Bulk offers, at the low level, the ability
+to transfer packets from 0 to wMaxPacketSize (512 here) bytes, period. There is
+no other support for higher level framing of transfers. The way you do those is
+by breaking them up into packets, and the final shorter packet parks the end of
+the transfer. The critical bit is that, if the transfer happens to be divisible
+by 512, you send a zero-length packet (ZLP) to indicate the end of the transfer.
+Libusb doesn't set this option by default and the iPhone gets packets stuck to
+each other, which it doesn't like. Actually, this framing is sort of redundant
+because the usbmux packet header includes a length field, but the phone still
+wants the ZLPs or else it breaks. To make matters worse, usbdevfs imposes a max
+transfer size of 16k, so libusb breaks transfers into that size. This is okay
+for sending as long as the ZLP is only added to the last transfer (the patch
+does that), but it can easily cause nasty race conditions on RX due to libusb
+doing multiple outstanding reads at the same time and then cancelling the rest
+when shorter data arrives (but what if some data got into the other requests
+already?), so we only do 16k reads and stick them together ourselves by looking
+at the packet size header. We still depend on ZLPs being sent to end transfers
+at non-16k boundaries that are multiples of 512, but that seems to work fine. I
+guess the ZLPs might cause spurious 0-byte transfers to show up on RX if things
+line up right, but we ignore those. By the way, the maximum packet/transfer size
+is 65535 bytes due to the 16-bit length header of the usbmux protocol.
+
+TODO
+
+The server currently assumes that the phone is well-behaved and does not do a
+bunch of checks like looking for the expected SEQ and ACK numbers from it. This
+is normally not an issue, but it's annoying for debugging because lost packets
+(which shouldn't happen, but can happen if the code is buggy) mean that stuff
+gets out of sync and then might crash and burn dozens of packets later.
+
+The server needs a proper front-end (i.e. daemonizing, commandline options,
+etc), a lot of testing, and some optimizing.
+
+Someone should probably do some edge-case testing on the TCP stuff.
+
+At some point we should probably write a C client lib.
+
+The outgoing ACK handling on the server probably needs some thought. Currently,
+when there's an outstanding ACK, we send it after a timeout (to avoid sending
+a no-payload ACK packet for everything the phone sends us). However, there's
+probably a better way of doing this.
+
+
+
