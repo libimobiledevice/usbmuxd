@@ -993,9 +993,15 @@ static int daemonize()
 		return -2;
 	}
 	// Redirect standard files to /dev/null
-	freopen("/dev/null", "r", stdin);
-	freopen("/dev/null", "w", stdout);
-	freopen("/dev/null", "w", stderr);
+	if (!freopen("/dev/null", "r", stdin)) {
+		logmsg(LOG_ERR, "ERROR: redirection of stdin failed.\n");
+	}
+	if (!freopen("/dev/null", "w", stdout)) {
+		logmsg(LOG_ERR, "ERROR: redirection of stdout failed.\n");
+	}
+	if (!freopen("/dev/null", "w", stderr)) {
+		logmsg(LOG_ERR, "ERROR: redirection of stderr failed.\n");
+	}
 
 	return 0;
 }
@@ -1320,6 +1326,7 @@ int main(int argc, char **argv)
 		if (children[i] != NULL) {
 			pthread_join(children[i]->thread, NULL);
 			free(children[i]);
+			children[i] = NULL;
 		}
 	}
 
