@@ -59,6 +59,7 @@ enum mux_dev_state {
 enum mux_conn_state {
 	CONN_CONNECTING,	// SYN
 	CONN_CONNECTED,		// SYN/SYNACK/ACK -> active
+	CONN_REFUSED,		// RST received during SYN
 	CONN_DYING,			// RST received
 	CONN_DEAD			// being freed; used to prevent infinite recursion between client<->device freeing
 };
@@ -227,13 +228,13 @@ static void connection_teardown(struct mux_connection *conn)
 	if(conn->state == CONN_DEAD)
 		return;
 	usbmuxd_log(LL_DEBUG, "connection_teardown dev %d sport %d dport %d", conn->dev->id, conn->sport, conn->dport);
-	if(conn->dev->state != MUXDEV_DEAD && conn->state != CONN_DYING) {
+	if(conn->dev->state != MUXDEV_DEAD && conn->state != CONN_DYING && conn->state != CONN_REFUSED) {
 		res = send_tcp(conn, TH_RST, NULL, 0);
 		if(res < 0)
 			usbmuxd_log(LL_ERROR, "Error sending TCP RST to device %d (%d->%d)", conn->dev->id, conn->sport, conn->dport);
 	}
 	if(conn->client) {
-		if(conn->state == CONN_CONNECTING) {
+		if(conn->state == CONN_REFUSED || conn->state == CONN_CONNECTING) {
 			client_notify_connect(conn->client, RESULT_CONNREFUSED);
 		} else {
 			conn->state = CONN_DEAD;
@@ -479,7 +480,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 	if(conn->state == CONN_CONNECTING) {
 		if(th->th_flags != (TH_SYN|TH_ACK)) {
 			if(th->th_flags & TH_RST)
-				conn->state = CONN_DYING;
+				conn->state = CONN_REFUSED;
 			usbmuxd_log(LL_INFO, "Connection refused by device %d (%d->%d)", dev->id, sport, dport);
 			connection_teardown(conn); //this also sends the notification to the client
 		} else {
