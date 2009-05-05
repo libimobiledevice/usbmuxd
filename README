@@ -107,7 +107,7 @@ because implementations tend to get it wrong (i.e. libusb, and this is the
 reason for the patch). Basically, USB Bulk offers, at the low level, the ability
 to transfer packets from 0 to wMaxPacketSize (512 here) bytes, period. There is
 no other support for higher level framing of transfers. The way you do those is
-by breaking them up into packets, and the final shorter packet parks the end of
+by breaking them up into packets, and the final shorter packet marks the end of
 the transfer. The critical bit is that, if the transfer happens to be divisible
 by 512, you send a zero-length packet (ZLP) to indicate the end of the transfer.
 Libusb doesn't set this option by default and the iPhone gets packets stuck to
