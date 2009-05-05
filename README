@@ -37,7 +37,7 @@ Generally speaking, this is what goes on in a typical usage scenario:
 3. phone replies
 4. usbmuxd now considers the phone to be connected and tells iTunes
 5. iTunes opens another separate connection to usbmuxd and asks it to connect
-to, say, the afc port on the device
+   to, say, the afc port on the device
 6. usbmuxd sends a pseudo-TCP SYN packet to the phone
 7. the phone's kernel driver receives the SYN packet and itself opens a
    TCP connection to localhost on the afc port
