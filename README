@@ -1,4 +1,4 @@
-.This is an implementation of the iPhone/iPod Touch USB connection protocol.
+This is an implementation of the iPhone/iPod Touch USB connection protocol.
 
 The server should be mostly compatible with the original Apple usbmuxd
 protocol. This means that a single client lib should be able to interoperate
