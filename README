@@ -20,6 +20,8 @@ libiphone compatible with the 'usbmuxd' infrastructure is called
 Building
 ========
 
+  ./autogen.sh
+  ./configure --sysconfdir=/etc
   make
   sudo make install
 
