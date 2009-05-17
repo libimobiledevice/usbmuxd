@@ -287,7 +287,10 @@ int recv_buf_timeout(int fd, void *data, size_t length, int flags,
 		// but this is an error condition
 		if (verbose >= 3)
 			fprintf(stderr, "%s: fd=%d recv returned 0\n", __func__, fd);
-		return -1;
+		return -EAGAIN;
+	}
+	if (result < 0) {
+		return -errno;
 	}
 	return result;
 }
