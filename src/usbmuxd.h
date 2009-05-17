@@ -42,4 +42,50 @@ int usbmuxd_scan(usbmuxd_scan_result **available_devices);
  */
 int usbmuxd_connect(const int handle, const unsigned short tcp_port);
 
+/**
+ * Disconnect. For now, this just closes the socket file descriptor.
+ *
+ * @param sfd socker file descriptor returned by usbmuxd_connect()
+ *
+ * @return 0 on success, -1 on error.
+ */
+int usbmuxd_disconnect(int sfd);
+
+/**
+ * Send data to the specified socket.
+ *
+ * @param sfd socket file descriptor returned by usbmuxd_connect()
+ * @param data buffer to send
+ * @param len size of buffer to send
+ * @param sent_bytes how many bytes sent
+ *
+ * @return 0 on success, a negative errno value otherwise.
+ */
+int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes);
+
+/**
+ * Receive data from the specified socket.
+ *
+ * @param sfd socket file descriptor returned by usbmuxd_connect()
+ * @param data buffer to put the data to
+ * @param len number of bytes to receive
+ * @param recv_bytes number of bytes received
+ * @param timeout how many milliseconds to wait for data
+ *
+ * @return 0 on success, a negative errno value otherwise.
+ */
+int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes, unsigned int timeout);
+
+/**
+ * Receive data from the specified socket with a default timeout.
+ *
+ * @param sfd socket file descriptor returned by usbmuxd_connect()
+ * @param data buffer to put the data to
+ * @param len number of bytes to receive
+ * @param recv_bytes number of bytes received
+ *
+ * @return 0 on success, a negative errno value otherwise.
+ */
+int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes);
+
 #endif /* __USBMUXD_H */
