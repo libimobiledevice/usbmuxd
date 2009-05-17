@@ -25,4 +25,5 @@ Makefile
 src/Makefile
 tools/Makefile
 udev/Makefile
+libusbmuxd-1.0.pc
 ])
