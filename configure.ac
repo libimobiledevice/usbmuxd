@@ -24,6 +24,7 @@ AC_OUTPUT([
 Makefile
 src/Makefile
 tools/Makefile
+udev/85-usbmuxd.rules
 udev/Makefile
 libusbmuxd.pc
 ])
