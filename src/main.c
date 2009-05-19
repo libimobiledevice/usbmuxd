@@ -1006,18 +1006,6 @@ static int daemonize()
 	return 0;
 }
 
-/**
- * signal handler function for cleaning up properly
- */
-static void clean_exit(int sig)
-{
-	if (sig == SIGINT) {
-		if (verbose >= 1)
-			fprintf(stderr, "CTRL+C pressed\n");
-	}
-	quit_flag = 1;
-}
-
 static void usage()
 {
 	printf("usage: usbmuxd [options]\n");
@@ -1093,6 +1081,33 @@ static int devices_attached()
 }
 
 /**
+ * signal handler function for cleaning up properly
+ */
+static void handle_signal(int sig)
+{
+	if (sig == SIGTERM) {
+		quit_flag = 1;
+	} else {
+		if (sig == SIGINT) {
+			if (verbose >= 1)
+				fprintf(stderr, "CTRL+C pressed\n");
+		}
+
+		if (verbose >= 1)
+			fprintf(stderr, "Checking if we can terminate (no more devices attached)...\n");
+
+		if (devices_attached() > 0) {
+			// we can't quit, there are still devices attached.
+			if (verbose >= 1)
+				fprintf(stderr, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.\n");
+		} else {
+			// it's safe to quit
+			quit_flag = 1;
+		}
+	}
+}
+
+/**
  * main function. Initializes all stuff and then loops waiting in accept.
  */
 int main(int argc, char **argv)
@@ -1121,9 +1136,9 @@ int main(int argc, char **argv)
 		logmsg(LOG_NOTICE, "starting");
 
 	// signal(SIGHUP, reload_conf); // none yet
-	signal(SIGINT, clean_exit);
-	signal(SIGQUIT, clean_exit);
-	signal(SIGTERM, clean_exit);
+	signal(SIGINT, handle_signal);
+	signal(SIGQUIT, handle_signal);
+	signal(SIGTERM, handle_signal);
 	signal(SIGPIPE, SIG_IGN);
 
 	// check for other running instance
