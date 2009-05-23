@@ -324,18 +324,18 @@ int usbmux_get_specific_device(int bus_n, int dev_n,
 
 	// Set the device configuration
 	for (bus = usb_get_busses(); bus; bus = bus->next)
-		//if (bus->location == bus_n)
-		for (dev = bus->devices; dev != NULL; dev = dev->next)
-			if (dev->devnum == dev_n) {
-				newdevice->__device = dev;
-				newdevice->usbdev = usb_open(newdevice->__device);
-				if (!newdevice->usbdev) {
-					fprintf(stderr, "%s: Error: usb_open(): %s\n", __func__, usb_strerror());
+		if (strtoul(bus->dirname, NULL, 10) == bus_n)
+			for (dev = bus->devices; dev != NULL; dev = dev->next)
+				if (strtol(dev->filename, NULL, 10) == dev_n) {
+					newdevice->__device = dev;
+					newdevice->usbdev = usb_open(newdevice->__device);
+					if (!newdevice->usbdev) {
+						fprintf(stderr, "%s: Error: usb_open(): %s\n", __func__, usb_strerror());
+					}
+					if (usbmux_config_usb_device(newdevice) == 0) {
+						goto found;
+					}
 				}
-				if (usbmux_config_usb_device(newdevice) == 0) {
-					goto found;
-				}
-			}
 
 	usbmux_free_device(newdevice);
 

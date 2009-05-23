@@ -282,8 +282,8 @@ static void *usbmuxd_client_reader_thread(void *arg)
 	cdata->reader_dead = 0;
 
 	if (verbose >= 3)
-		logmsg(LOG_NOTICE, "%s[%d:%d]: started", __func__,
-			   cdata->dev->device_id, cdata->dev->use_count);
+		logmsg(LOG_NOTICE, "%s[%x]: started (device %d:%d, use_count=%d)", __func__, THREAD,
+			   cdata->dev->device_id >> 16, cdata->dev->device_id & 0xFFFF, cdata->dev->use_count);
 
 	while (!quit_flag && !cdata->reader_quit) {
 		result = check_fd(cdata->socket, FD_WRITE, DEFAULT_TIMEOUT);
@@ -303,9 +303,8 @@ static void *usbmuxd_client_reader_thread(void *arg)
 		if (err != 0) {
 			if (verbose >= 2)
 				logmsg(LOG_ERR,
-					   "%s[%d:%d]: encountered USB read error: %d",
-					   __func__, cdata->dev->device_id,
-					   cdata->dev->use_count, err);
+					   "%s[%x]: encountered USB read error: %d",
+					   __func__, THREAD, err);
 			break;
 		}
 
@@ -332,8 +331,7 @@ static void *usbmuxd_client_reader_thread(void *arg)
 	}
 
 	if (verbose >= 3)
-		logmsg(LOG_NOTICE, "%s[%d:%d]: terminated", __func__,
-			   cdata->dev->device_id, cdata->dev->use_count);
+		logmsg(LOG_NOTICE, "%s[%x]: terminated", __func__, THREAD);
 
 	cdata->reader_dead = 1;
 
@@ -445,8 +443,8 @@ static void *usbmuxd_client_handler_thread(void *arg)
 	cdata = (struct client_data *) arg;
 
 	if (verbose >= 3)
-		logmsg(LOG_NOTICE, "%s[%d:%d]: started", __func__,
-			   cdata->dev->device_id, cdata->dev->use_count);
+		logmsg(LOG_NOTICE, "%s[%x]: started (device %d:%d, use_count=%d)", __func__, THREAD,
+			   cdata->dev->device_id >> 16, cdata->dev->device_id & 0xFFFF, cdata->dev->use_count);
 
 	if (usbmuxd_handleConnectResult(cdata)) {
 		if (verbose >= 3)
@@ -473,8 +471,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 		if (result <= 0) {
 			if (result < 0) {
 				if (verbose >= 3)
-					logmsg(LOG_ERR, "%s: Error: checkfd: %s", __func__,
-						   strerror(errno));
+					logmsg(LOG_ERR, "%s[%x]: Error: checkfd: %s", __func__, THREAD, strerror(errno));
 			}
 			continue;
 		}
@@ -486,9 +483,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 		}
 		if (len < 0) {
 			if (verbose >= 2)
-				logmsg(LOG_ERR, "%s[%d:%d]: Error: recv: %s", __func__,
-					   cdata->dev->device_id, cdata->dev->use_count,
-					   strerror(errno));
+				logmsg(LOG_ERR, "%s[%x]: Error: recv: %s", __func__, THREAD, strerror(errno));
 			break;
 		}
 
@@ -502,9 +497,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 				// some kind of timeout... just be patient and retry.
 			} else if (err < 0) {
 				if (verbose >= 2)
-					logmsg(LOG_ERR, "%s[%d:%d]: USB write error: %d",
-						   __func__, cdata->dev->device_id,
-						   cdata->dev->use_count, err);
+					logmsg(LOG_ERR, "%s[%x]: USB write error: %d", __func__, THREAD, err);
 				len = -1;
 				break;
 			}
@@ -523,8 +516,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
   leave:
 	// cleanup
 	if (verbose >= 3)
-		logmsg(LOG_NOTICE, "%s[%d:%d]: terminating", __func__,
-			   cdata->dev->device_id, cdata->dev->use_count);
+		logmsg(LOG_NOTICE, "%s[%x]: terminating", __func__, THREAD);
 	if (cdata->reader != 0) {
 		cdata->reader_quit = 1;
 		pthread_join(cdata->reader, NULL);
@@ -533,8 +525,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 	cdata->handler_dead = 1;
 
 	if (verbose >= 3)
-		logmsg(LOG_NOTICE, "%s[%d:%d]: terminated", __func__,
-			   cdata->dev->device_id, cdata->dev->use_count);
+		logmsg(LOG_NOTICE, "%s[%x]: terminated", __func__, THREAD);
 	return NULL;
 }
 
@@ -682,7 +673,10 @@ static void *usbmuxd_client_init_thread(void *arg)
 				memset(&dev_info_rec, 0, sizeof(dev_info_rec));
 				dev_info_rec.header.length = sizeof(dev_info_rec);
 				dev_info_rec.header.type = USBMUXD_DEVICE_INFO;
-				dev_info_rec.device.device_id = dev->devnum;
+				uint32_t dev_id =
+					strtol(dev->filename, NULL, 10)
+					+ (strtoul(bus->dirname, NULL, 10) << 16);
+				dev_info_rec.device.device_id = dev_id;
 				dev_info_rec.device.product_id = dev->descriptor.idProduct;
 				if (dev->descriptor.iSerialNumber) {
 					usb_dev_handle *udev;
@@ -755,9 +749,8 @@ static void *usbmuxd_client_init_thread(void *arg)
 
 	if (verbose >= 3)
 		logmsg(LOG_NOTICE,
-			   "%s[%x]: Setting up connection to usb device #%d on port %d",
-			   __func__, THREAD, c_req->device_id,
-			   ntohs(c_req->tcp_dport));
+			   "%s[%x]: Setting up connection to usb device %d:%d on port %d",
+			   __func__, THREAD, c_req->device_id >> 16, c_req->device_id & 0xFFFF, ntohs(c_req->tcp_dport));
 
 	// find the device, and open usb connection
 	pthread_mutex_lock(&usbmux_mutex);
@@ -780,16 +773,16 @@ static void *usbmuxd_client_init_thread(void *arg)
 		// if not found, make a new connection
 		if (verbose >= 2)
 			logmsg(LOG_NOTICE,
-				   "%s[%x]: creating new usb connection, device_id=%d",
-				   __func__, THREAD, c_req->device_id);
+				   "%s[%x]: creating new usb connection, device %d:%d",
+				   __func__, THREAD, c_req->device_id >> 16, c_req->device_id & 0xFFFF);
 
 		pthread_mutex_lock(&usb_mutex);
-		if (usbmux_get_specific_device(0, c_req->device_id, &phone) < 0) {
+		if (usbmux_get_specific_device(c_req->device_id >> 16, c_req->device_id & 0xFFFF, &phone) < 0) {
 			pthread_mutex_unlock(&usb_mutex);
 			pthread_mutex_unlock(&usbmux_mutex);
 			if (verbose >= 1)
-				logmsg(LOG_ERR, "%s[%x]: device_id %d could not be opened",
-					   __func__, THREAD, c_req->device_id);
+				logmsg(LOG_ERR, "%s[%x]: device %d:%d could not be opened",
+					   __func__, THREAD, c_req->device_id >> 16, c_req->device_id & 0xFFFF);
 			usbmuxd_send_result(cdata->socket, c_req->header.tag, ENODEV);
 			goto leave;
 		}
@@ -825,8 +818,8 @@ static void *usbmuxd_client_init_thread(void *arg)
 	} else {
 		if (verbose >= 2)
 			logmsg(LOG_NOTICE,
-				   "%s[%x]: reusing usb connection, device_id=%d",
-				   __func__, THREAD, c_req->device_id);
+				   "%s[%x]: reusing usb connection, device %d:%d",
+				   __func__, THREAD, c_req->device_id >> 16, c_req->device_id & 0xFFFF);
 	}
 	pthread_mutex_unlock(&usbmux_mutex);
 
