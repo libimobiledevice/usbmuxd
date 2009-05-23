@@ -1181,6 +1181,9 @@ int main(int argc, char **argv)
 
 	chmod(USBMUXD_SOCKET_FILE, 0666);
 
+	if (verbose >= 2)
+		usb_set_debug(verbose);
+
 	if (verbose >= 4)
 		usbmux_set_debug(1);
 
