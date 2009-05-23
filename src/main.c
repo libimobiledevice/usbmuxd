@@ -690,13 +690,12 @@ static void *usbmuxd_client_init_thread(void *arg)
 					udev = usb_open(dev);
 					if (udev) {
 						usb_get_string_simple(udev,
-											  dev->descriptor.
-											  iSerialNumber,
-											  dev_info_rec.device.
-											  serial_number,
-											  sizeof(dev_info_rec.device.
-													 serial_number) + 1);
+							dev->descriptor.iSerialNumber,
+							dev_info_rec.device.serial_number,
+							sizeof(dev_info_rec.device.serial_number) + 1);
 						usb_close(udev);
+					} else {
+						logmsg(LOG_ERR, "%s[%x]: Error: usb_open(): %s\n", __func__, THREAD, usb_strerror());
 					}
 					//pthread_mutex_unlock(&usbmux_mutex);
 				}

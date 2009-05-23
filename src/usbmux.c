@@ -329,6 +329,9 @@ int usbmux_get_specific_device(int bus_n, int dev_n,
 			if (dev->devnum == dev_n) {
 				newdevice->__device = dev;
 				newdevice->usbdev = usb_open(newdevice->__device);
+				if (!newdevice->usbdev) {
+					fprintf(stderr, "%s: Error: usb_open(): %s\n", __func__, usb_strerror());
+				}
 				if (usbmux_config_usb_device(newdevice) == 0) {
 					goto found;
 				}
