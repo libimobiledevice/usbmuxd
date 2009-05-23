@@ -674,8 +674,8 @@ static void *usbmuxd_client_init_thread(void *arg)
 				&& dev->descriptor.idProduct <= 0x1293) {
 				if (verbose >= 1)
 					logmsg(LOG_NOTICE,
-						   "%s[%x]: Found device on bus %d, id %d",
-						   __func__, THREAD, bus->location, dev->devnum);
+						   "%s[%x]: Found device on bus %s, id %s",
+						   __func__, THREAD, bus->dirname, dev->filename);
 				found++;
 
 				// construct packet
@@ -1182,7 +1182,7 @@ int main(int argc, char **argv)
 
 	chmod(USBMUXD_SOCKET_FILE, 0666);
 
-	if (verbose >= 3)
+	if (verbose >= 4)
 		usbmux_set_debug(1);
 
 	if (!foreground) {
