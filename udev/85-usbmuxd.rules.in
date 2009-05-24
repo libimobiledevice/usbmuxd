@@ -12,8 +12,8 @@ LABEL="usbmuxd_rules_usbmux"
 ACTION=="add|remove", SUBSYSTEM!="usb_endpoint", GOTO="usbmuxd_rules_end"
 
 # Setup cute names for the endpoints
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep04", SYMLINK+="usbmux/%s{serial}/%s{direction}"
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", SYMLINK+="usbmux/%s{serial}/%s{direction}"
+ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep04", IMPORT{program}="usb_id %p --export", SYMLINK+="usbmux/$env{ID_SERIAL_SHORT}/%s{direction}"
+ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", IMPORT{program}="usb_id %p --export", SYMLINK+="usbmux/$env{ID_SERIAL_SHORT}/%s{direction}"
 
 # Start and stop 'usbmuxd' as required
 ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --start --oknodo --exec @prefix@/sbin/usbmuxd"
