@@ -57,7 +57,7 @@ static int fsock = -1;
 static int verbose = DEBUG_LEVEL;
 static int foreground = 0;
 static int exit_on_no_devices = 0;
-static int preserve_privileges = 0;
+static int drop_privileges = 0;
 
 struct device_info {
 	uint32_t device_id;
@@ -1006,7 +1006,7 @@ static void usage()
 	printf("\t-v|--verbose              be verbose (use twice or more to increase)\n");
 	printf("\t-f|--foreground           do not daemonize\n");
 	printf("\t-e|--exit-on-no-devices   exit if no device is attached\n");
-	printf("\t-p|--preserve-privileges  do not drop privileges\n");
+	printf("\t-d|--drop-privileges      drop privileges after startup\n");
 	printf("\n");
 }
 
@@ -1017,13 +1017,13 @@ static void parse_opts(int argc, char **argv)
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
 		{"exit-on-no-devices", 0, NULL, 'e'},
-		{"preserve-privileges", 0, NULL, 'p'},
+		{"drop-privileges", 0, NULL, 'd'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfvep", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfved", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -1041,8 +1041,8 @@ static void parse_opts(int argc, char **argv)
 		case 'e':
 			exit_on_no_devices = 1;
 			break;
-		case 'p':
-			preserve_privileges = 1;
+		case 'd':
+			drop_privileges = 1;
 			break;
 		default:
 			usage();
@@ -1200,7 +1200,7 @@ int main(int argc, char **argv)
 		}
 	}
 	// drop elevated privileges
-	if (!preserve_privileges && (getuid() == 0 || geteuid() == 0)) {
+	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
 		struct passwd *pw = getpwnam("nobody");
 		if (pw) {
 			setuid(pw->pw_uid);
