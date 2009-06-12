@@ -68,7 +68,7 @@ class SocketRelay(object):
 class TCPRelay(SocketServer.BaseRequestHandler):
 	def handle(self):
 		print "Incoming connection to %d"%self.server.server_address[1]
-		mux = usbmux.USBMux("/tmp/usbmuxd")
+		mux = usbmux.USBMux()
 		print "Waiting for devices..."
 		if not mux.devices:
 			mux.process(1.0)
