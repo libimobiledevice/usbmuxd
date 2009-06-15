@@ -824,11 +824,11 @@ static void *usbmuxd_client_init_thread(void *arg)
 	pthread_mutex_unlock(&usbmux_mutex);
 
 	// setup connection to iPhone/iPod
-//    pthread_mutex_lock(&usbmux_mutex);
+	pthread_mutex_lock(&cur_dev->writer_mutex);
 	res =
 		usbmux_new_client(cur_dev->phone, 0, ntohs(c_req->tcp_dport),
 						  &(cdata->muxclient));
-//    pthread_mutex_unlock(&usbmux_mutex);
+	pthread_mutex_unlock(&cur_dev->writer_mutex);
 
 	if (res != 0) {
 		usbmuxd_send_result(cdata->socket, c_req->header.tag, res);
@@ -870,7 +870,9 @@ static void *usbmuxd_client_init_thread(void *arg)
 
 	// time to clean up
 	if (cdata && cdata->muxclient) {	// should be non-NULL
+		pthread_mutex_lock(&cdata->dev->writer_mutex);
 		usbmux_free_client(cdata->muxclient);
+		pthread_mutex_unlock(&cdata->dev->writer_mutex);
 	}
 
   leave:
