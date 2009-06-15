@@ -131,7 +131,6 @@ void log_debug_msg(const char *format, ...)
 #endif
 }
 
-#ifdef DEBUG
 /**
  * for debugging purposes.
  */
@@ -168,7 +167,6 @@ static void print_buffer(const char *data, const int length)
 	}
 	printf("\n");
 }
-#endif
 
 void hton_header(usbmux_tcp_header * hdr)
 {
@@ -455,14 +453,13 @@ int send_to_device(usbmux_device_t device, char *data, int datalen)
 	int retrycount = 0;
 	int bytes = 0;
 
-#ifdef DEBUG
-#ifdef DEBUG_MORE
+if (toto_debug > 0) {
 	printf("===============================\n%s: trying to send\n",
 		   __func__);
 	print_buffer(data, datalen);
 	printf("===============================\n");
-#endif
-#endif
+}
+
 	do {
 		if (retrycount > 3) {
 			log_debug_msg
@@ -499,7 +496,6 @@ int send_to_device(usbmux_device_t device, char *data, int datalen)
 		}
 	} while (0);				// fall out
 
-#ifdef DEBUG
 	if (bytes > 0) {
 		if (toto_debug > 0) {
 			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
@@ -508,7 +504,6 @@ int send_to_device(usbmux_device_t device, char *data, int datalen)
 			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 		}
 	}
-#endif
 	return bytes;
 }
 
@@ -549,7 +544,6 @@ int recv_from_device_timeout(usbmux_device_t device, char *data,
 		}
 		return bytes;
 	}
-#ifdef DEBUG
 	if (bytes > 0) {
 		if (toto_debug > 0) {
 			printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
@@ -558,7 +552,6 @@ int recv_from_device_timeout(usbmux_device_t device, char *data,
 			printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 		}
 	}
-#endif
 
 	return bytes;
 }
