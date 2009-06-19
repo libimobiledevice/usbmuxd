@@ -662,7 +662,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 		for (dev = bus->devices; dev; dev = dev->next) {
 			if (dev->descriptor.idVendor == 0x05ac
 				&& dev->descriptor.idProduct >= 0x1290
-				&& dev->descriptor.idProduct <= 0x1293) {
+				&& dev->descriptor.idProduct <= 0x1294) {
 				if (verbose >= 1)
 					logmsg(LOG_NOTICE,
 						   "%s[%x]: Found device on bus %s, id %s",
@@ -1072,7 +1072,7 @@ static int devices_attached()
 		for (dev = bus->devices; dev; dev = dev->next) {
 			if (dev->descriptor.idVendor == 0x05ac
 				&& dev->descriptor.idProduct >= 0x1290
-				&& dev->descriptor.idProduct <= 0x1293) {
+				&& dev->descriptor.idProduct <= 0x1294) {
 				res++;
 			}
 		}
