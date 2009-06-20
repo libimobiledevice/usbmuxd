@@ -847,23 +847,20 @@ static void *usbmuxd_client_init_thread(void *arg)
 	}
 	pthread_mutex_unlock(&cur_dev->mutex);
 
-	// wait for the initial handshake (SYN->SYN+ACK->ACKto complete
+	// wait for the initial handshake (SYN->SYN+ACK->ACK) to complete)
 	struct timespec ts;
 	ts.tv_sec = 0;
 	ts.tv_nsec = 100000000;
 
 	i = 0;
-	printf("waiting for handshake to complete...\n");
 	while (i < 10000) {
 		if (usbmux_is_connected(cdata->muxclient)) {
-			printf("handshake done\n");
 			break;
 		}
 		nanosleep(&ts, NULL);
 		i+=100;
 	}
 	if (!usbmux_is_connected(cdata->muxclient)) {
-		printf("handshake failed\n");
 		usbmuxd_send_result(cdata->socket, c_req->header.tag, -ENOTCONN);
 		goto leave;
 	}
