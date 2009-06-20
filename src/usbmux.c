@@ -100,6 +100,8 @@ struct usbmux_client_int {
 	int error;
 
 	int cleanup;
+
+	int connected;
 };
 
 
@@ -734,6 +736,7 @@ int usbmux_new_client(usbmux_device_t device, uint16_t src_port,
 		add_connection(new_connection);
 		new_connection->error = 0;
 		new_connection->cleanup = 0;
+		new_connection->connected = 0;
 		hton_header(new_connection->header);
 		log_debug_msg("%s: send_to_device (%d --> %d)\n", __func__,
 					  ntohs(new_connection->header->sport),
@@ -931,6 +934,8 @@ uint32_t append_receive_buffer(usbmux_client_t client, char *packet)
 				 sizeof(usbmux_tcp_header)) <= 0) {
 				log_debug_msg("%s: error when pushing to usb...\n",
 							  __func__);
+			} else {
+				client->connected = 1;
 			}
 			// need to revert some of the fields back to host notation.
 			ntoh_header(client->header);
@@ -1252,4 +1257,12 @@ int usbmux_recv_timeout(usbmux_client_t client, char *data,
 	pthread_mutex_unlock(&client->mutex);
 
 	return 0;
+}
+
+int usbmux_is_connected(usbmux_client_t client)
+{
+	if (!client) {
+		return 0;
+	}
+	return client->connected;
 }

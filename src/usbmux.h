@@ -48,4 +48,6 @@ int usbmux_pullbulk(usbmux_device_t device);
 
 int usbmux_get_error(usbmux_client_t client);
 
+int usbmux_is_connected(usbmux_client_t client);
+
 #endif

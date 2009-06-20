@@ -719,6 +719,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 			logmsg(LOG_NOTICE,
 				   "%s[%x]: No attached iPhone/iPod devices found.",
 				   __func__, THREAD);
+		usbmuxd_send_result(cdata->socket, s_req->header.tag, -ENODEV);
 		goto leave;
 	}
 
@@ -845,6 +846,27 @@ static void *usbmuxd_client_init_thread(void *arg)
 					   usbmuxd_bulk_reader_thread, cur_dev);
 	}
 	pthread_mutex_unlock(&cur_dev->mutex);
+
+	// wait for the initial handshake (SYN->SYN+ACK->ACKto complete
+	struct timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 100000000;
+
+	i = 0;
+	printf("waiting for handshake to complete...\n");
+	while (i < 10000) {
+		if (usbmux_is_connected(cdata->muxclient)) {
+			printf("handshake done\n");
+			break;
+		}
+		nanosleep(&ts, NULL);
+		i+=100;
+	}
+	if (!usbmux_is_connected(cdata->muxclient)) {
+		printf("handshake failed\n");
+		usbmuxd_send_result(cdata->socket, c_req->header.tag, -ENOTCONN);
+		goto leave;
+	}
 
 	// start connection handler thread
 	cdata->handler_dead = 0;
