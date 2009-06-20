@@ -723,7 +723,9 @@ static void *usbmuxd_client_init_thread(void *arg)
 		goto leave;
 	}
 
-	if (verbose >= 3)
+	goto leave;
+
+/*	if (verbose >= 3)
 		logmsg(LOG_NOTICE, "%s[%x]: Waiting for connect request", __func__,
 			   THREAD);
 
@@ -736,7 +738,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 				   "%s[%x]: Did not receive any connect request.",
 				   __func__, THREAD);
 		goto leave;
-	}
+	}*/
 
   connect:
 
