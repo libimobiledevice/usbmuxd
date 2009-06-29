@@ -771,7 +771,7 @@ int usbmux_free_client(usbmux_client_t client)
 	int err = 0;
 	int result = 0;
 	pthread_mutex_lock(&client->mutex);
-	client->header->tcp_flags = TCP_FIN;
+	client->header->tcp_flags = TCP_RST;
 	client->header->length = 0x1C;
 	client->header->window = 0;
 	client->header->length16 = 0x1C;
