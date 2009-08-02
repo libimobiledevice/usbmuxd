@@ -28,7 +28,6 @@
 
 #define BULKIN 0x85
 #define BULKOUT 0x04
-#define HEADERLEN 28
 
 static const uint8_t TCP_FIN = 1;
 static const uint8_t TCP_SYN = 1 << 1;
@@ -570,7 +569,7 @@ usbmux_tcp_header *new_mux_packet(uint16_t s_port, uint16_t d_port)
 	usbmux_tcp_header *conn =
 		(usbmux_tcp_header *) malloc(sizeof(usbmux_tcp_header));
 	conn->type = htonl(6);
-	conn->length = HEADERLEN;
+	conn->length = sizeof(usbmux_tcp_header);
 	conn->sport = htons(s_port);
 	conn->dport = htons(d_port);
 	conn->scnt = 0;
@@ -578,7 +577,7 @@ usbmux_tcp_header *new_mux_packet(uint16_t s_port, uint16_t d_port)
 	conn->offset = 0x50;
 	conn->window = htons(0x0200);
 	conn->nullnull = 0x0000;
-	conn->length16 = HEADERLEN;
+	conn->length16 = sizeof(usbmux_tcp_header);
 	return conn;
 }
 
@@ -879,7 +878,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 		return sendresult;
 	} else if ((uint32_t) sendresult == blocksize) {
 		// actual number of data bytes sent.
-		*sent_bytes = sendresult - HEADERLEN;
+		*sent_bytes = sendresult - sizeof(usbmux_tcp_header);
 		return 0;
 	} else {
 		fprintf(stderr,
@@ -903,9 +902,9 @@ uint32_t append_receive_buffer(usbmux_client_t client, char *packet)
 		return 0;
 
 	usbmux_tcp_header *header = (usbmux_tcp_header *) packet;
-	char *data = &packet[HEADERLEN];
+	char *data = &packet[sizeof(usbmux_tcp_header)];
 	uint32_t packetlen = ntohl(header->length);
-	uint32_t datalen = packetlen - HEADERLEN;
+	uint32_t datalen = packetlen - sizeof(usbmux_tcp_header);
 
 	int dobroadcast = 0;
 
@@ -1114,7 +1113,7 @@ int usbmux_pullbulk(usbmux_device_t device)
 	cursor = device->usbReceive.buffer;
 	while (1) {
 		// check if there's even sufficient data to decode a header
-		if (device->usbReceive.leftover < HEADERLEN)
+		if (device->usbReceive.leftover < sizeof(usbmux_tcp_header))
 			break;
 		usbmux_tcp_header *header = (usbmux_tcp_header *) cursor;
 
