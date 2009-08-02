@@ -15,6 +15,9 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA 
  */
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -845,6 +848,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 	uint32_t curlen = datalen;
 	uint32_t packetsize = blocksize;
 
+#ifdef ENABLE_HACKS
 	// BEGIN HACK
 	if ((blocksize % 128) == 0) {
 	    int cutoff = 28;
@@ -886,6 +890,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 	    fullsendresult -= sizeof(usbmux_tcp_header);
 	}
 	// END HACK
+#endif
 
 	// Set the length
 	client->header->length = packetsize;

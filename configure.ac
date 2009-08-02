@@ -18,6 +18,20 @@ AC_PROG_INSTALL
 
 PKG_CHECK_MODULES(libusb, libusb >= 0.1.12)
 
+# check for options
+AC_ARG_ENABLE([hacks],
+            [AS_HELP_STRING([--disable-hacks],
+            [disable hacks that provide workarounds for certain problems])],
+            [enable_hacks=no],
+            [enable_hacks=yes])
+if test "x$enable_hacks" = xyes; then
+        AC_DEFINE(ENABLE_HACKS, 1, [Define if you want hacks enabled])
+        echo "Note: hacks are enabled."
+else
+        echo "Note: hacks are DISABLED."
+fi
+AM_CONDITIONAL(ENABLE_HACKS, test "x$enable_hacks" = xyes)
+
 # Output files
 
 AC_OUTPUT([
