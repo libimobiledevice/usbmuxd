@@ -58,6 +58,7 @@ static int verbose = DEBUG_LEVEL;
 static int foreground = 0;
 static int exit_on_no_devices = 0;
 static int drop_privileges = 0;
+static int udev = 0;
 
 struct device_info {
 	uint32_t device_id;
@@ -1030,6 +1031,7 @@ static void usage()
 	printf("\t-f|--foreground           do not daemonize\n");
 	printf("\t-e|--exit-on-no-devices   exit if no device is attached\n");
 	printf("\t-d|--drop-privileges      drop privileges after startup\n");
+	printf("\t-u|--udev                 use udev mode of operations\n");
 	printf("\n");
 }
 
@@ -1041,12 +1043,13 @@ static void parse_opts(int argc, char **argv)
 		{"verbose", 0, NULL, 'v'},
 		{"exit-on-no-devices", 0, NULL, 'e'},
 		{"drop-privileges", 0, NULL, 'd'},
+		{"udev", 0, NULL, 'u'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfved", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvedu", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -1067,11 +1070,17 @@ static void parse_opts(int argc, char **argv)
 		case 'd':
 			drop_privileges = 1;
 			break;
+		case 'u':
+			udev = 1;
+			break;
 		default:
 			usage();
 			exit(2);
 		}
 	}
+
+	if (udev)
+		foreground = 0;
 }
 
 /**
@@ -1173,9 +1182,12 @@ int main(int argc, char **argv)
 		fcntl(fileno(lfd), F_GETLK, &lock);
 		fclose(lfd);
 		if (lock.l_type != F_UNLCK) {
-			logmsg(LOG_NOTICE,
-				   "another instance is already running. exiting.");
-			return -1;
+			if (!udev) {
+				logmsg(LOG_NOTICE,
+				       "another instance is already running. exiting.");
+				return -1;
+			}
+			return 0;
 		}
 	}
 
@@ -1265,6 +1277,7 @@ int main(int argc, char **argv)
 		if (result <= 0) {
 			if (result == 0) {
 				// cleanup
+				int num_children = 0;
 				for (i = 0; i < children_capacity; i++) {
 					if (children[i]) {
 						if (children[i]->dead != 0) {
@@ -1277,12 +1290,16 @@ int main(int argc, char **argv)
 							children[i] = NULL;
 							cnt++;
 						} else {
+							num_children++;
 							cnt = 0;
 						}
 					} else {
 						cnt++;
 					}
 				}
+
+				if (num_children == 0 && udev)
+					break;
 
 				if ((children_capacity > DEFAULT_CHILDREN_CAPACITY)
 					&& ((children_capacity - cnt) <=
