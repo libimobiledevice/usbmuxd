@@ -580,7 +580,7 @@ static void *usbmuxd_bulk_reader_thread(void *arg)
 static void *usbmuxd_client_init_thread(void *arg)
 {
 	struct client_data *cdata;
-	struct usbmuxd_scan_request *s_req = NULL;
+	struct usbmuxd_scan_request *s_req;
 	struct usbmuxd_device_info_record dev_info_rec;
 	struct usbmuxd_connect_request *c_req = NULL;
 
@@ -941,7 +941,7 @@ static void *usbmuxd_client_init_thread(void *arg)
 			cur_dev = NULL;
 			if (device_count > 1) {
 				struct device_info **newlist;
-				int j;
+				int j = 0;
 
 				newlist =
 					(struct device_info **)

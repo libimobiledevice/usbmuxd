@@ -428,7 +428,7 @@ int usbmux_get_specific_device(int bus_n, int dev_n,
 int usbmux_free_device(usbmux_device_t device)
 {
 	char buf[512];
-	int bytes;
+	int bytes = -1;
 
 	if (!device)
 		return -EINVAL;
