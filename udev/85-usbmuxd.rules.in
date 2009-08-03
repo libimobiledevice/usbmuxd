@@ -16,8 +16,8 @@ ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep04", IMPORT{program
 ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", IMPORT{program}="usb_id %p --export", SYMLINK+="usbmux/$env{ID_SERIAL_SHORT}/%s{direction}"
 
 # Start and stop 'usbmuxd' as required
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --start --oknodo --exec @prefix@/sbin/usbmuxd"
-ACTION=="remove", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="/sbin/start-stop-daemon --stop --signal 3 --exec @prefix@/sbin/usbmuxd"
+ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="@prefix@/sbin/usbmuxd -u"
+# usbmuxd will go away when the last device is removed, when in udev mode
 
 # skip
 LABEL="usbmuxd_rules_end"
