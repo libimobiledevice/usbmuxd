@@ -822,7 +822,6 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 	pthread_mutex_lock(&client->mutex);
 
 	int sendresult = 0;
-	int fullsendresult = 0;
 	uint32_t blocksize = 0;
 	if (client->wr_window <= 0) {
 		struct timespec ts;
@@ -841,67 +840,20 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 	// client->scnt and client->ocnt should already be in host notation...
 	// we don't need to change them juuuust yet. 
 	char *buffer = (char *) malloc(blocksize + 2);	// allow 2 bytes of safety padding
-	const char *dataptr = data;
-	uint32_t curlen = datalen;
-	uint32_t packetsize = blocksize;
-
-	// BEGIN HACK
-	if ((blocksize % 128) == 0) {
-	    int cutoff = 28;
-	    // HACK: we need to split up the packet because of an unresolved
-	    // usb communication issue aka 'N*128 problem' or 'N*512 problem'
-	    log_debug_msg("%s: HACK: splitting packet, two send_to_device calls will follow\n");
-	    packetsize = blocksize - cutoff;
-	    curlen = datalen - cutoff;
-	    client->header->length = packetsize;
-	    client->header->length16 = packetsize;
-	    hton_header(client->header);
-	    memcpy(buffer, client->header, sizeof(usbmux_tcp_header));
-	    memcpy(buffer + sizeof(usbmux_tcp_header), dataptr, curlen);
-
-	    log_debug_msg("%s: send_to_device(%d --> %d) window = %d\n", __func__,
-				  ntohs(client->header->sport),
-				  ntohs(client->header->dport),
-				  ntohs(client->header->window));
-	    sendresult = send_to_device(client->device, buffer, packetsize);
-	    fullsendresult = sendresult;
-
-	    // revert header fields that have been swapped before trying to send
-	    ntoh_header(client->header);
-
-	    // update counts ONLY if the send succeeded.
-	    if ((uint32_t) sendresult == packetsize) {
-		// Re-calculate scnt
-		client->header->scnt += curlen;
-		client->wr_window -= packetsize;
-	    } else {
-		goto err_cond;
-	    }
-
-	    dataptr += curlen;
-	    curlen = cutoff;
-	    packetsize = sizeof(usbmux_tcp_header) + curlen;
-	    // fix fullsendresult to not include the header length to make
-	    //  setting *sent_bytes work properly
-	    fullsendresult -= sizeof(usbmux_tcp_header);
-	}
-	// END HACK
-
 	// Set the length
-	client->header->length = packetsize;
-	client->header->length16 = packetsize;
+	client->header->length = blocksize;
+	client->header->length16 = blocksize;
 
 	// Put header into big-endian notation
 	hton_header(client->header);
 	// Concatenation of stuff in the buffer.
 	memcpy(buffer, client->header, sizeof(usbmux_tcp_header));
-	memcpy(buffer + sizeof(usbmux_tcp_header), dataptr, curlen);
+	memcpy(buffer + sizeof(usbmux_tcp_header), data, datalen);
 
 	log_debug_msg("%s: send_to_device(%d --> %d)\n", __func__,
 				  ntohs(client->header->sport),
 				  ntohs(client->header->dport));
-	sendresult = send_to_device(client->device, buffer, packetsize);
-	fullsendresult += sendresult;
+	sendresult = send_to_device(client->device, buffer, blocksize);
 	// Now that we've sent it off, we can clean up after our sloppy selves.
 	if (buffer)
 		free(buffer);
@@ -910,13 +862,12 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 	ntoh_header(client->header);
 
 	// update counts ONLY if the send succeeded.
-	if ((uint32_t) sendresult == packetsize) {
+	if ((uint32_t) sendresult == blocksize) {
 		// Re-calculate scnt
-		client->header->scnt += curlen;
-		client->wr_window -= packetsize;
+		client->header->scnt += datalen;
+		client->wr_window -= blocksize;
 	}
 
-err_cond:
 	pthread_mutex_unlock(&client->mutex);
 
 	if (sendresult == -ETIMEDOUT || sendresult == 0) {
@@ -925,14 +876,14 @@ err_cond:
 		return -ETIMEDOUT;
 	} else if (sendresult < 0) {
 		return sendresult;
-	} else if ((uint32_t) fullsendresult == blocksize) {
+	} else if ((uint32_t) sendresult == blocksize) {
 		// actual number of data bytes sent.
-		*sent_bytes = fullsendresult - sizeof(usbmux_tcp_header);
+		*sent_bytes = sendresult - sizeof(usbmux_tcp_header);
 		return 0;
 	} else {
 		fprintf(stderr,
 				"usbsend managed to dump a packet that is not full size. %d of %d\n",
-				sendresult, packetsize);
+				sendresult, blocksize);
 		return -EBADMSG;
 	}
 }
