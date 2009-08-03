@@ -854,7 +854,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
 	    int cutoff = 28;
 	    // HACK: we need to split up the packet because of an unresolved
 	    // usb communication issue aka 'N*128 problem' or 'N*512 problem'
-	    log_debug_msg("%s: HACK: splitting packet, two send_to_device calls will follow\n", __func__);
+	    log_debug_msg("%s: HACK: splitting packet, two send_to_device calls will follow\n");
 	    packetsize = blocksize - cutoff;
 	    curlen = datalen - cutoff;
 	    client->header->length = packetsize;
