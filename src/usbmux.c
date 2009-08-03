@@ -58,6 +58,7 @@ struct usbmux_device_int {
 	struct usb_dev_handle *usbdev;
 	struct usb_device *__device;
 	receivebuf_t usbReceive;
+	int wMaxPacketSize;
 };
 
 typedef struct {
@@ -272,6 +273,24 @@ static int usbmux_config_usb_device(usbmux_device_t device)
 		log_debug_msg("done.\n");
 	}
 
+	// get the last configuration
+	struct usb_config_descriptor *cfg = &device->__device->config[device->__device->descriptor.bNumConfigurations-1];
+	if (cfg && cfg->bNumInterfaces >= 2) {
+		struct usb_interface *ifp = &cfg->interface[1];
+		if (ifp && ifp->num_altsetting >= 1) {
+			struct usb_interface_descriptor *as = &ifp->altsetting[0];
+			int i;
+			for (i = 0; i < as->bNumEndpoints; i++) {
+				struct usb_endpoint_descriptor *ep=&as->endpoint[i];
+				if (ep->bEndpointAddress == BULKOUT) {
+					device->wMaxPacketSize = ep->wMaxPacketSize;
+				}
+			}
+		}
+	}
+
+	log_debug_msg("Setting wMaxPacketSize to %d\n", device->wMaxPacketSize);
+
 	do {
 		bytes = usb_bulk_read(device->usbdev, BULKIN, buf, 512, 800);
 	} while (bytes > 0);
@@ -316,6 +335,9 @@ int usbmux_get_specific_device(int bus_n, int dev_n,
 	newdevice->usbReceive.leftover = 0;
 	newdevice->usbReceive.capacity = 0;
 
+	// wMaxPacketSize
+	newdevice->wMaxPacketSize = 64;
+
 	// Initialize libusb
 	usb_init();
 	usb_find_busses();
@@ -328,7 +350,7 @@ int usbmux_get_specific_device(int bus_n, int dev_n,
 				if (strtol(dev->filename, NULL, 10) == dev_n) {
 					newdevice->__device = dev;
 					newdevice->usbdev = usb_open(newdevice->__device);
-					if (!newdevice->usbdev) {
+ 					if (!newdevice->usbdev) {
 						fprintf(stderr, "%s: Error: usb_open(): %s\n", __func__, usb_strerror());
 					}
 					if (usbmux_config_usb_device(newdevice) == 0) {
@@ -494,6 +516,15 @@ if (toto_debug > 0) {
 			data += bytes;
 			datalen -= bytes;
 			continue;
+		}
+		if ((bytes % device->wMaxPacketSize) == 0) {
+		 	log_debug_msg("NOTE: sending NULL packet\n");
+			char nullp = 0;
+			int res = usb_bulk_write(device->usbdev, BULKOUT,
+						&nullp, 0, timeout);
+			if (res < 0) {
+			    log_debug_msg("ERROR: NULL packet write returned %d\n", res);
+			}
 		}
 	} while (0);				// fall out
 
