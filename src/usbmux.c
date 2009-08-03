@@ -219,50 +219,6 @@ static int usbmux_config_usb_device(usbmux_device_t device)
 	int bytes;
 	char buf[512];
 
-#if 0
-	log_debug_msg("checking configuration...\n");
-	if (device->__device->config->bConfigurationValue != 3) {
-		log_debug_msg
-			("WARNING: usb device configuration is not 3 as expected!\n");
-	}
-
-	log_debug_msg("setting configuration...\n");
-	ret = usb_set_configuration(device->device, 3);
-	if (ret != 0) {
-		log_debug_msg("Hm, usb_set_configuration returned %d: %s\n", ret,
-					  strerror(-ret));
-#if LIBUSB_HAS_GET_DRIVER_NP
-		log_debug_msg("trying to fix:\n");
-		log_debug_msg("-> detaching kernel driver... ");
-		ret =
-			usb_detach_kernel_driver_np(device->device,
-										device->__device->config->
-										interface->altsetting->
-										bInterfaceNumber);
-		if (ret != 0) {
-			log_debug_msg("usb_detach_kernel_driver_np returned %d: %s\n",
-						  ret, strerror(-ret));
-		} else {
-			log_debug_msg("done.\n");
-			log_debug_msg("setting configuration again... ");
-			ret = usb_set_configuration(device->device, 3);
-			if (ret != 0) {
-				log_debug_msg
-					("Error: usb_set_configuration returned %d: %s\n", ret,
-					 strerror(-ret));
-				log_debug_msg("--> trying to continue anyway...\n");
-			} else {
-				log_debug_msg("done.\n");
-			}
-		}
-#else
-		log_debug_msg("--> trying to continue anyway...\n");
-#endif
-	} else {
-		log_debug_msg("done.\n");
-	}
-#endif
-
 	log_debug_msg("claiming interface... ");
 	ret = usb_claim_interface(device->usbdev, 1);
 	if (ret != 0) {
