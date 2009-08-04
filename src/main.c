@@ -58,6 +58,9 @@ static int verbose = DEBUG_LEVEL;
 static int foreground = 0;
 static int exit_on_no_devices = 0;
 static int drop_privileges = 0;
+static int opt_udev = 0;
+static int opt_exit = 0;
+static int exit_signal = 0;
 
 struct device_info {
 	uint32_t device_id;
@@ -1030,6 +1033,10 @@ static void usage()
 	printf("\t-f|--foreground           do not daemonize\n");
 	printf("\t-e|--exit-on-no-devices   exit if no device is attached\n");
 	printf("\t-d|--drop-privileges      drop privileges after startup\n");
+	printf("\t-u|--udev                 udev operation mode\n");
+	printf("\t-x|--exit                 tell a running instance to exit\n");
+	printf("\t-X|--force-exit           tell a running instance to exit, even if\n");
+	printf("\t                          there are still devices connected\n");
 	printf("\n");
 }
 
@@ -1041,12 +1048,15 @@ static void parse_opts(int argc, char **argv)
 		{"verbose", 0, NULL, 'v'},
 		{"exit-on-no-devices", 0, NULL, 'e'},
 		{"drop-privileges", 0, NULL, 'd'},
+		{"udev", 0, NULL, 'u'},
+		{"exit", 0, NULL, 'x'},
+		{"force-exit", 0, NULL, 'X'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfved", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfveduxX", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -1067,11 +1077,24 @@ static void parse_opts(int argc, char **argv)
 		case 'd':
 			drop_privileges = 1;
 			break;
+		case 'u':
+			opt_udev = 1;
+			break;
+		case 'x':
+			opt_exit = 1;
+			exit_signal = SIGQUIT;
+			break;
+		case 'X':
+			opt_exit = 1;
+			exit_signal = SIGTERM;
+			break;
 		default:
 			usage();
 			exit(2);
 		}
 	}
+	if (opt_udev)
+		foreground = 0;
 }
 
 /**
@@ -1141,6 +1164,7 @@ int main(int argc, char **argv)
 	int children_capacity = DEFAULT_CHILDREN_CAPACITY;
 	int i;
 	int result = 0;
+	int exit_val = 0;
 	int cnt = 0;
 	FILE *lfd = NULL;
 	struct flock lock;
@@ -1154,7 +1178,7 @@ int main(int argc, char **argv)
 		openlog("usbmuxd", LOG_PID, 0);
 	}
 
-	if (verbose >= 2)
+	if (verbose >= 1)
 		logmsg(LOG_NOTICE, "starting");
 
 	// signal(SIGHUP, reload_conf); // none yet
@@ -1173,10 +1197,33 @@ int main(int argc, char **argv)
 		fcntl(fileno(lfd), F_GETLK, &lock);
 		fclose(lfd);
 		if (lock.l_type != F_UNLCK) {
-			logmsg(LOG_NOTICE,
-				   "another instance is already running. exiting.");
-			return -1;
+			if (opt_exit) {
+				if (lock.l_pid && !kill(lock.l_pid, 0)) {
+					logmsg(LOG_NOTICE, "sending signal %d to instance with pid %d", exit_signal, lock.l_pid);
+					if (kill(lock.l_pid, exit_signal) < 0) {
+						logmsg(LOG_ERR, "Error: could not deliver signal %d to pid %d", exit_signal, lock.l_pid);
+					}
+					exit_val = 0;
+					goto terminate;
+				} else {
+					logmsg(LOG_ERR, "Error: could not determine pid of the other running instance!");
+					exit_val = -1;
+					goto terminate;
+				}
+			} else {
+				logmsg(LOG_NOTICE,
+					   "another instance is already running (pid %d). exiting.", lock.l_pid);
+				if (!opt_udev) {
+					exit_val = -1;
+				}
+				goto terminate;
+			}
 		}
+	}
+
+	if (opt_exit) {
+		logmsg(LOG_NOTICE, "no running instance found, none killed. exiting.");
+		goto terminate;
 	}
 
 	if (exit_on_no_devices) {
@@ -1220,6 +1267,7 @@ int main(int argc, char **argv)
 		lock.l_len = 0;
 		if (fcntl(fileno(lfd), F_SETLK, &lock) == -1) {
 			logmsg(LOG_ERR, "ERROR: lockfile locking failed!");
+			exit(EXIT_FAILURE);
 		}
 	}
 	// drop elevated privileges
@@ -1388,8 +1436,9 @@ int main(int argc, char **argv)
 		fclose(lfd);
 	}
 
+terminate:
 	if (verbose >= 1)
-		logmsg(LOG_NOTICE, "usbmuxd: terminated");
+		logmsg(LOG_NOTICE, "terminated");
 	if (!foreground) {
 		closelog();
 	}
