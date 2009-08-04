@@ -119,7 +119,7 @@ void usbmux_set_debug(int e)
 	toto_debug = e;
 }
 
-void log_debug_msg(const char *format, ...)
+static void log_debug_msg(const char *format, ...)
 {
 #ifndef STRIP_DEBUG_CODE
 	va_list args;
@@ -170,7 +170,7 @@ static void print_buffer(const char *data, const int length)
 	printf("\n");
 }
 
-void hton_header(usbmux_tcp_header * hdr)
+static void hton_header(usbmux_tcp_header * hdr)
 {
 	if (hdr) {
 		hdr->length = htonl(hdr->length);
@@ -180,7 +180,7 @@ void hton_header(usbmux_tcp_header * hdr)
 	}
 }
 
-void ntoh_header(usbmux_tcp_header * hdr)
+static void ntoh_header(usbmux_tcp_header * hdr)
 {
 	if (hdr) {
 		hdr->length = ntohl(hdr->length);
@@ -194,7 +194,7 @@ void ntoh_header(usbmux_tcp_header * hdr)
  * 
  * @return A USBMux header
  */
-usbmux_version_header *version_header()
+static usbmux_version_header *version_header()
 {
 	usbmux_version_header *version =
 		(usbmux_version_header *) malloc(sizeof(usbmux_version_header));
@@ -423,7 +423,7 @@ int usbmux_free_device(usbmux_device_t device)
  * @param datalen The length of the data
  * @return The number of bytes sent, or -ERRNO on error
  */
-int send_to_device(usbmux_device_t device, char *data, int datalen)
+static int send_to_device(usbmux_device_t device, char *data, int datalen)
 {
 	if (!device)
 		return -EINVAL;
@@ -505,7 +505,7 @@ if (toto_debug > 0) {
  * 
  * @return How many bytes were read in, or -1 on error.
  */
-int recv_from_device_timeout(usbmux_device_t device, char *data,
+static int recv_from_device_timeout(usbmux_device_t device, char *data,
 							 int datalen, int timeoutmillis)
 {
 	if (!device)
@@ -551,7 +551,7 @@ int recv_from_device_timeout(usbmux_device_t device, char *data,
  *
  * @return A USBMux packet
  */
-usbmux_tcp_header *new_mux_packet(uint16_t s_port, uint16_t d_port)
+static usbmux_tcp_header *new_mux_packet(uint16_t s_port, uint16_t d_port)
 {
 	usbmux_tcp_header *conn =
 		(usbmux_tcp_header *) malloc(sizeof(usbmux_tcp_header));
@@ -883,7 +883,7 @@ int usbmux_send(usbmux_client_t client, const char *data, uint32_t datalen,
  * 
  * @return number of bytes consumed (header + data)
  */
-uint32_t append_receive_buffer(usbmux_client_t client, char *packet)
+static uint32_t append_receive_buffer(usbmux_client_t client, char *packet)
 {
 	if (client == NULL || packet == NULL)
 		return 0;
@@ -1035,7 +1035,7 @@ uint32_t append_receive_buffer(usbmux_client_t client, char *packet)
  * because we're only called from one location, pullbulk, where the lock
  * is already held.
  */
-usbmux_client_t find_client(usbmux_tcp_header * recv_header)
+static usbmux_client_t find_client(usbmux_tcp_header * recv_header)
 {
 	// remember, as we're looking for the client, the receive header is
 	// coming from the USB into our client. This means that when we check
