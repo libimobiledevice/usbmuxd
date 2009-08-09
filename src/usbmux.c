@@ -106,6 +106,7 @@ struct usbmux_client_int {
 
 
 static pthread_mutex_t usbmuxmutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t printmutex = PTHREAD_MUTEX_INITIALIZER;
 static usbmux_client_t *connlist = NULL;
 static int clients = 0;
 
@@ -126,8 +127,11 @@ static void log_debug_msg(const char *format, ...)
 	/* run the real fprintf */
 	va_start(args, format);
 
-	if (toto_debug)
+	if (toto_debug) {
+		pthread_mutex_lock(&printmutex);
 		vfprintf(stderr, format, args);
+		pthread_mutex_unlock(&printmutex);
+	}
 
 	va_end(args);
 #endif
@@ -433,10 +437,12 @@ static int send_to_device(usbmux_device_t device, char *data, int datalen)
 	int bytes = 0;
 
 if (toto_debug > 0) {
+	pthread_mutex_lock(&printmutex);
 	printf("===============================\n%s: trying to send\n",
 		   __func__);
 	print_buffer(data, datalen);
 	printf("===============================\n");
+	pthread_mutex_unlock(&printmutex);
 }
 
 	do {
@@ -486,10 +492,12 @@ if (toto_debug > 0) {
 
 	if (bytes > 0) {
 		if (toto_debug > 0) {
+			pthread_mutex_lock(&printmutex);
 			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 			printf("%s: sent to device\n", __func__);
 			print_buffer(data, bytes);
 			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+			pthread_mutex_unlock(&printmutex);
 		}
 	}
 	return bytes;
@@ -534,10 +542,12 @@ static int recv_from_device_timeout(usbmux_device_t device, char *data,
 	}
 	if (bytes > 0) {
 		if (toto_debug > 0) {
+			pthread_mutex_lock(&printmutex);
 			printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 			printf("%s: received from device:\n", __func__);
 			print_buffer(data, bytes);
 			printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+			pthread_mutex_unlock(&printmutex);
 		}
 	}
 
