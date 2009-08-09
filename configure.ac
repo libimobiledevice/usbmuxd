@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.61)
 
-AC_INIT([usbmuxd], [0.1.4], [nikias@gmx.li])
+AC_INIT([usbmuxd], [0.1.5], [nikias@gmx.li])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign dist-bzip2])
 
 AC_CONFIG_HEADERS([config.h])
