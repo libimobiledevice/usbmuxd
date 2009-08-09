@@ -431,7 +431,7 @@ static void *usbmuxd_client_handler_thread(void *arg)
 	struct client_data *cdata;
 	int result;
 	char *cursor;
-	char buffer[65536];
+	char buffer[32740];
 	ssize_t len;
 	ssize_t maxlen = sizeof(buffer);
 	uint32_t wlen;
