@@ -8,22 +8,18 @@ command/response payloads instead of binary blobs. The outer binary protocol is
 still the same used but now the only command/response format is 8 (plist).
 
 The server is under the usbmuxd directory. You'll need CMake and libusb 1.0 to
-build it. In addition, you need to apply the libusb patch in the patches/
-directory. If you want to debug using valgrind, apply the valgrind patch to
-improve the handling of the USB device filesystem ioctls.
+build it. Due to a bug in zero-length packet handling, you'll need either the
+git version of libusb or 1.0.3, whenever it comes out.
 
 There is a Python client library in the python-client directory. It should be
 compatible with Windows, Linux, and OSX (using the Apple usbmuxd on Win and OSX)
 tcprelay.py implements a TCP connection forwarder that lets you pipe TCP
-connections to localhost to the phone. Run it with --help for usage. Note that
-under OSX you'll have to change the socket path from /tmp/usbmuxd to
-/var/run/usbmuxd (there is no socket path on Windows, only a TCP connection to
-localhost). The Python client lib is also compatible with the new plist-based
-protocol and should automatically select it if it sees such a server. However,
-you need Python 2.6 for Windows and Linux in this case, since the plistlib
-module doesn't come with older versions under these OSes (not that you'll have a
-server that supports this protocol under Linux. TODO: does Windows iTunes even
-use this yet?)
+connections to localhost to the phone. Run it with --help for usage. The Python
+client lib is also compatible with the new plist-based protocol and should
+automatically select it if it sees such a server. However, you need Python 2.6
+for Windows and Linux in this case, since the plistlib module doesn't come with
+older versions under these OSes (not that you'll have a server that supports
+this protocol under Linux. TODO: does Windows iTunes use this yet?)
 
 ARCHITECTURE
 
@@ -100,7 +96,9 @@ GOTCHAS AND ANNOYANCES
 The usbmuxd CONNECT request port field is byte-swapped (network-endian). This is
 even more annoying for the plist based protocol, since it's even true there
 (where the field is plain text). So even for the plain text int, you need to
-swap the bytes (port 22 becomes <integer>5632</integer>).
+swap the bytes (port 22 becomes <integer>5632</integer>). I have no clue if this
+is the case on the new plist protocol on PPC macs (is the newer iTunes available
+for those?)
 
 There are a bunch of gotchas due to the USB framing, and this is even worse
 because implementations tend to get it wrong (i.e. libusb, and this is the
@@ -135,7 +133,7 @@ is normally not an issue, but it's annoying for debugging because lost packets
 gets out of sync and then might crash and burn dozens of packets later.
 
 The server needs a proper front-end (i.e. daemonizing, commandline options,
-etc), a lot of testing, and some optimizing.
+etc), more testing, and some optimizing.
 
 Someone should probably do some edge-case testing on the TCP stuff.
 

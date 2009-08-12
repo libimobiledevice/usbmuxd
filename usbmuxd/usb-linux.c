@@ -138,7 +138,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 		libusb_free_transfer(xfer);
 		return res;
 	}
-	collection_add(&dev->tx_xfers, xfer);/*
+	collection_add(&dev->tx_xfers, xfer);
 	if((length % 512) == 0) {
 		usbmuxd_log(LL_DEBUG, "Send ZLP");
 		// Send Zero Length Packet
@@ -152,7 +152,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 			return res;
 		}
 		collection_add(&dev->tx_xfers, xfer);
-	}*/
+	}
 	return 0;
 }
 

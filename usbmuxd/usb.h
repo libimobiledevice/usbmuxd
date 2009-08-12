@@ -29,16 +29,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 // libusb fragments packets larger than this (usbfs limitation)
 // on input, this creates race conditions and other issues
-// I don't think the device uses larger packets
-// if it does then we're going to have to implement proper framing...
 #define USB_MRU 16384
 
 // max transmission packet size
 // libusb fragments these too, but doesn't send ZLPs so we're safe
-// but maybe we need to send a ZLP ourselves at the end (see usb-linux.h)
+// but we need to send a ZLP ourselves at the end (see usb-linux.c)
 // we're using 3 * 16384 to optimize for the fragmentation
 // this results in three URBs per full transfer, 32 USB packets each
-// if there are ZLP issues this should make them show up too
+// if there are ZLP issues this should make them show up easily too
 #define USB_MTU (3 * 16384)
 
 #define USB_PACKET_SIZE 512
