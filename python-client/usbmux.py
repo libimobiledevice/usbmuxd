@@ -214,7 +214,7 @@ class USBMux(object):
 			if sys.platform == 'darwin':
 				socketpath = "/var/run/usbmuxd"
 			else:
-				socketpath = "/tmp/usbmuxd"
+				socketpath = "/var/run/usbmuxd"
 		self.socketpath = socketpath
 		self.listener = MuxConnection(socketpath, BinaryProtocol)
 		try:

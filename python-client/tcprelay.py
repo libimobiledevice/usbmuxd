@@ -68,7 +68,7 @@ class SocketRelay(object):
 class TCPRelay(SocketServer.BaseRequestHandler):
 	def handle(self):
 		print "Incoming connection to %d"%self.server.server_address[1]
-		mux = usbmux.USBMux()
+		mux = usbmux.USBMux(options.sockpath)
 		print "Waiting for devices..."
 		if not mux.devices:
 			mux.process(1.0)
@@ -100,6 +100,7 @@ HOST = "localhost"
 parser = OptionParser(usage="usage: %prog [OPTIONS] RemotePort[:LocalPort] [RemotePort[:LocalPort]]...")
 parser.add_option("-t", "--threaded", dest='threaded', action='store_true', default=False, help="use threading to handle multiple connections at once")
 parser.add_option("-b", "--bufsize", dest='bufsize', action='store', metavar='KILOBYTES', type='int', default=128, help="specify buffer size for socket forwarding")
+parser.add_option("-s", "--socket", dest='sockpath', action='store', metavar='PATH', type='str', default=None, help="specify the path of the usbmuxd socket")
 
 options, args = parser.parse_args()
 
