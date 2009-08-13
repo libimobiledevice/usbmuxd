@@ -32,13 +32,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/stat.h>
 
 #include "log.h"
 #include "usb.h"
 #include "device.h"
 #include "client.h"
 
-static const char *socket_path = "/tmp/usbmuxd"; //TODO: CHANGEME
+static const char *socket_path = "/var/run/usbmuxd"; //TODO: CHANGEME
 int should_exit;
 
 struct sigaction sa_old;
@@ -71,6 +72,8 @@ int create_socket(void) {
 		usbmuxd_log(LL_FATAL, "listen() failed: %s", strerror(errno));
 		return -1;
 	}
+
+	chmod(socket_path, 0666);
 
 	return listenfd;
 }
