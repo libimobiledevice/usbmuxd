@@ -1,23 +1,7 @@
 # usbmuxd (iPhone "Apple Mobile Device" MUXer listening on /var/run/usbmuxd)
 
-# Skip anything non Apple
-ACTION=="add|remove", SUBSYSTEM!="usb|usb_endpoint", ATTRS{idVendor}!="05ac", GOTO="usbmuxd_rules_end"
+# Forces iPhone 1.0, 3G, 3GS and iPodTouch 1 and 2 to USB configuration 3 and run usbmuxd
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="129[0-4]", ATTR{bConfigurationValue}!="$attr{bNumConfigurations}", ATTR{bConfigurationValue}="$attr{bNumConfigurations}", RUN+="@prefix@/sbin/usbmuxd -u"
 
-# Forces iPhone 1.0, 3G, 3GS and iPodTouch 1 and 2 to USB configuration 3
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="1290|1291|1292|1293|1294", ATTR{bConfigurationValue}!="$attr{bNumConfigurations}", ATTR{bConfigurationValue}="$attr{bNumConfigurations}", GOTO="usbmuxd_rules_end"
-
-LABEL="usbmuxd_rules_usbmux"
-
-# Only apply to usb endpoints
-ACTION=="add|remove", SUBSYSTEM!="usb_endpoint", GOTO="usbmuxd_rules_end"
-
-# Setup cute names for the endpoints
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep04", IMPORT{program}="usb_id %p --export", SYMLINK+="usbmux/$env{ID_SERIAL_SHORT}/%s{direction}"
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", IMPORT{program}="usb_id %p --export", SYMLINK+="usbmux/$env{ID_SERIAL_SHORT}/%s{direction}"
-
-# Start and stop 'usbmuxd' as required
-ACTION=="add", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="@prefix@/sbin/usbmuxd -u"
-ACTION=="remove", SUBSYSTEM=="usb_endpoint", KERNEL=="usbdev*_ep85", RUN+="@prefix@/sbin/usbmuxd -x"
-
-# skip
-LABEL="usbmuxd_rules_end"
+# Exit usbmuxd when the last phone is removed
+ACTION=="remove", SUBSYSTEM=="usb", ENV{ID_VENDOR_ID}=="05ac", ENV{ID_MODEL_ID}=="129[0-4]", RUN+="@prefix@/sbin/usbmuxd -x"
