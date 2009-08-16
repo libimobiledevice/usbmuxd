@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <sys/fcntl.h>
 #include <getopt.h>
 #include <pwd.h>
 
@@ -42,6 +43,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "client.h"
 
 static const char *socket_path = "/var/run/usbmuxd";
+static const char *lockfile = "/var/run/usbmuxd.lock";
+
 int should_exit;
 
 struct sigaction sa_old;
@@ -268,7 +271,9 @@ static void parse_opts(int argc, char **argv)
 int main(int argc, char *argv[])
 {
 	int listenfd;
-	int res;
+	int res = 0;
+	FILE *lfd = NULL;
+	struct flock lock;
 
 	parse_opts(argc, argv);
 
@@ -289,6 +294,22 @@ int main(int argc, char *argv[])
 
 	set_signal_handlers();
 
+	lfd = fopen(lockfile, "r");
+	if (lfd) {
+		lock.l_type = 0;
+		lock.l_whence = SEEK_SET;
+		lock.l_start = 0;
+		lock.l_len = 0;
+		fcntl(fileno(lfd), F_GETLK, &lock);
+		fclose(lfd);
+		if (lock.l_type != F_UNLCK) {
+			usbmuxd_log(LL_NOTICE,
+				   "another instance is already running (pid %d). exiting.", lock.l_pid);
+			res = -1;
+			goto terminate;
+		}
+	}
+
 	usbmuxd_log(LL_INFO, "Creating socket");
 	listenfd = create_socket();
 	if(listenfd < 0)
@@ -307,6 +328,20 @@ int main(int argc, char *argv[])
 		if (daemonize() < 0) {
 			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
 			usbmuxd_log(LL_ERROR, "FATAL: Could not daemonize!");
+			log_disable_syslog();
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	// now open the lockfile and place the lock
+	lfd = fopen(lockfile, "w");
+	if (lfd) {
+		lock.l_type = F_WRLCK;
+		lock.l_whence = SEEK_SET;
+		lock.l_start = 0;
+		lock.l_len = 0;
+		if (fcntl(fileno(lfd), F_SETLK, &lock) == -1) {
+			usbmuxd_log(LL_ERROR, "ERROR: lockfile locking failed!");
 			log_disable_syslog();
 			exit(EXIT_FAILURE);
 		}
@@ -342,6 +377,7 @@ int main(int argc, char *argv[])
 	usb_shutdown();
 	device_shutdown();
 	client_shutdown();
+terminate:
 	usbmuxd_log(LL_NOTICE, "Shutdown complete");
 
 	log_disable_syslog();
