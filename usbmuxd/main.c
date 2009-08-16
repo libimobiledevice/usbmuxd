@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <getopt.h>
+#include <pwd.h>
 
 #include "log.h"
 #include "usb.h"
@@ -47,6 +48,7 @@ struct sigaction sa_old;
 
 static int verbose = 0;
 static int foreground = 0;
+static int drop_privileges = 0;
 
 int create_socket(void) {
 	struct sockaddr_un bind_addr;
@@ -222,6 +224,7 @@ static void usage()
 	printf("\t-h|--help                 Print this message.\n");
 	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
 	printf("\t-f|--foreground           Do not daemonize (implies a verbosity of 4).\n");
+	printf("\t-d|--drop-privileges      Drop privileges after startup.\n");
 	printf("\n");
 }
 
@@ -231,12 +234,13 @@ static void parse_opts(int argc, char **argv)
 		{"help", 0, NULL, 'h'},
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
+		{"drop-privileges", 0, NULL, 'd'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfv", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvd", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -250,6 +254,9 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 'v':
 			++verbose;
+			break;
+		case 'd':
+			drop_privileges = 1;
 			break;
 		default:
 			usage();
@@ -304,7 +311,28 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	
+
+	// drop elevated privileges
+	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
+		struct passwd *pw = getpwnam("nobody");
+		if (pw) {
+			setuid(pw->pw_uid);
+		} else {
+			usbmuxd_log(LL_ERROR,
+				   "ERROR: Dropping privileges failed, check if user 'nobody' exists! Will now terminate.");
+			log_disable_syslog();
+			exit(EXIT_FAILURE);
+		}
+
+		// security check
+		if (setuid(0) != -1) {
+			usbmuxd_log(LL_ERROR, "ERROR: Failed to drop privileges properly!");
+			log_disable_syslog();
+			exit(EXIT_FAILURE);
+		}
+		usbmuxd_log(LL_NOTICE, "Successfully dropped privileges");
+	}
+
 	res = main_loop(listenfd);
 	if(res < 0)
 		usbmuxd_log(LL_FATAL, "main_loop failed");
