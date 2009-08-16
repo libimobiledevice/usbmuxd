@@ -47,11 +47,12 @@ static const char *lockfile = "/var/run/usbmuxd.lock";
 
 int should_exit;
 
-struct sigaction sa_old;
-
 static int verbose = 0;
 static int foreground = 0;
 static int drop_privileges = 0;
+static int opt_udev = 0;
+static int opt_exit = 0;
+static int exit_signal = 0;
 
 int create_socket(void) {
 	struct sockaddr_un bind_addr;
@@ -89,13 +90,19 @@ int create_socket(void) {
 
 void handle_signal(int sig)
 {
-	if(sig == SIGINT) {
-		usbmuxd_log(LL_NOTICE,"Caught SIGINT");
+	if (sig == SIGTERM) {
+		should_exit = 1;
 	} else {
-		usbmuxd_log(LL_NOTICE,"Caught unknown signal %d", sig);
+		usbmuxd_log(LL_NOTICE,"Caught signal %d", sig);
+		usbmuxd_log(LL_INFO, "Checking if we can terminate (no more devices attached)...");
+		if (device_get_count() > 0) {
+			// we can't quit, there are still devices attached.
+			usbmuxd_log(LL_NOTICE, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.");
+		} else {
+			// it's safe to quit
+			should_exit = 1;
+		}
 	}
-	should_exit = 1;
-	sigaction(SIGINT, &sa_old, NULL);
 }
 
 void set_signal_handlers(void)
@@ -103,7 +110,9 @@ void set_signal_handlers(void)
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(struct sigaction));
 	sa.sa_handler = handle_signal;
-	sigaction(SIGINT, &sa, &sa_old);
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGQUIT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
 }
 
 int main_loop(int listenfd)
@@ -228,6 +237,10 @@ static void usage()
 	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
 	printf("\t-f|--foreground           Do not daemonize (implies a verbosity of 4).\n");
 	printf("\t-d|--drop-privileges      Drop privileges after startup.\n");
+	printf("\t-u|--udev                 Run in udev operation mode.\n");
+	printf("\t-x|--exit                 Tell a running instance to exit.\n");
+	printf("\t-X|--force-exit           Tell a running instance to exit, even if\n");
+	printf("\t                          there are still devices connected.\n");
 	printf("\n");
 }
 
@@ -238,12 +251,15 @@ static void parse_opts(int argc, char **argv)
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
 		{"drop-privileges", 0, NULL, 'd'},
+		{"udev", 0, NULL, 'u'},
+		{"exit", 0, NULL, 'x'},
+		{"force-exit", 0, NULL, 'X'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfvd", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvduxX", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -261,11 +277,24 @@ static void parse_opts(int argc, char **argv)
 		case 'd':
 			drop_privileges = 1;
 			break;
+		case 'u':
+			opt_udev = 1;
+			break;
+		case 'x':
+			opt_exit = 1;
+			exit_signal = SIGQUIT;
+			break;
+		case 'X':
+			opt_exit = 1;
+			exit_signal = SIGTERM;
+			break;
 		default:
 			usage();
 			exit(2);
 		}
 	}
+	if (opt_udev)
+		foreground = 0;
 }
 
 int main(int argc, char *argv[])
@@ -303,11 +332,33 @@ int main(int argc, char *argv[])
 		fcntl(fileno(lfd), F_GETLK, &lock);
 		fclose(lfd);
 		if (lock.l_type != F_UNLCK) {
-			usbmuxd_log(LL_NOTICE,
-				   "another instance is already running (pid %d). exiting.", lock.l_pid);
-			res = -1;
-			goto terminate;
+			if (opt_exit) {
+				if (lock.l_pid && !kill(lock.l_pid, 0)) {
+					usbmuxd_log(LL_NOTICE, "sending signal %d to instance with pid %d", exit_signal, lock.l_pid);
+					if (kill(lock.l_pid, exit_signal) < 0) {
+						usbmuxd_log(LL_ERROR, "Error: could not deliver signal %d to pid %d", exit_signal, lock.l_pid);
+					}
+					res = 0;
+					goto terminate;
+				} else {
+					usbmuxd_log(LL_ERROR, "Error: could not determine pid of the other running instance!");
+					res = -1;
+					goto terminate;
+				}
+			} else {
+				usbmuxd_log(LL_NOTICE,
+					   "another instance is already running (pid %d). exiting.", lock.l_pid);
+				if (!opt_udev) {
+					res = -1;
+				}
+				goto terminate;
+			}
 		}
+	}
+
+	if (opt_exit) {
+		usbmuxd_log(LL_NOTICE, "no running instance found, none killed. exiting.");
+		goto terminate;
 	}
 
 	usbmuxd_log(LL_INFO, "Creating socket");
