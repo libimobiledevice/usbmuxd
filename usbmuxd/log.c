@@ -28,10 +28,37 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <stdarg.h>
 #include <time.h>
 #include <sys/time.h>
+#include <syslog.h>
 
 #include "log.h"
 
-int log_level = LL_INFO;
+int log_level = LL_FATAL;
+
+int log_syslog = 0;
+
+void log_enable_syslog()
+{
+	if (!log_syslog) {
+		openlog("usbmuxd", LOG_PID, 0);
+		log_syslog = 1;
+	}
+}
+
+void log_disable_syslog()
+{
+	if (log_syslog) {
+		closelog();
+	}
+}
+
+static int level_to_syslog_level(int level)
+{
+	int result = level + LOG_CRIT;
+	if (result > LOG_DEBUG) {
+		result = LOG_DEBUG;
+	}
+	return result;
+}
 
 void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 {
@@ -51,7 +78,11 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 	sprintf(fs+9, ".%03d][%d] %s\n", (int)(ts.tv_usec / 1000), level, fmt);
 	
 	va_start(ap, fmt);
-	vfprintf(stderr, fs, ap);
+	if (log_syslog) {
+		vsyslog(level_to_syslog_level(level), fs, ap);
+	} else {
+		vfprintf(stderr, fs, ap);
+	}
 	va_end(ap);
 	
 	free(fs);

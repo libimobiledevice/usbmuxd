@@ -33,16 +33,20 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <getopt.h>
 
 #include "log.h"
 #include "usb.h"
 #include "device.h"
 #include "client.h"
 
-static const char *socket_path = "/var/run/usbmuxd"; //TODO: CHANGEME
+static const char *socket_path = "/var/run/usbmuxd";
 int should_exit;
 
 struct sigaction sa_old;
+
+static int verbose = 0;
+static int foreground = 0;
 
 int create_socket(void) {
 	struct sockaddr_un bind_addr;
@@ -163,10 +167,115 @@ int main_loop(int listenfd)
 	return 0;
 }
 
+/**
+ * make this program run detached from the current console
+ */
+static int daemonize()
+{
+	pid_t pid;
+	pid_t sid;
+
+	// already a daemon
+	if (getppid() == 1)
+		return 0;
+
+	pid = fork();
+	if (pid < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+	if (pid > 0) {
+		// exit parent process
+		exit(EXIT_SUCCESS);
+	}
+	// At this point we are executing as the child process
+
+	// Change the file mode mask
+	umask(0);
+
+	// Create a new SID for the child process
+	sid = setsid();
+	if (sid < 0) {
+		return -1;
+	}
+	// Change the current working directory.
+	if ((chdir("/")) < 0) {
+		return -2;
+	}
+	// Redirect standard files to /dev/null
+	if (!freopen("/dev/null", "r", stdin)) {
+		usbmuxd_log(LL_ERROR, "ERROR: redirection of stdin failed.");
+	}
+	if (!freopen("/dev/null", "w", stdout)) {
+		usbmuxd_log(LL_ERROR, "ERROR: redirection of stdout failed.");
+	}
+	if (!freopen("/dev/null", "w", stderr)) {
+		usbmuxd_log(LL_ERROR, "ERROR: redirection of stderr failed.");
+	}
+
+	return 0;
+}
+
+static void usage()
+{
+	printf("usage: usbmuxd [options]\n");
+	printf("\t-h|--help                 Print this message.\n");
+	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
+	printf("\t-f|--foreground           Do not daemonize (implies a verbosity of 4).\n");
+	printf("\n");
+}
+
+static void parse_opts(int argc, char **argv)
+{
+	static struct option longopts[] = {
+		{"help", 0, NULL, 'h'},
+		{"foreground", 0, NULL, 'f'},
+		{"verbose", 0, NULL, 'v'},
+		{NULL, 0, NULL, 0}
+	};
+	int c;
+
+	while (1) {
+		c = getopt_long(argc, argv, "hfv", longopts, (int *) 0);
+		if (c == -1) {
+			break;
+		}
+
+		switch (c) {
+		case 'h':
+			usage();
+			exit(0);
+		case 'f':
+			foreground = 1;
+			break;
+		case 'v':
+			++verbose;
+			break;
+		default:
+			usage();
+			exit(2);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int listenfd;
 	int res;
+
+	parse_opts(argc, argv);
+
+	argc -= optind;
+	argv += optind;
+
+	if (!foreground) {
+		log_enable_syslog();
+	} else {
+		verbose += LL_INFO;
+	}
+
+	/* set log level to specified verbosity */
+	log_level = verbose;
 
 	usbmuxd_log(LL_NOTICE, "usbmux v0.1 starting up");
 	should_exit = 0;
@@ -187,6 +296,15 @@ int main(int argc, char *argv[])
 	
 	usbmuxd_log(LL_NOTICE, "Initialization complete");
 
+	if (!foreground) {
+		if (daemonize() < 0) {
+			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
+			usbmuxd_log(LL_ERROR, "FATAL: Could not daemonize!");
+			log_disable_syslog();
+			exit(EXIT_FAILURE);
+		}
+	}
+	
 	res = main_loop(listenfd);
 	if(res < 0)
 		usbmuxd_log(LL_FATAL, "main_loop failed");
@@ -197,6 +315,8 @@ int main(int argc, char *argv[])
 	device_shutdown();
 	client_shutdown();
 	usbmuxd_log(LL_NOTICE, "Shutdown complete");
+
+	log_disable_syslog();
 
 	if(res < 0)
 		return -res;

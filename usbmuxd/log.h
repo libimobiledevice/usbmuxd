@@ -34,6 +34,9 @@ enum loglevel {
 
 extern int log_level;
 
+void log_enable_syslog();
+void log_disable_syslog();
+
 void usbmuxd_log(enum loglevel level, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
 
 
