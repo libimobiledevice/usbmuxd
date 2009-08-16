@@ -43,7 +43,7 @@ int next_device_id;
 #define CONN_INBUF_SIZE		262144
 #define CONN_OUTBUF_SIZE	65536
 
-#define ACK_TIMEOUT 60
+#define ACK_TIMEOUT 30
 
 enum mux_protocol {
 	MUX_PROTO_VERSION = 0,
