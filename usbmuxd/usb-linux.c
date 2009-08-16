@@ -268,7 +268,9 @@ static int usb_discover(void)
 			continue;
 		if( (devdesc.idProduct != PID_IPHONE2G) &&
 			(devdesc.idProduct != PID_ITOUCH1G) &&
-			(devdesc.idProduct != PID_IPHONE3G))
+			(devdesc.idProduct != PID_IPHONE3G) &&
+			(devdesc.idProduct != PID_ITOUCH2G) &&
+			(devdesc.idProduct != PID_IPHONE3GS))
 			continue;
 		libusb_device_handle *handle;
 		usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);

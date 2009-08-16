@@ -45,6 +45,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define PID_IPHONE2G 0x1290
 #define PID_ITOUCH1G 0x1291
 #define PID_IPHONE3G 0x1292
+#define PID_ITOUCH2G 0x1293
+#define PID_IPHONE3GS 0x1294
 
 #define USB_CONFIGURATION 3
 #define USB_INTERFACE 1
