@@ -198,6 +198,22 @@ static uint16_t find_sport(struct mux_device *dev)
 	}
 }
 
+static int send_anon_rst(struct mux_device *dev, uint16_t sport, uint16_t dport, uint32_t ack)
+{
+	struct tcphdr th;
+	memset(&th, 0, sizeof(th));
+	th.th_sport = htons(sport);
+	th.th_dport = htons(dport);
+	th.th_ack = htonl(ack);
+	th.th_flags = TH_RST;
+	th.th_off = sizeof(th) / 4;
+	
+	usbmuxd_log(LL_DEBUG, "[OUT] dev=%d sport=%d dport=%d flags=0x%x", dev->id, sport, dport, th.th_flags);
+
+	int res = send_packet(dev, MUX_PROTO_TCP, &th, NULL, 0);
+	return res;
+}
+
 static int send_tcp(struct mux_connection *conn, uint8_t flags, const unsigned char *data, int length)
 {
 	struct tcphdr th;
@@ -460,6 +476,10 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 	
 	if(!conn) {
 		usbmuxd_log(LL_WARNING, "No connection for device %d incoming packet %d->%d", dev->id, dport, sport);
+		if(!(th->th_flags & TH_RST)) {
+			if(send_anon_rst(dev, sport, dport, ntohl(th->th_seq)) < 0)
+				usbmuxd_log(LL_ERROR, "Error sending TCP RST to device %d (%d->%d)", conn->dev->id, sport, dport);
+		}
 		return;
 	}
 	
