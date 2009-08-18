@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <sys/fcntl.h>
 #include <getopt.h>
 #include <pwd.h>
+#include <grp.h>
 
 #include "log.h"
 #include "usb.h"
@@ -50,6 +51,7 @@ int should_exit;
 static int verbose = 0;
 static int foreground = 0;
 static int drop_privileges = 0;
+static const char *drop_user = "usbmux";
 static int opt_udev = 0;
 static int opt_exit = 0;
 static int exit_signal = 0;
@@ -236,8 +238,9 @@ static void usage()
 	printf("\t-h|--help                 Print this message.\n");
 	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
 	printf("\t-f|--foreground           Do not daemonize (implies one -v).\n");
-	printf("\t-d|--drop-privileges      Drop privileges after startup.\n");
-	printf("\t-u|--udev                 Run in udev operation mode.\n");
+	printf("\t-u|--user[=USER]          Change to this user after startup (needs usb privileges).\n");
+	printf("\t                          If USER is not specified, defaults to usbmux.\n");
+	printf("\t-d|--udev                 Run in udev operation mode.\n");
 	printf("\t-x|--exit                 Tell a running instance to exit.\n");
 	printf("\t-X|--force-exit           Tell a running instance to exit, even if\n");
 	printf("\t                          there are still devices connected.\n");
@@ -250,8 +253,8 @@ static void parse_opts(int argc, char **argv)
 		{"help", 0, NULL, 'h'},
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
-		{"drop-privileges", 0, NULL, 'd'},
-		{"udev", 0, NULL, 'u'},
+		{"user", 2, NULL, 'u'},
+		{"udev", 0, NULL, 'd'},
 		{"exit", 0, NULL, 'x'},
 		{"force-exit", 0, NULL, 'X'},
 		{NULL, 0, NULL, 0}
@@ -259,7 +262,7 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfvduxX", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvdu::xX", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -274,10 +277,12 @@ static void parse_opts(int argc, char **argv)
 		case 'v':
 			++verbose;
 			break;
-		case 'd':
-			drop_privileges = 1;
-			break;
 		case 'u':
+			drop_privileges = 1;
+			if(optarg)
+				drop_user = optarg;
+			break;
+		case 'd':
 			opt_udev = 1;
 			break;
 		case 'x':
@@ -403,23 +408,38 @@ int main(int argc, char *argv[])
 
 	// drop elevated privileges
 	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
-		struct passwd *pw = getpwnam("nobody");
-		if (pw) {
-			setuid(pw->pw_uid);
-		} else {
-			usbmuxd_log(LL_ERROR,
-				   "ERROR: Dropping privileges failed, check if user 'nobody' exists! Will now terminate.");
-			log_disable_syslog();
-			exit(EXIT_FAILURE);
+		struct passwd *pw = getpwnam(drop_user);
+		if (!pw) {
+			usbmuxd_log(LL_FATAL, "Dropping privileges failed, check if user '%s' exists!", drop_user);
+			res = 1;
+			goto terminate;
+		}
+
+		if ((res = initgroups(drop_user, pw->pw_gid)) < 0) {
+			usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set supplementary groups)");
+			goto terminate;
+		}
+		if ((res = setgid(pw->pw_gid)) < 0) {
+			usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set group ID to %d)", pw->pw_gid);
+			goto terminate;
+		}
+		if ((res = setuid(pw->pw_uid)) < 0) {
+			usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set user ID to %d)", pw->pw_uid);
+			goto terminate;
 		}
 
 		// security check
 		if (setuid(0) != -1) {
-			usbmuxd_log(LL_ERROR, "ERROR: Failed to drop privileges properly!");
-			log_disable_syslog();
-			exit(EXIT_FAILURE);
+			usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
+			res = 1;
+			goto terminate;
 		}
-		usbmuxd_log(LL_NOTICE, "Successfully dropped privileges");
+		if (getuid() != pw->pw_uid || getgid() != pw->pw_gid) {
+			usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
+			res = 1;
+			goto terminate;
+		}
+		usbmuxd_log(LL_NOTICE, "Successfully dropped privileges to '%s'", drop_user);
 	}
 
 	res = main_loop(listenfd);
