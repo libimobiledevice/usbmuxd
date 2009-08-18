@@ -235,7 +235,7 @@ static void usage()
 	printf("usage: usbmuxd [options]\n");
 	printf("\t-h|--help                 Print this message.\n");
 	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
-	printf("\t-f|--foreground           Do not daemonize (implies a verbosity of 4).\n");
+	printf("\t-f|--foreground           Do not daemonize (implies one -v).\n");
 	printf("\t-d|--drop-privileges      Drop privileges after startup.\n");
 	printf("\t-u|--udev                 Run in udev operation mode.\n");
 	printf("\t-x|--exit                 Tell a running instance to exit.\n");
@@ -310,9 +310,10 @@ int main(int argc, char *argv[])
 	argv += optind;
 
 	if (!foreground) {
+		verbose += LL_WARNING;
 		log_enable_syslog();
 	} else {
-		verbose += LL_INFO;
+		verbose += LL_NOTICE;
 	}
 
 	/* set log level to specified verbosity */
@@ -336,20 +337,22 @@ int main(int argc, char *argv[])
 				if (lock.l_pid && !kill(lock.l_pid, 0)) {
 					usbmuxd_log(LL_NOTICE, "sending signal %d to instance with pid %d", exit_signal, lock.l_pid);
 					if (kill(lock.l_pid, exit_signal) < 0) {
-						usbmuxd_log(LL_ERROR, "Error: could not deliver signal %d to pid %d", exit_signal, lock.l_pid);
+						usbmuxd_log(LL_FATAL, "Error: could not deliver signal %d to pid %d", exit_signal, lock.l_pid);
 					}
 					res = 0;
 					goto terminate;
 				} else {
-					usbmuxd_log(LL_ERROR, "Error: could not determine pid of the other running instance!");
+					usbmuxd_log(LL_ERROR, "Could not determine pid of the other running instance!");
 					res = -1;
 					goto terminate;
 				}
 			} else {
-				usbmuxd_log(LL_NOTICE,
-					   "another instance is already running (pid %d). exiting.", lock.l_pid);
 				if (!opt_udev) {
+					usbmuxd_log(LL_ERROR, "Another instance is already running (pid %d). exiting.", lock.l_pid);
 					res = -1;
+				} else {
+					usbmuxd_log(LL_NOTICE, "Another instance is already running (pid %d). exiting.", lock.l_pid);
+					res = 0;
 				}
 				goto terminate;
 			}
@@ -357,7 +360,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (opt_exit) {
-		usbmuxd_log(LL_NOTICE, "no running instance found, none killed. exiting.");
+		usbmuxd_log(LL_NOTICE, "No running instance found, none killed. exiting.");
 		goto terminate;
 	}
 
@@ -392,7 +395,7 @@ int main(int argc, char *argv[])
 		lock.l_start = 0;
 		lock.l_len = 0;
 		if (fcntl(fileno(lfd), F_SETLK, &lock) == -1) {
-			usbmuxd_log(LL_ERROR, "ERROR: lockfile locking failed!");
+			usbmuxd_log(LL_FATAL, "Lockfile locking failed!");
 			log_disable_syslog();
 			exit(EXIT_FAILURE);
 		}
@@ -428,9 +431,9 @@ int main(int argc, char *argv[])
 	usb_shutdown();
 	device_shutdown();
 	client_shutdown();
-terminate:
 	usbmuxd_log(LL_NOTICE, "Shutdown complete");
 
+terminate:
 	log_disable_syslog();
 
 	if(res < 0)

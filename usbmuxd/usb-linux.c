@@ -103,7 +103,7 @@ static void tx_callback(struct libusb_transfer *xfer)
 				usbmuxd_log(LL_ERROR, "TX transfer timed out for device %d-%d", dev->bus, dev->address);
 				break;
 			case LIBUSB_TRANSFER_CANCELLED:
-				usbmuxd_log(LL_ERROR, "TX transfer cancelled for device %d-%d", dev->bus, dev->address);
+				usbmuxd_log(LL_DEBUG, "Device %d-%d TX transfer cancelled", dev->bus, dev->address);
 				break;
 			case LIBUSB_TRANSFER_STALL:
 				usbmuxd_log(LL_ERROR, "TX transfer stalled for device %d-%d", dev->bus, dev->address);
@@ -174,7 +174,7 @@ static void rx_callback(struct libusb_transfer *xfer)
 				usbmuxd_log(LL_ERROR, "RX transfer timed out for device %d-%d", dev->bus, dev->address);
 				break;
 			case LIBUSB_TRANSFER_CANCELLED:
-				usbmuxd_log(LL_ERROR, "RX transfer cancelled for device %d-%d", dev->bus, dev->address);
+				usbmuxd_log(LL_DEBUG, "Device %d-%d RX transfer cancelled", dev->bus, dev->address);
 				break;
 			case LIBUSB_TRANSFER_STALL:
 				usbmuxd_log(LL_ERROR, "RX transfer stalled for device %d-%d", dev->bus, dev->address);

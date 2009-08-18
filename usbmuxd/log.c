@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "log.h"
 
-int log_level = LL_FATAL;
+int log_level = LL_WARNING;
 
 int log_syslog = 0;
 
@@ -66,17 +66,22 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 	char *fs;
 	struct timeval ts;
 	struct tm *tp;
-	
+
 	gettimeofday(&ts, NULL);
 	tp = localtime(&ts.tv_sec);
-	
+
 	if(level > log_level)
 		return;
-	
+
 	fs = malloc(20 + strlen(fmt));
-	strftime(fs, 10, "[%H:%M:%S", tp);
-	sprintf(fs+9, ".%03d][%d] %s\n", (int)(ts.tv_usec / 1000), level, fmt);
-	
+
+	if(log_syslog) {
+		sprintf(fs, "[%d] %s\n", level, fmt);
+	} else {
+		strftime(fs, 10, "[%H:%M:%S", tp);
+		sprintf(fs+9, ".%03d][%d] %s\n", (int)(ts.tv_usec / 1000), level, fmt);
+	}
+
 	va_start(ap, fmt);
 	if (log_syslog) {
 		vsyslog(level_to_syslog_level(level), fs, ap);
@@ -84,6 +89,6 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 		vfprintf(stderr, fs, ap);
 	}
 	va_end(ap);
-	
+
 	free(fs);
 }
