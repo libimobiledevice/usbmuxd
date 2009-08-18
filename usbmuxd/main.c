@@ -373,29 +373,6 @@ int main(int argc, char *argv[])
 		goto terminate;
 	}
 
-	usbmuxd_log(LL_INFO, "Creating socket");
-	listenfd = create_socket();
-	if(listenfd < 0)
-		return 1;
-
-	client_init();
-	device_init();
-	usbmuxd_log(LL_INFO, "Initializing USB");
-	if((res = usb_init()) < 0)
-		return 2;
-	usbmuxd_log(LL_INFO, "%d device%s detected", res, (res==1)?"":"s");
-	
-	usbmuxd_log(LL_NOTICE, "Initialization complete");
-
-	if (!foreground) {
-		if (daemonize() < 0) {
-			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
-			usbmuxd_log(LL_ERROR, "FATAL: Could not daemonize!");
-			log_disable_syslog();
-			exit(EXIT_FAILURE);
-		}
-	}
-
 	// now open the lockfile and place the lock
 	lfd = fopen(lockfile, "w");
 	if (lfd) {
@@ -403,12 +380,20 @@ int main(int argc, char *argv[])
 		lock.l_whence = SEEK_SET;
 		lock.l_start = 0;
 		lock.l_len = 0;
-		if (fcntl(fileno(lfd), F_SETLK, &lock) == -1) {
+		if ((res = fcntl(fileno(lfd), F_SETLK, &lock)) < 0) {
 			usbmuxd_log(LL_FATAL, "Lockfile locking failed!");
-			log_disable_syslog();
-			exit(EXIT_FAILURE);
+			goto terminate;
 		}
+	} else {
+		usbmuxd_log(LL_FATAL, "Lockfile open failed!");
+		res = -1;
+		goto terminate;
 	}
+
+	usbmuxd_log(LL_INFO, "Creating socket");
+	res = listenfd = create_socket();
+	if(listenfd < 0)
+		goto terminate;
 
 	// drop elevated privileges
 	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
@@ -444,6 +429,24 @@ int main(int argc, char *argv[])
 			goto terminate;
 		}
 		usbmuxd_log(LL_NOTICE, "Successfully dropped privileges to '%s'", drop_user);
+	}
+
+	client_init();
+	device_init();
+	usbmuxd_log(LL_INFO, "Initializing USB");
+	if((res = usb_init()) < 0)
+		goto terminate;
+
+	usbmuxd_log(LL_INFO, "%d device%s detected", res, (res==1)?"":"s");
+
+	usbmuxd_log(LL_NOTICE, "Initialization complete");
+
+	if (!foreground) {
+		if ((res = daemonize()) < 0) {
+			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
+			usbmuxd_log(LL_FATAL, "Could not daemonize!");
+			goto terminate;
+		}
 	}
 
 	res = main_loop(listenfd);
