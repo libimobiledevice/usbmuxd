@@ -92,17 +92,21 @@ int create_socket(void) {
 
 void handle_signal(int sig)
 {
-	if (sig == SIGTERM) {
+	if (sig != SIGUSR1) {
+		usbmuxd_log(LL_NOTICE,"Caught signal %d, exiting", sig);
 		should_exit = 1;
 	} else {
-		usbmuxd_log(LL_NOTICE,"Caught signal %d", sig);
-		usbmuxd_log(LL_INFO, "Checking if we can terminate (no more devices attached)...");
-		if (device_get_count() > 0) {
-			// we can't quit, there are still devices attached.
-			usbmuxd_log(LL_NOTICE, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.");
+		if(opt_udev) {
+			usbmuxd_log(LL_INFO, "Caught SIGUSR1, checking if we can terminate (no more devices attached)...");
+			if (device_get_count() > 0) {
+				// we can't quit, there are still devices attached.
+				usbmuxd_log(LL_NOTICE, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.");
+			} else {
+				// it's safe to quit
+				should_exit = 1;
+			}
 		} else {
-			// it's safe to quit
-			should_exit = 1;
+			usbmuxd_log(LL_INFO, "Caught SIGUSR1 but we weren't started in --udev mode, ignoring");
 		}
 	}
 }
@@ -115,6 +119,7 @@ void set_signal_handlers(void)
 	sigaction(SIGINT, &sa, NULL);
 	sigaction(SIGQUIT, &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGUSR1, &sa, NULL);
 }
 
 int main_loop(int listenfd)
@@ -241,9 +246,10 @@ static void usage()
 	printf("\t-u|--user[=USER]          Change to this user after startup (needs usb privileges).\n");
 	printf("\t                          If USER is not specified, defaults to usbmux.\n");
 	printf("\t-d|--udev                 Run in udev operation mode.\n");
-	printf("\t-x|--exit                 Tell a running instance to exit.\n");
-	printf("\t-X|--force-exit           Tell a running instance to exit, even if\n");
-	printf("\t                          there are still devices connected.\n");
+	printf("\t-x|--exit                 Tell a running instance to exit if there are no devices\n");
+	printf("\t                          connected (must be in udev mode).\n");
+	printf("\t-X|--force-exit           Tell a running instance to exit, even if there are still\n");
+	printf("\t                          devices connected (always works).\n");
 	printf("\n");
 }
 
@@ -287,7 +293,7 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 'x':
 			opt_exit = 1;
-			exit_signal = SIGQUIT;
+			exit_signal = SIGUSR1;
 			break;
 		case 'X':
 			opt_exit = 1;
@@ -298,8 +304,6 @@ static void parse_opts(int argc, char **argv)
 			exit(2);
 		}
 	}
-	if (opt_udev)
-		foreground = 0;
 }
 
 int main(int argc, char *argv[])
