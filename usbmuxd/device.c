@@ -142,7 +142,7 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 	unsigned char *buffer;
 	int hdrlen;
 	int res;
-	
+
 	switch(proto) {
 		case MUX_PROTO_VERSION:
 			hdrlen = sizeof(struct version_header);
@@ -155,14 +155,14 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 			return -1;
 	}
 	usbmuxd_log(LL_SPEW, "send_packet(%d, 0x%x, %p, %p, %d)", dev->id, proto, header, data, length);
-	
+
 	int total = sizeof(struct mux_header) + hdrlen + length;
-	
+
 	if(total > USB_MTU) {
 		usbmuxd_log(LL_ERROR, "Tried to send packet larger than USB MTU (hdr %d data %d total %d) to device %d", hdrlen, length, total, dev->id);
 		return -1;
 	}
-	
+
 	buffer = malloc(total);
 	struct mux_header *mhdr = (struct mux_header *)buffer;
 	mhdr->protocol = htonl(proto);
@@ -170,7 +170,7 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 	memcpy(buffer + sizeof(struct mux_header), header, hdrlen);
 	if(data && length)
 		memcpy(buffer + sizeof(struct mux_header) + hdrlen, data, length);
-	
+
 	if((res = usb_send(dev->usbdev, buffer, total)) < 0) {
 		usbmuxd_log(LL_ERROR, "usb_send failed while sending packet (len %d) to device %d: %d", total, dev->id, res);
 		free(buffer);
@@ -183,7 +183,7 @@ static uint16_t find_sport(struct mux_device *dev)
 {
 	if(collection_count(&dev->connections) >= 65535)
 		return 0; //insanity
-	
+
 	while(1) {
 		int ok = 1;
 		FOREACH(struct mux_connection *conn, &dev->connections) {
@@ -207,7 +207,7 @@ static int send_anon_rst(struct mux_device *dev, uint16_t sport, uint16_t dport,
 	th.th_ack = htonl(ack);
 	th.th_flags = TH_RST;
 	th.th_off = sizeof(th) / 4;
-	
+
 	usbmuxd_log(LL_DEBUG, "[OUT] dev=%d sport=%d dport=%d flags=0x%x", dev->id, sport, dport, th.th_flags);
 
 	int res = send_packet(dev, MUX_PROTO_TCP, &th, NULL, 0);
@@ -225,7 +225,7 @@ static int send_tcp(struct mux_connection *conn, uint8_t flags, const unsigned c
 	th.th_flags = flags;
 	th.th_off = sizeof(th) / 4;
 	th.th_win = htons(conn->tx_win >> 8);
-	
+
 	usbmuxd_log(LL_DEBUG, "[OUT] dev=%d sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%d",
 		conn->dev->id, conn->sport, conn->dport, conn->tx_seq, conn->tx_ack, flags, conn->tx_win, conn->tx_win >> 8, length);
 
@@ -278,7 +278,7 @@ int device_start_connect(int device_id, uint16_t dport, struct mux_client *clien
 		usbmuxd_log(LL_WARNING, "Attempted to connect to nonexistent device %d", device_id);
 		return -RESULT_BADDEV;
 	}
-	
+
 	uint16_t sport = find_sport(dev);
 	if(!sport) {
 		usbmuxd_log(LL_WARNING, "Unable to allocate port for device %d", device_id);
@@ -288,7 +288,7 @@ int device_start_connect(int device_id, uint16_t dport, struct mux_client *clien
 	struct mux_connection *conn;
 	conn = malloc(sizeof(struct mux_connection));
 	memset(conn, 0, sizeof(struct mux_connection));
-	
+
 	conn->dev = dev;
 	conn->client = client;
 	conn->state = CONN_CONNECTING;
@@ -301,15 +301,15 @@ int device_start_connect(int device_id, uint16_t dport, struct mux_client *clien
 	conn->rx_recvd = 0;
 	conn->flags = 0;
 	conn->max_payload = USB_MTU - sizeof(struct mux_header) - sizeof(struct tcphdr);
-	
+
 	conn->ob_buf = malloc(CONN_OUTBUF_SIZE);
 	conn->ob_capacity = CONN_OUTBUF_SIZE;
 	conn->ib_buf = malloc(CONN_INBUF_SIZE);
 	conn->ib_capacity = CONN_INBUF_SIZE;
 	conn->ib_size = 0;
-	
+
 	int res;
-	
+
 	res = send_tcp(conn, TH_SYN, NULL, 0);
 	if(res < 0) {
 		usbmuxd_log(LL_ERROR, "Error sending TCP SYN to device %d (%d->%d)", dev->id, sport, dport);
@@ -323,12 +323,12 @@ int device_start_connect(int device_id, uint16_t dport, struct mux_client *clien
 static void update_connection(struct mux_connection *conn)
 {
 	conn->sendable = conn->rx_win - (conn->tx_seq - conn->rx_ack);
-	
+
 	if(conn->sendable > conn->ob_capacity)
 		conn->sendable = conn->ob_capacity;
 	if(conn->sendable > conn->max_payload)
 		conn->sendable = conn->max_payload;
-	
+
 	if(conn->sendable > 0)
 		conn->events |= POLLIN;
 	else
@@ -368,7 +368,7 @@ void device_client_process(int device_id, struct mux_client *client, short event
 		return;
 	}
 	usbmuxd_log(LL_SPEW, "device_client_process (%d)", events);
-	
+
 	int res;
 	int size;
 	if(events & POLLOUT) {
@@ -463,7 +463,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 {
 	usbmuxd_log(LL_DEBUG, "[IN] dev=%d sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%d",
 		dev->id, ntohs(th->th_sport), ntohs(th->th_dport), ntohl(th->th_seq), ntohl(th->th_ack), th->th_flags, ntohs(th->th_win) << 8, ntohs(th->th_win), payload_length);
-	
+
 	uint16_t sport = ntohs(th->th_dport);
 	uint16_t dport = ntohs(th->th_sport);
 	struct mux_connection *conn = NULL;
@@ -473,7 +473,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 			break;
 		}
 	} ENDFOREACH
-	
+
 	if(!conn) {
 		usbmuxd_log(LL_WARNING, "No connection for device %d incoming packet %d->%d", dev->id, dport, sport);
 		if(!(th->th_flags & TH_RST)) {
@@ -482,11 +482,11 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 		}
 		return;
 	}
-	
+
 	conn->rx_seq = ntohl(th->th_seq);
 	conn->rx_ack = ntohl(th->th_ack);
 	conn->rx_win = ntohs(th->th_win) << 8;
-	
+
 	if(th->th_flags & TH_RST) {
 		char *buf = malloc(payload_length+1);
 		memcpy(buf, payload, payload_length);
@@ -496,7 +496,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 		usbmuxd_log(LL_DEBUG, "RST reason: %s", buf);
 		free(buf);
 	}
-	
+
 	if(conn->state == CONN_CONNECTING) {
 		if(th->th_flags != (TH_SYN|TH_ACK)) {
 			if(th->th_flags & TH_RST)
@@ -544,10 +544,10 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int len
 		usbmuxd_log(LL_WARNING, "Cannot find device entry for RX input from USB device %p on location 0x%x", usbdev, usb_get_location(usbdev));
 		return;
 	}
-	
+
 	if(!length)
 		return;
-	
+
 	usbmuxd_log(LL_SPEW, "Mux data input for device %p: %p len %d", dev, buffer, length);
 
 	// handle broken up transfers
@@ -573,18 +573,18 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int len
 			return;
 		}
 	}
-	
+
 	struct mux_header *mhdr = (struct mux_header *)buffer;
-	
+
 	if(ntohl(mhdr->length) != length) {
 		usbmuxd_log(LL_ERROR, "Incoming packet size mismatch (dev %d, expected %d, got %d)", dev->id, ntohl(mhdr->length), length);
 		return;
 	}
-	
+
 	struct tcphdr *th;
 	unsigned char *payload;
 	int payload_length;
-	
+
 	switch(ntohl(mhdr->protocol)) {
 		case MUX_PROTO_VERSION:
 			device_version_input(dev, (struct version_header *)(mhdr+1));
@@ -599,7 +599,7 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int len
 			usbmuxd_log(LL_ERROR, "Incoming packet for device %d has unknown protocol 0x%x)", dev->id, ntohl(mhdr->protocol));
 			break;
 	}
-	
+
 }
 
 int device_add(struct usb_device *usbdev)

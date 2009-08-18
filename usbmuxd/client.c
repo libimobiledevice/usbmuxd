@@ -105,11 +105,11 @@ int client_accept(int listenfd)
 		usbmuxd_log(LL_ERROR, "accept() failed (%s)", strerror(errno));
 		return cfd;
 	}
-	
+
 	struct mux_client *client;
 	client = malloc(sizeof(struct mux_client));
 	memset(client, 0, sizeof(struct mux_client));
-	
+
 	client->fd = cfd;
 	client->ob_buf = malloc(REPLY_BUF_SIZE);
 	client->ob_size = 0;
@@ -119,9 +119,9 @@ int client_accept(int listenfd)
 	client->ib_capacity = CMD_BUF_SIZE;
 	client->state = CLIENT_COMMAND;
 	client->events = POLLIN;
-	
+
 	collection_add(&client_list, client);
-	
+
 	usbmuxd_log(LL_INFO, "New client on fd %d", client->fd);
 	return client->fd;
 }
@@ -216,14 +216,14 @@ static int start_listen(struct mux_client *client)
 	struct device_info *devs;
 	struct device_info *dev;
 	int count, i;
-	
+
 	client->state = CLIENT_LISTEN;
 	count = device_get_count();
 	if(!count)
 		return 0;
 	devs = malloc(sizeof(struct device_info) * count);
 	count = device_get_list(devs);
-	
+
 	// going to need a larger buffer for many devices
 	int needed_buffer = count * (sizeof(struct client_msg_dev) + sizeof(struct client_header)) + REPLY_BUF_SIZE;
 	if(client->ob_capacity < needed_buffer) {
@@ -246,7 +246,7 @@ static int client_command(struct mux_client *client, struct client_header *hdr, 
 {
 	int res;
 	usbmuxd_log(LL_DEBUG, "Client command in fd %d len %d ver %d msg %d tag %d", client->fd, hdr->length, hdr->version, hdr->message, hdr->tag);
-	
+
 	if(client->state != CLIENT_COMMAND) {
 		usbmuxd_log(LL_ERROR, "Client %d command received in the wrong state", client->fd);
 		if(send_result(client, hdr->tag, RESULT_BADCOMMAND) < 0)
@@ -254,7 +254,7 @@ static int client_command(struct mux_client *client, struct client_header *hdr, 
 		client_close(client);
 		return -1;
 	}
-	
+
 	struct client_msg_connect *ch;
 	switch(hdr->message) {
 		case MESSAGE_LISTEN:
@@ -392,7 +392,7 @@ void client_process(int fd, short events)
 			process_send(client);
 		}
 	}
-	
+
 }
 
 void client_device_add(struct device_info *dev)
@@ -401,7 +401,7 @@ void client_device_add(struct device_info *dev)
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			notify_device(client, dev);
-	} ENDFOREACH	
+	} ENDFOREACH
 }
 void client_device_remove(int device_id)
 {

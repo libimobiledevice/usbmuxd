@@ -58,7 +58,7 @@ static void usb_disconnect(struct usb_device *dev)
 	if(!dev->dev) {
 		return;
 	}
-	
+
 	// kill the rx xfer and tx xfers and try to make sure the callbacks get called before we free the device
 	if(dev->rx_xfer) {
 		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling RX xfer");
@@ -72,7 +72,7 @@ static void usb_disconnect(struct usb_device *dev)
 	while(dev->rx_xfer || collection_count(&dev->tx_xfers)) {
 		struct timeval tv;
 		int res;
-		
+
 		tv.tv_sec = 0;
 		tv.tv_usec = 1000;
 		if((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
@@ -218,7 +218,7 @@ static int usb_discover(void)
 	int cnt, i, res;
 	int valid_count = 0;
 	libusb_device **devs;
-	
+
 	cnt = libusb_get_device_list(NULL, &devs);
 	if(cnt < 0) {
 		usbmuxd_log(LL_WARNING, "Could not get device list: %d", cnt);
@@ -309,7 +309,7 @@ static int usb_discover(void)
 		collection_init(&usbdev->tx_xfers);
 
 		collection_add(&device_list, usbdev);
-		
+
 		if(device_add(usbdev) < 0) {
 			usb_disconnect(usbdev);
 			continue;
@@ -327,14 +327,14 @@ static int usb_discover(void)
 			usb_disconnect(usbdev);
 		}
 	} ENDFOREACH
-	
+
 	libusb_free_device_list(devs, 1);
-	
+
 	gettimeofday(&next_dev_poll_time, NULL);
 	next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
 	next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
 	next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
-	
+
 	return valid_count;
 }
 
@@ -477,7 +477,7 @@ int usb_init(void)
 {
 	int res;
 	usbmuxd_log(LL_DEBUG, "usb_init for linux / libusb 1.0");
-	
+
 	devlist_failures = 0;
 	res = libusb_init(NULL);
 	//libusb_set_debug(NULL, 3);
@@ -485,9 +485,9 @@ int usb_init(void)
 		usbmuxd_log(LL_FATAL, "libusb_init failed: %d", res);
 		return -1;
 	}
-	
+
 	collection_init(&device_list);
-	
+
 	return usb_discover();
 }
 
