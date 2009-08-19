@@ -33,7 +33,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
-#include <sys/fcntl.h>
+#include <sys/types.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <pwd.h>
 #include <grp.h>
@@ -44,7 +45,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "client.h"
 
 static const char *socket_path = "/var/run/usbmuxd";
-static const char *lockfile = "/var/run/usbmuxd.lock";
+static const char *lockfile = "/var/run/usbmuxd.pid";
 
 int should_exit;
 
@@ -55,6 +56,9 @@ static const char *drop_user = "usbmux";
 static int opt_udev = 0;
 static int opt_exit = 0;
 static int exit_signal = 0;
+static int daemon_pipe;
+
+static int report_to_parent = 0;
 
 int create_socket(void) {
 	struct sockaddr_un bind_addr;
@@ -191,25 +195,47 @@ int main_loop(int listenfd)
 /**
  * make this program run detached from the current console
  */
-static int daemonize()
+static int daemonize(void)
 {
 	pid_t pid;
 	pid_t sid;
+	int pfd[2];
+	int res;
 
 	// already a daemon
 	if (getppid() == 1)
 		return 0;
 
+	if((res = pipe(pfd)) < 0) {
+		usbmuxd_log(LL_FATAL, "pipe() failed.");
+		return res;
+	}
+
 	pid = fork();
 	if (pid < 0) {
-		exit(EXIT_FAILURE);
+		usbmuxd_log(LL_FATAL, "fork() failed.");
+		return pid;
 	}
 
 	if (pid > 0) {
 		// exit parent process
-		exit(EXIT_SUCCESS);
+		int status;
+		close(pfd[1]);
+
+		if((res = read(pfd[0],&status,sizeof(int))) != sizeof(int)) {
+			fprintf(stderr, "usbmuxd: ERROR: Failed to get init status from child, check syslog for messages.\n");
+			exit(1);
+		}
+		if(status != 0)
+			fprintf(stderr, "usbmuxd: ERROR: Child process exited with error %d, check syslog for messages.\n", status);
+		exit(status);
 	}
 	// At this point we are executing as the child process
+	// but we need to do one more fork
+
+	daemon_pipe = pfd[1];
+	close(pfd[0]);
+	report_to_parent = 1;
 
 	// Change the file mode mask
 	umask(0);
@@ -217,23 +243,57 @@ static int daemonize()
 	// Create a new SID for the child process
 	sid = setsid();
 	if (sid < 0) {
+		usbmuxd_log(LL_FATAL, "setsid() failed.");
 		return -1;
 	}
+
+	pid = fork();
+	if (pid < 0) {
+		usbmuxd_log(LL_FATAL, "fork() failed (second).");
+		return pid;
+	}
+
+	if (pid > 0) {
+		// exit parent process
+		close(daemon_pipe);
+		exit(0);
+	}
+
 	// Change the current working directory.
 	if ((chdir("/")) < 0) {
+		usbmuxd_log(LL_FATAL, "chdir() failed");
 		return -2;
 	}
 	// Redirect standard files to /dev/null
 	if (!freopen("/dev/null", "r", stdin)) {
-		usbmuxd_log(LL_ERROR, "ERROR: redirection of stdin failed.");
+		usbmuxd_log(LL_FATAL, "Redirection of stdin failed.");
+		return -3;
 	}
 	if (!freopen("/dev/null", "w", stdout)) {
-		usbmuxd_log(LL_ERROR, "ERROR: redirection of stdout failed.");
-	}
-	if (!freopen("/dev/null", "w", stderr)) {
-		usbmuxd_log(LL_ERROR, "ERROR: redirection of stderr failed.");
+		usbmuxd_log(LL_FATAL, "Redirection of stdout failed.");
+		return -3;
 	}
 
+	return 0;
+}
+
+static int notify_parent(int status)
+{
+	int res;
+
+	report_to_parent = 0;
+	if ((res = write(daemon_pipe, &status, sizeof(int))) != sizeof(int)) {
+		usbmuxd_log(LL_FATAL, "Could not notify parent!");
+		if(res >= 0)
+			return -2;
+		else
+			return res;
+	}
+	close(daemon_pipe);
+	if (!freopen("/dev/null", "w", stderr)) {
+		usbmuxd_log(LL_FATAL, "Redirection of stderr failed.");
+		return -1;
+	}
 	return 0;
 }
 
@@ -310,8 +370,9 @@ int main(int argc, char *argv[])
 {
 	int listenfd;
 	int res = 0;
-	FILE *lfd = NULL;
+	int lfd;
 	struct flock lock;
+	char pids[10];
 
 	parse_opts(argc, argv);
 
@@ -333,60 +394,77 @@ int main(int argc, char *argv[])
 
 	set_signal_handlers();
 
-	lfd = fopen(lockfile, "r");
-	if (lfd) {
-		lock.l_type = 0;
-		lock.l_whence = SEEK_SET;
-		lock.l_start = 0;
-		lock.l_len = 0;
-		fcntl(fileno(lfd), F_GETLK, &lock);
-		fclose(lfd);
-		if (lock.l_type != F_UNLCK) {
-			if (opt_exit) {
-				if (lock.l_pid && !kill(lock.l_pid, 0)) {
-					usbmuxd_log(LL_NOTICE, "sending signal %d to instance with pid %d", exit_signal, lock.l_pid);
-					if (kill(lock.l_pid, exit_signal) < 0) {
-						usbmuxd_log(LL_FATAL, "Error: could not deliver signal %d to pid %d", exit_signal, lock.l_pid);
-					}
-					res = 0;
-					goto terminate;
-				} else {
-					usbmuxd_log(LL_ERROR, "Could not determine pid of the other running instance!");
+	res = lfd = open(lockfile, O_WRONLY|O_CREAT, 0644);
+	if(res == -1) {
+		usbmuxd_log(LL_FATAL, "Could not open lockfile");
+		goto terminate;
+	}
+	lock.l_type = F_WRLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	fcntl(lfd, F_GETLK, &lock);
+	close(lfd);
+	if (lock.l_type != F_UNLCK) {
+		if (opt_exit) {
+			if (lock.l_pid && !kill(lock.l_pid, 0)) {
+				usbmuxd_log(LL_NOTICE, "Sending signal %d to instance with pid %d", exit_signal, lock.l_pid);
+				res = 0;
+				if (kill(lock.l_pid, exit_signal) < 0) {
+					usbmuxd_log(LL_FATAL, "Could not deliver signal %d to pid %d", exit_signal, lock.l_pid);
 					res = -1;
-					goto terminate;
-				}
-			} else {
-				if (!opt_udev) {
-					usbmuxd_log(LL_ERROR, "Another instance is already running (pid %d). exiting.", lock.l_pid);
-					res = -1;
-				} else {
-					usbmuxd_log(LL_NOTICE, "Another instance is already running (pid %d). exiting.", lock.l_pid);
-					res = 0;
 				}
 				goto terminate;
+			} else {
+				usbmuxd_log(LL_ERROR, "Could not determine pid of the other running instance!");
+				res = -1;
+				goto terminate;
 			}
+		} else {
+			if (!opt_udev) {
+				usbmuxd_log(LL_ERROR, "Another instance is already running (pid %d). exiting.", lock.l_pid);
+				res = -1;
+			} else {
+				usbmuxd_log(LL_NOTICE, "Another instance is already running (pid %d). exiting.", lock.l_pid);
+				res = 0;
+			}
+			goto terminate;
 		}
 	}
+	unlink(lockfile);
 
 	if (opt_exit) {
 		usbmuxd_log(LL_NOTICE, "No running instance found, none killed. exiting.");
 		goto terminate;
 	}
 
-	// now open the lockfile and place the lock
-	lfd = fopen(lockfile, "w");
-	if (lfd) {
-		lock.l_type = F_WRLCK;
-		lock.l_whence = SEEK_SET;
-		lock.l_start = 0;
-		lock.l_len = 0;
-		if ((res = fcntl(fileno(lfd), F_SETLK, &lock)) < 0) {
-			usbmuxd_log(LL_FATAL, "Lockfile locking failed!");
+	if (!foreground) {
+		if ((res = daemonize()) < 0) {
+			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
+			usbmuxd_log(LL_FATAL, "Could not daemonize!");
 			goto terminate;
 		}
-	} else {
-		usbmuxd_log(LL_FATAL, "Lockfile open failed!");
-		res = -1;
+	}
+
+	// now open the lockfile and place the lock
+	res = lfd = open(lockfile, O_WRONLY|O_CREAT|O_TRUNC|O_EXCL, 0644);
+	if(res < 0) {
+		usbmuxd_log(LL_FATAL, "Could not open lockfile");
+		goto terminate;
+	}
+	lock.l_type = F_WRLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	if ((res = fcntl(lfd, F_SETLK, &lock)) < 0) {
+		usbmuxd_log(LL_FATAL, "Lockfile locking failed!");
+		goto terminate;
+	}
+	sprintf(pids, "%d", getpid());
+	if ((res = write(lfd, pids, strlen(pids))) != strlen(pids)) {
+		usbmuxd_log(LL_FATAL, "Could not write pidfile!");
+		if(res >= 0)
+			res = -2;
 		goto terminate;
 	}
 
@@ -400,7 +478,7 @@ int main(int argc, char *argv[])
 		struct passwd *pw = getpwnam(drop_user);
 		if (!pw) {
 			usbmuxd_log(LL_FATAL, "Dropping privileges failed, check if user '%s' exists!", drop_user);
-			res = 1;
+			res = -1;
 			goto terminate;
 		}
 
@@ -420,12 +498,12 @@ int main(int argc, char *argv[])
 		// security check
 		if (setuid(0) != -1) {
 			usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
-			res = 1;
+			res = -1;
 			goto terminate;
 		}
 		if (getuid() != pw->pw_uid || getgid() != pw->pw_gid) {
 			usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
-			res = 1;
+			res = -1;
 			goto terminate;
 		}
 		usbmuxd_log(LL_NOTICE, "Successfully dropped privileges to '%s'", drop_user);
@@ -441,13 +519,9 @@ int main(int argc, char *argv[])
 
 	usbmuxd_log(LL_NOTICE, "Initialization complete");
 
-	if (!foreground) {
-		if ((res = daemonize()) < 0) {
-			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
-			usbmuxd_log(LL_FATAL, "Could not daemonize!");
+	if (report_to_parent)
+		if((res = notify_parent(0)) < 0)
 			goto terminate;
-		}
-	}
 
 	res = main_loop(listenfd);
 	if(res < 0)
@@ -463,7 +537,12 @@ int main(int argc, char *argv[])
 terminate:
 	log_disable_syslog();
 
-	if(res < 0)
-		return -res;
-	return 0;
+	if (res < 0)
+		res = -res;
+	else
+		res = 0;
+	if (report_to_parent)
+		notify_parent(res);
+
+	return res;
 }
