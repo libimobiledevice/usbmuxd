@@ -141,7 +141,7 @@ void *run_ctos_loop(void *arg)
 void *acceptor_thread(void *arg)
 {
     struct client_data *cdata;
-    usbmuxd_scan_result *dev_list = NULL;
+    usbmuxd_device_info_t *dev_list = NULL;
     pthread_t ctos;
     int count;
 
@@ -166,7 +166,7 @@ void *acceptor_thread(void *arg)
 	return NULL;
     }
 
-    fprintf(stdout, "Requesting connecion to device handle == %d (serial: %s), port %d\n", dev_list[0].handle, dev_list[0].serial_number, device_port);
+    fprintf(stdout, "Requesting connecion to device handle == %d (serial: %s), port %d\n", dev_list[0].handle, dev_list[0].uuid, device_port);
 
     cdata->sfd = usbmuxd_connect(dev_list[0].handle, device_port);
     free(dev_list);

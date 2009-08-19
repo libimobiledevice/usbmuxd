@@ -24,8 +24,15 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "utils.h"
-#include "log.h"
+
+#ifdef USBMUXD_DAEMON
+# include "log.h"
+# define util_error(...) usbmuxd_log(LL_ERROR, __VA_ARGS__)
+#else
+# define util_error(...) fprintf(stderr, __VA_ARGS__)
+#endif
 
 void fdlist_create(struct fdlist *list)
 {
@@ -96,7 +103,7 @@ void collection_remove(struct collection *col, void *element)
 			return;
 		}
 	}
-	usbmuxd_log(LL_ERROR, "collection_remove: element %p not present in collection %p (cap %d)", element, col, col->capacity);
+	util_error("collection_remove: element %p not present in collection %p (cap %d)", element, col, col->capacity);
 }
 
 int collection_count(struct collection *col)

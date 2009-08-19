@@ -150,10 +150,10 @@ void client_get_fds(struct fdlist *list)
 	} ENDFOREACH
 }
 
-static int send_pkt(struct mux_client *client, uint32_t tag, enum client_msgtype msg, void *payload, int payload_length)
+static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtype msg, void *payload, int payload_length)
 {
-	struct client_header hdr;
-	hdr.version = CLIENT_PROTOCOL_VERSION;
+	struct usbmuxd_header hdr;
+	hdr.version = USBMUXD_PROTOCOL_VERSION;
 	hdr.length = sizeof(hdr) + payload_length;
 	hdr.message = msg;
 	hdr.tag = tag;
@@ -176,7 +176,7 @@ static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 	return send_pkt(client, tag, MESSAGE_RESULT, &result, sizeof(uint32_t));
 }
 
-int client_notify_connect(struct mux_client *client, enum client_result result)
+int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 {
 	usbmuxd_log(LL_SPEW, "client_notify_connect fd %d result %d", client->fd, result);
 	if(client->state == CLIENT_DEAD)
@@ -201,13 +201,13 @@ int client_notify_connect(struct mux_client *client, enum client_result result)
 
 static int notify_device(struct mux_client *client, struct device_info *dev)
 {
-	struct client_msg_dev dmsg;
+	struct usbmuxd_device_record dmsg;
 	memset(&dmsg, 0, sizeof(dmsg));
 	dmsg.device_id = dev->id;
-	strncpy(dmsg.device_serial, dev->serial, 256);
-	dmsg.device_serial[255] = 0;
+	strncpy(dmsg.serial_number, dev->serial, 256);
+	dmsg.serial_number[255] = 0;
 	dmsg.location = dev->location;
-	dmsg.device_pid = dev->pid;
+	dmsg.product_id = dev->pid;
 	return send_pkt(client, 0, MESSAGE_DEVICE_ADD, &dmsg, sizeof(dmsg));
 }
 
@@ -225,7 +225,7 @@ static int start_listen(struct mux_client *client)
 	count = device_get_list(devs);
 
 	// going to need a larger buffer for many devices
-	int needed_buffer = count * (sizeof(struct client_msg_dev) + sizeof(struct client_header)) + REPLY_BUF_SIZE;
+	int needed_buffer = count * (sizeof(struct usbmuxd_device_record) + sizeof(struct usbmuxd_header)) + REPLY_BUF_SIZE;
 	if(client->ob_capacity < needed_buffer) {
 		usbmuxd_log(LL_DEBUG, "Enlarging client %d reply buffer %d -> %d to make space for device notifications", client->fd, client->ob_capacity, needed_buffer);
 		client->ob_buf = realloc(client->ob_buf, needed_buffer);
@@ -242,7 +242,7 @@ static int start_listen(struct mux_client *client)
 	return count;
 }
 
-static int client_command(struct mux_client *client, struct client_header *hdr, const char *payload)
+static int client_command(struct mux_client *client, struct usbmuxd_header *hdr, const char *payload)
 {
 	int res;
 	usbmuxd_log(LL_DEBUG, "Client command in fd %d len %d ver %d msg %d tag %d", client->fd, hdr->length, hdr->version, hdr->message, hdr->tag);
@@ -255,7 +255,7 @@ static int client_command(struct mux_client *client, struct client_header *hdr, 
 		return -1;
 	}
 
-	struct client_msg_connect *ch;
+	struct usbmuxd_connect_request *ch;
 	switch(hdr->message) {
 		case MESSAGE_LISTEN:
 			if(send_result(client, hdr->tag, 0) < 0)
@@ -318,8 +318,8 @@ static void process_recv(struct mux_client *client)
 {
 	int res;
 	int did_read = 0;
-	if(client->ib_size < sizeof(struct client_header)) {
-		res = recv(client->fd, client->ib_buf + client->ib_size, sizeof(struct client_header) - client->ib_size, 0);
+	if(client->ib_size < sizeof(struct usbmuxd_header)) {
+		res = recv(client->fd, client->ib_buf + client->ib_size, sizeof(struct usbmuxd_header) - client->ib_size, 0);
 		if(res <= 0) {
 			if(res < 0)
 				usbmuxd_log(LL_ERROR, "Receive from client fd %d failed: %s", client->fd, strerror(errno));
@@ -329,20 +329,20 @@ static void process_recv(struct mux_client *client)
 			return;
 		}
 		client->ib_size += res;
-		if(client->ib_size < sizeof(struct client_header))
+		if(client->ib_size < sizeof(struct usbmuxd_header))
 			return;
 		did_read = 1;
 	}
-	struct client_header *hdr = (void*)client->ib_buf;
-	if(hdr->version != CLIENT_PROTOCOL_VERSION) {
-		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, CLIENT_PROTOCOL_VERSION, hdr->version);
+	struct usbmuxd_header *hdr = (void*)client->ib_buf;
+	if(hdr->version != USBMUXD_PROTOCOL_VERSION) {
+		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, USBMUXD_PROTOCOL_VERSION, hdr->version);
 		client_close(client);
 	}
 	if(hdr->length > client->ib_capacity) {
 		usbmuxd_log(LL_INFO, "Client %d message is too long (%d bytes)", client->fd, hdr->length);
 		client_close(client);
 	}
-	if(hdr->length < sizeof(struct client_header)) {
+	if(hdr->length < sizeof(struct usbmuxd_header)) {
 		usbmuxd_log(LL_ERROR, "Client %d message is too short (%d bytes)", client->fd, hdr->length);
 		client_close(client);
 	}

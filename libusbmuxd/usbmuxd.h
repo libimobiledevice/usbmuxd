@@ -2,10 +2,7 @@
 #define __USBMUXD_H
 
 /**
- * Array entry returned by 'usbmuxd_scan()' scanning.
- *
- * If more than one device is available, 'product_id' and
- * 'serial_number' and be analysed to help make a selection.
+ * Device information structure holding data to identify the device.
  * The relevant 'handle' should be passed to 'usbmuxd_connect()', to
  * start a proxy connection.  The value 'handle' should be considered
  * opaque and no presumption made about the meaning of its value.
@@ -13,22 +10,58 @@
 typedef struct {
 	int handle;
 	int product_id;
-	char serial_number[41];
-} usbmuxd_scan_result;
+	char uuid[41];
+} usbmuxd_device_info_t;
 
 /**
- * Contacts usbmuxd and performs a scan for connected devices.
+ * event types for event callback function
+ */
+enum usbmuxd_device_event {
+    UE_DEVICE_ADD = 1,
+    UE_DEVICE_REMOVE
+};
+
+/**
+ * Event structure that will be passed to the callback function.
+ * 'event' will contains the type of the event, and 'device' will contains
+ * information about the device.
+ */
+typedef struct {
+    int event;
+    usbmuxd_device_info_t device;
+} usbmuxd_event_t;
+
+/**
+ * Callback function prototype.
+ */
+typedef void (*usbmuxd_event_cb_t) (const usbmuxd_event_t *event);
+
+/**
+ * Subscribe a callback function so that applications get to know about
+ * device add/remove events.
  *
- * @param available_devices pointer to array of usbmuxd_scan_result.
- * 	Array of available devices.  The required 'handle'
- *	should be passed to 'usbmuxd_connect()'.  The returned array
- *	is zero-terminated for convenience; the final (unused)
- *	entry containing handle == 0.  The returned array pointer
- *	should be freed by passing to 'free()' after use.
+ * @param callback A callback function that is executed when an event occurs.
+ *
+ * @return 0 on success or negative on error.
+ */
+int usbmuxd_subscribe(usbmuxd_event_cb_t callback);
+
+/**
+ * Unsubscribe callback.
+ *
+ * @return only 0 for now.
+ */
+int usbmuxd_unsubscribe();
+
+/**
+ * Contacts usbmuxd and retrieves a list of connected devices.
+ *
+ * @param available_devices pointer to an array of usbmuxd_device_info_t
+ *      that will hold records of the connected devices.
  *
  * @return number of available devices, zero on no devices, or negative on error
  */
-int usbmuxd_scan(usbmuxd_scan_result **available_devices);
+int usbmuxd_scan(usbmuxd_device_info_t **available_devices);
 
 /**
  * Request proxy connect to 

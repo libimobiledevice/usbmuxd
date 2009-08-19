@@ -1,4 +1,6 @@
-add_library (libusbmuxd libusbmuxd.c sock_stuff.c)
+include_directories (${CMAKE_SOURCE_DIR}/common)
+
+add_library (libusbmuxd libusbmuxd.c sock_stuff.c ../common/utils.c)
 
 # 'lib' is a UNIXism, the proper CMake target is usbmuxd
 # But we can't use that due to the conflict with the usbmuxd daemon,
