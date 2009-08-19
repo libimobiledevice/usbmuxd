@@ -279,10 +279,18 @@ static int usb_discover(void)
 			usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %d", bus, address, res);
 			continue;
 		}
-		if((res = libusb_set_configuration(handle, USB_CONFIGURATION)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", USB_CONFIGURATION, bus, address, res);
+		int current_config = 0;
+		if((res = libusb_get_configuration(handle, &current_config)) != 0) {
+			usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %d", bus, address, res);
 			libusb_close(handle);
 			continue;
+		}
+		if (current_config != devdesc.bNumConfigurations) {
+			if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
+				usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
+				libusb_close(handle);
+				continue;
+			}
 		}
 		if((res = libusb_claim_interface(handle, USB_INTERFACE)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %d", USB_INTERFACE, bus, address, res);
