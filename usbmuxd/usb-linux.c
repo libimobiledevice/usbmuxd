@@ -45,6 +45,7 @@ struct usb_device {
 	int alive;
 	struct libusb_transfer *rx_xfer;
 	struct collection tx_xfers;
+	int wMaxPacketSize;
 };
 
 static struct collection device_list;
@@ -133,26 +134,15 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, (void*)buf, length, tx_callback, dev, 0);
 	xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
+	if (length % dev->wMaxPacketSize == 0) {
+		xfer->flags |= LIBUSB_TRANSFER_ZERO_PACKET;
+	}
 	if((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %d", buf, length, dev->bus, dev->address, res);
 		libusb_free_transfer(xfer);
 		return res;
 	}
 	collection_add(&dev->tx_xfers, xfer);
-	if((length % 512) == 0) {
-		usbmuxd_log(LL_DEBUG, "Send ZLP");
-		// Send Zero Length Packet
-		xfer = libusb_alloc_transfer(0);
-		void *buffer = malloc(1);
-		libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, buffer, 0, tx_callback, dev, 0);
-		xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
-		if((res = libusb_submit_transfer(xfer)) < 0) {
-			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %d", dev->bus, dev->address, res);
-			libusb_free_transfer(xfer);
-			return res;
-		}
-		collection_add(&dev->tx_xfers, xfer);
-	}
 	return 0;
 }
 
@@ -314,6 +304,29 @@ static int usb_discover(void)
 		usbdev->pid = devdesc.idProduct;
 		usbdev->dev = handle;
 		usbdev->alive = 1;
+		usbdev->wMaxPacketSize = 0;
+		struct libusb_config_descriptor *cfg;
+		if (libusb_get_active_config_descriptor(dev, &cfg) == 0
+				&& cfg && cfg->bNumInterfaces >= (USB_INTERFACE+1)) {
+			const struct libusb_interface *ifp = &cfg->interface[USB_INTERFACE];
+			if (ifp && ifp->num_altsetting >= 1) {
+				const struct libusb_interface_descriptor *as = &ifp->altsetting[0];
+				int i;
+				for (i = 0; i < as->bNumEndpoints; i++) {
+					const struct libusb_endpoint_descriptor *ep = &as->endpoint[i];
+					if (ep->bEndpointAddress == BULK_OUT) {
+						usbdev->wMaxPacketSize = ep->wMaxPacketSize;
+					}
+				}
+			}
+		}
+		if (usbdev->wMaxPacketSize == 0) {
+			usbmuxd_log(LL_ERROR, "Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
+			usbdev->wMaxPacketSize = 64;
+		} else {
+			usbmuxd_log(LL_INFO, "Using wMaxPacketSize=%d for device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
+		}
+
 		collection_init(&usbdev->tx_xfers);
 
 		collection_add(&device_list, usbdev);
