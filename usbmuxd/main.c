@@ -303,9 +303,9 @@ static void usage()
 	printf("\t-h|--help                 Print this message.\n");
 	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
 	printf("\t-f|--foreground           Do not daemonize (implies one -v).\n");
-	printf("\t-u|--user[=USER]          Change to this user after startup (needs usb privileges).\n");
+	printf("\t-U|--user[=USER]          Change to this user after startup (needs usb privileges).\n");
 	printf("\t                          If USER is not specified, defaults to usbmux.\n");
-	printf("\t-d|--udev                 Run in udev operation mode.\n");
+	printf("\t-u|--udev                 Run in udev operation mode.\n");
 	printf("\t-x|--exit                 Tell a running instance to exit if there are no devices\n");
 	printf("\t                          connected (must be in udev mode).\n");
 	printf("\t-X|--force-exit           Tell a running instance to exit, even if there are still\n");
@@ -319,8 +319,8 @@ static void parse_opts(int argc, char **argv)
 		{"help", 0, NULL, 'h'},
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
-		{"user", 2, NULL, 'u'},
-		{"udev", 0, NULL, 'd'},
+		{"user", 2, NULL, 'U'},
+		{"udev", 0, NULL, 'u'},
 		{"exit", 0, NULL, 'x'},
 		{"force-exit", 0, NULL, 'X'},
 		{NULL, 0, NULL, 0}
@@ -343,12 +343,12 @@ static void parse_opts(int argc, char **argv)
 		case 'v':
 			++verbose;
 			break;
-		case 'u':
+		case 'U':
 			drop_privileges = 1;
 			if(optarg)
 				drop_user = optarg;
 			break;
-		case 'd':
+		case 'u':
 			opt_udev = 1;
 			break;
 		case 'x':
