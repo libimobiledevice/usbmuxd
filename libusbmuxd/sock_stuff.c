@@ -205,6 +205,7 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	int sret;
 	int eagain;
 	struct timeval to;
+	struct timeval *pto;
 
 	if (fd <= 0) {
 		if (verbose >= 2)
@@ -215,8 +216,13 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	FD_ZERO(&fds);
 	FD_SET(fd, &fds);
 
-	to.tv_sec = (time_t) (timeout / 1000);
-	to.tv_usec = (time_t) ((timeout - (to.tv_sec * 1000)) * 1000);
+	if (timeout > 0) {
+		to.tv_sec = (time_t) (timeout / 1000);
+		to.tv_usec = (time_t) ((timeout - (to.tv_sec * 1000)) * 1000);
+		pto = &to;
+	} else {
+		pto = NULL;
+	}
 
 	sret = -1;
 
@@ -224,13 +230,13 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 		eagain = 0;
 		switch (fdm) {
 		case FD_READ:
-			sret = select(fd + 1, &fds, NULL, NULL, &to);
+			sret = select(fd + 1, &fds, NULL, NULL, pto);
 			break;
 		case FD_WRITE:
-			sret = select(fd + 1, NULL, &fds, NULL, &to);
+			sret = select(fd + 1, NULL, &fds, NULL, pto);
 			break;
 		case FD_EXCEPT:
-			sret = select(fd + 1, NULL, NULL, &fds, &to);
+			sret = select(fd + 1, NULL, NULL, &fds, pto);
 			break;
 		default:
 			return -1;
