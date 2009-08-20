@@ -1,27 +1,103 @@
-This is an implementation of the iPhone/iPod Touch USB connection protocol.
+Background
+==========
 
-The server should be mostly compatible with the original Apple usbmuxd
-protocol. This means that a single client lib should be able to interoperate
-with both. Apple has now introduced a new plist-based version of the protocol
-which works in essentially the same way but uses XML-based plists as
-command/response payloads instead of binary blobs. The outer binary protocol is
-still the same used but now the only command/response format is 8 (plist).
+'usbmuxd' stands for "USB multiplexing daemon".  To the user/developer what it
+actually does is to proxy requests over a USB cable on directly to a listening
+TCP port on the iPhone.
 
-The server is under the usbmuxd directory. You'll need CMake and libusb 1.0 to
-build it. Due to a bug in zero-length packet handling, you'll need either the
-git version of libusb or 1.0.3, whenever it comes out.
+Multiple connections to different TCP ports can happen in parallel. An example
+(and useful) tool called 'iproxy' is included that allows you to forward
+localhost ports to the device---allows SSH over USB on jailbroken devices, or
+allowing access the lockdown daemon (and then to all of the file access, sync,
+notification and backup services running on the device).
 
-There is a Python client library in the python-client directory. It should be
-compatible with Windows, Linux, and OSX (using the Apple usbmuxd on Win and OSX)
-tcprelay.py implements a TCP connection forwarder that lets you pipe TCP
-connections to localhost to the phone. Run it with --help for usage. The Python
-client lib is also compatible with the new plist-based protocol and should
-automatically select it if it sees such a server. However, you need Python 2.6
-for Windows and Linux in this case, since the plistlib module doesn't come with
-older versions under these OSes (not that you'll have a server that supports
-this protocol under Linux. TODO: does Windows iTunes use this yet?)
+This higher-level layers are handled by libiphone.  The version of libiphone
+compatible with the 'usbmuxd' infrastructure is called 'libiphone-usbmuxd'. 
+'ifuse' is then able to sit on top of this.
 
-ARCHITECTURE
+There is also a Python implementation of the client library in the python-client
+library, and an example tcprelay.py which performs a similar function to iproxy.
+This implementation supports OSX and Windows and the new iTunes plist-based
+usbmuxd protocol, so it is portable and will run on those operating systems with
+no modification, using Apple's native usbmuxd. This is useful if you need to
+tunnel to your phone from another OS in a pinch. Run python tcpclient.py --help
+for usage information.
+
+Building
+========
+
+  mkdir build
+  cd build
+  cmake ..
+  make
+  sudo make install
+
+Running (with magic)
+====================
+
+  (Unplug + replug your iPhone)
+  ./iproxy 2222 22 &
+  ssh -p 2222 root@localhost
+
+Hopefully you get the normal SSH login prompt.  You may still lots of debugging
+output for the moment.  If this is getting in the way of your ssh login, then
+run the 'ssh' command from a different xterminal
+or virtual console.
+
+
+Running (without magic)
+=======================
+
+If 'udev' is _not_ automatically running on your machine and picking up the new
+.rules file, you will need to start usbmuxd by hand first. Check it's running
+and that there is only one copy with 'ps aux | grep
+usbmuxd'.
+
+  sudo usbmuxd -U -v -v &
+  ./iproxy 2222 22 &
+  ssh -p 2222 root@localhost
+
+
+Tip: Starting SSH if disabled
+=============================
+
+If your iphone is rooted, but SSH isn't started and you _cannot_ (for instance,
+cracked/broken screen) get to the Services control panel on the device, then you
+can start the SSH service over the USB by
+mounting the (jailbroken) filesystem.
+
+You will need to mount it usbing 'ifuse --afc2' (to access the root directory of
+the device), and then edit:
+
+  /Library/LaunchDaemons/com.openssh.sshd.plist
+
+to _remove_ the lines:
+
+  <key>Diabled</key>
+  <true/>
+
+Reboot the device and then sshd should be running.
+
+TODO
+====
+
+The server currently assumes that the phone is well-behaved and does not do a
+bunch of checks like looking for the expected SEQ and ACK numbers from it. This
+is normally not an issue, but it's annoying for debugging because lost packets
+(which shouldn't happen, but can happen if the code is buggy) mean that stuff
+gets out of sync and then might crash and burn dozens of packets later.
+
+The server needs more testing, and some optimizing.
+
+Someone should probably do some edge-case testing on the TCP stuff.
+
+The outgoing ACK handling on the server probably needs some thought. Currently,
+when there's an outstanding ACK, we send it after a timeout (to avoid sending
+a no-payload ACK packet for everything the phone sends us). However, there's
+probably a better way of doing this.
+
+Architecture information
+========================
 
 The iPhone / iPod Touch basically implements a rather strange USB networking
 system that operates at a higher level. It is of course completely proprietary.
@@ -90,9 +166,6 @@ Note that all normal packets need to have flags set to ACK (and only ACK). There
 is no support for, erm, not-acking. Keep the ack number field valid at all
 times.
 
-
-GOTCHAS AND ANNOYANCES
-
 The usbmuxd CONNECT request port field is byte-swapped (network-endian). This is
 even more annoying for the plist based protocol, since it's even true there
 (where the field is plain text). So even for the plain text int, you need to
@@ -123,26 +196,3 @@ at non-16k boundaries that are multiples of 512, but that seems to work fine. I
 guess the ZLPs might cause spurious 0-byte transfers to show up on RX if things
 line up right, but we ignore those. By the way, the maximum packet/transfer size
 is 65535 bytes due to the 16-bit length header of the usbmux protocol.
-
-TODO
-
-The server currently assumes that the phone is well-behaved and does not do a
-bunch of checks like looking for the expected SEQ and ACK numbers from it. This
-is normally not an issue, but it's annoying for debugging because lost packets
-(which shouldn't happen, but can happen if the code is buggy) mean that stuff
-gets out of sync and then might crash and burn dozens of packets later.
-
-The server needs a proper front-end (i.e. daemonizing, commandline options,
-etc), more testing, and some optimizing.
-
-Someone should probably do some edge-case testing on the TCP stuff.
-
-At some point we should probably write a C client lib.
-
-The outgoing ACK handling on the server probably needs some thought. Currently,
-when there's an outstanding ACK, we send it after a timeout (to avoid sending
-a no-payload ACK packet for everything the phone sends us). However, there's
-probably a better way of doing this.
-
-
-
