@@ -1,0 +1,71 @@
+>From e6a34fe2fcd69d05411d3a8d41c8e897c9c337e1 Mon Sep 17 00:00:00 2001
+From: Nikias Bassen <nikias@gmx.li>
+Date: Mon, 17 Aug 2009 00:48:17 +0200
+Subject: [PATCH] Fix Zero Length Packet issue, new LIBUSB_TRANSFER_ZERO_PACKET flag.
+
+This patch fixes the Zero Length Packet issue by allowing the client
+program to specify the LIBUSB_TRANSFER_ZERO_PACKET flag when calling
+libusb_submit_transfer. This will pass the URB_ZERO_PACKET flag to the
+appropriate ioctl and thus triggers zero-length packet processing
+inside the kernel. This patch will also pass the URB_SHORT_NOT_OK flag
+if LIBUSB_TRANSFER_SHORT_NOT_OK is specified.
+---
+ libusb/libusb.h         |    5 ++++-
+ libusb/os/linux_usbfs.c |    5 +++++
+ libusb/os/linux_usbfs.h |    8 +++++---
+ 3 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/libusb/libusb.h b/libusb/libusb.h
+index 1126380..1dc7ae0 100644
+--- a/libusb/libusb.h
++++ b/libusb/libusb.h
+@@ -672,7 +672,10 @@ enum libusb_transfer_flags {
+ 	 * If this flag is set, it is illegal to call libusb_free_transfer()
+ 	 * from your transfer callback, as this will result in a double-free
+ 	 * when this flag is acted upon. */
+-	LIBUSB_TRANSFER_FREE_TRANSFER = 1<<2
++	LIBUSB_TRANSFER_FREE_TRANSFER = 1<<2,
++
++	/** zero-terminate a packet that is N*wMaxPacketSize bytes long */
++	LIBUSB_TRANSFER_ZERO_PACKET = 1<<3
+ };
+ 
+ /** \ingroup asyncio
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 1280188..81a9498 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -1307,6 +1307,11 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer,
+ 		else
+ 			urb->buffer_length = MAX_BULK_BUFFER_LENGTH;
+ 
++		if (transfer->flags & LIBUSB_TRANSFER_SHORT_NOT_OK)
++			urb->flags |= USBFS_URB_SHORT_NOT_OK;
++		if (transfer->flags & LIBUSB_TRANSFER_ZERO_PACKET)
++			urb->flags |= USBFS_URB_ZERO_PACKET;
++
+ 		r = ioctl(dpriv->fd, IOCTL_USBFS_SUBMITURB, urb);
+ 		if (r < 0) {
+ 			int j;
+diff --git a/libusb/os/linux_usbfs.h b/libusb/os/linux_usbfs.h
+index fdf5e9b..4660e3b 100644
+--- a/libusb/os/linux_usbfs.h
++++ b/libusb/os/linux_usbfs.h
+@@ -60,9 +60,11 @@ struct usbfs_getdriver {
+ 	char driver[USBFS_MAXDRIVERNAME + 1];
+ };
+ 
+-#define USBFS_URB_DISABLE_SPD	1
+-#define USBFS_URB_ISO_ASAP	2
+-#define USBFS_URB_QUEUE_BULK	0x10
++#define USBFS_URB_SHORT_NOT_OK	0x01
++#define USBFS_URB_ISO_ASAP	0x02
++#define USBFS_URB_NO_FSBR	0x20
++#define USBFS_URB_ZERO_PACKET	0x40
++#define USBFS_URB_NO_INTERRUPT	0x80
+ 
+ enum usbfs_urb_type {
+ 	USBFS_URB_TYPE_ISO = 0,
+-- 
+1.6.0.4
+

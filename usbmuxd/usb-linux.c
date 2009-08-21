@@ -33,6 +33,17 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "log.h"
 #include "device.h"
 
+#ifndef LIBUSB_TRANSFER_ZERO_PACKET
+#warning Your libusb is missing proper Zero Length Packet support!
+#warning
+#warning If you are using a recent libusb Git, things may or may not work.
+#warning If you are using libusb 1.0.2 or earlier, things will definitely not work
+#warning properly.
+#warning
+#warning Please apply the patch in the contrib/ directory to your libusb 1.0 tree.
+#define EXPLICIT_ZLP_TRANSACTION
+#endif
+
 // interval for device connection/disconnection polling, in milliseconds
 // we need this because there is currently no asynchronous device discovery mechanism in libusb
 #define DEVICE_POLL_TIME 1000
@@ -134,15 +145,33 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, (void*)buf, length, tx_callback, dev, 0);
 	xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
+#ifndef EXPLICIT_ZLP_TRANSACTION
 	if (length % dev->wMaxPacketSize == 0) {
 		xfer->flags |= LIBUSB_TRANSFER_ZERO_PACKET;
 	}
+#endif
 	if((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %d", buf, length, dev->bus, dev->address, res);
 		libusb_free_transfer(xfer);
 		return res;
 	}
 	collection_add(&dev->tx_xfers, xfer);
+#ifdef EXPLICIT_ZLP_TRANSACTION
+	if (length % dev->wMaxPacketSize == 0) {
+		usbmuxd_log(LL_DEBUG, "Send ZLP");
+		// Send Zero Length Packet
+		xfer = libusb_alloc_transfer(0);
+		void *buffer = malloc(1);
+		libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, buffer, 0, tx_callback, dev, 0);
+		xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
+		if((res = libusb_submit_transfer(xfer)) < 0) {
+			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %d", dev->bus, dev->address, res);
+			libusb_free_transfer(xfer);
+			return res;
+		}
+		collection_add(&dev->tx_xfers, xfer);
+	}
+#endif
 	return 0;
 }
 
