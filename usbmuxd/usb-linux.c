@@ -33,17 +33,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "log.h"
 #include "device.h"
 
-#ifndef LIBUSB_TRANSFER_ZERO_PACKET
-#warning Your libusb is missing proper Zero Length Packet support!
-#warning
-#warning If you are using a recent libusb Git, things may or may not work.
-#warning If you are using libusb 1.0.2 or earlier, things will definitely not work
-#warning properly.
-#warning
-#warning Please apply the patch in the contrib/ directory to your libusb 1.0 tree.
-#define EXPLICIT_ZLP_TRANSACTION
-#endif
-
 // interval for device connection/disconnection polling, in milliseconds
 // we need this because there is currently no asynchronous device discovery mechanism in libusb
 #define DEVICE_POLL_TIME 1000
