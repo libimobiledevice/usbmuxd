@@ -3,7 +3,7 @@ include_directories(${USB_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${USB_LIBRARIES})
 
 include_directories (${CMAKE_SOURCE_DIR}/common)
-include_directories (${CMAKE_SOURCE_DIR}/usbmuxd)
+include_directories (${CMAKE_SOURCE_DIR}/daemon)
 include_directories (${CMAKE_SOURCE_DIR}/libusbmuxd)
 
 include(CheckConstantExists)
