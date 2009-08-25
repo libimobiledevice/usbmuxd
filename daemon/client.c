@@ -242,7 +242,7 @@ static int start_listen(struct mux_client *client)
 	return count;
 }
 
-static int client_command(struct mux_client *client, struct usbmuxd_header *hdr, const char *payload)
+static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 {
 	int res;
 	usbmuxd_log(LL_DEBUG, "Client command in fd %d len %d ver %d msg %d tag %d", client->fd, hdr->length, hdr->version, hdr->message, hdr->tag);
@@ -263,7 +263,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr,
 			usbmuxd_log(LL_DEBUG, "Client %d now LISTENING", client->fd);
 			return start_listen(client);
 		case MESSAGE_CONNECT:
-			ch = (void*)payload;
+			ch = (void*)hdr;
 			usbmuxd_log(LL_DEBUG, "Client %d connection request to device %d port %d", client->fd, ch->device_id, ntohs(ch->port));
 			res = device_start_connect(ch->device_id, ntohs(ch->port), client);
 			if(res < 0) {
@@ -363,7 +363,7 @@ static void process_recv(struct mux_client *client)
 		if(client->ib_size < hdr->length)
 			return;
 	}
-	client_command(client, hdr, (char *)(hdr+1));
+	client_command(client, hdr);
 	client->ib_size = 0;
 }
 
