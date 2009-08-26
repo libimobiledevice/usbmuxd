@@ -1,5 +1,6 @@
 #ifndef __USBMUXD_H
 #define __USBMUXD_H
+#include <stdint.h>
 
 /**
  * Device information structure holding data to identify the device.
