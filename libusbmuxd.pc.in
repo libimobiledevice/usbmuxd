@@ -7,6 +7,6 @@ Name: libusbmuxd
 Description: A library to communicate with the usbmux daemon
 Version: ${USBMUXD_VERSION}
 Requires: libusb-1.0 >= 1.0.2
-Libs: -L${libdir} -lusbmuxd
-Cflags: -I${includedir}
+Libs: -L${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR} -lusbmuxd
+Cflags: -I${CMAKE_INSTALL_PREFIX}/include
 
