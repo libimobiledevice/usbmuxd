@@ -88,7 +88,7 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
  * A reference to a populated usbmuxd_event_t with information about the event
  * and the corresponding device will be passed to the callback function.
  */
-static void generate_event(usbmuxd_event_cb_t callback, const usbmuxd_device_info_t *dev, enum usbmuxd_device_event event)
+static void generate_event(usbmuxd_event_cb_t callback, const usbmuxd_device_info_t *dev, enum usbmuxd_device_event event, void *user_data)
 {
 	usbmuxd_event_t ev;
 
@@ -101,7 +101,7 @@ static void generate_event(usbmuxd_event_cb_t callback, const usbmuxd_device_inf
 
 	printf("%s: event=%d, handle=%d\n", __func__, ev.event, ev.device.handle);
 
-	callback(&ev);
+	callback(&ev, user_data);
 }
 
 /**
@@ -157,7 +157,7 @@ static int usbmuxd_listen()
  * Waits for an event to occur, i.e. a packet coming from usbmuxd.
  * Calls generate_event to pass the event via callback to the client program.
  */
-int get_next_event(int sfd, usbmuxd_event_cb_t callback)
+int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 {
 	int recv_len;
 	struct usbmuxd_listen_request req;
@@ -173,7 +173,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback)
 		// is still present so applications know about it
 		// TODO: is this behaviour correct?
 		FOREACH(usbmuxd_device_info_t *dev, &devices) {
-			generate_event(callback, dev, UE_DEVICE_REMOVE);
+			generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 		} ENDFOREACH
 		collection_free(&devices);
 		return recv_len;
@@ -201,7 +201,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback)
 			memcpy(devinfo->uuid, dev.serial_number, sizeof(devinfo->uuid));
 
 			collection_add(&devices, devinfo);
-			generate_event(callback, devinfo, UE_DEVICE_ADD);
+			generate_event(callback, devinfo, UE_DEVICE_ADD, user_data);
 		} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
 			uint32_t handle;
 			usbmuxd_device_info_t *dev;
@@ -219,7 +219,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback)
 			if (!dev) {
 				fprintf(stderr, "WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", handle);
 			} else {
-				generate_event(callback, dev, UE_DEVICE_REMOVE);
+				generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 				collection_remove(&devices, dev);
 			}
 		} else {
@@ -250,7 +250,7 @@ static void *device_monitor(void *data)
 
 		while (event_cb) {
 			printf("waiting for events\n");
-			int res = get_next_event(listenfd, event_cb);
+			int res = get_next_event(listenfd, event_cb, data);
 			if (res < 0) {
 			    fprintf(stderr, "%s: closing connection (code %d)\n", __func__, res);
 			    break;
@@ -264,7 +264,7 @@ static void *device_monitor(void *data)
 	return NULL;
 }
 
-int usbmuxd_subscribe(usbmuxd_event_cb_t callback)
+int usbmuxd_subscribe(usbmuxd_event_cb_t callback, void *user_data)
 {
 	int res;
 
@@ -273,7 +273,7 @@ int usbmuxd_subscribe(usbmuxd_event_cb_t callback)
 	}
 	event_cb = callback;
 
-	res = pthread_create(&devmon, NULL, device_monitor, NULL);
+	res = pthread_create(&devmon, NULL, device_monitor, user_data);
 	if (res != 0) {
 		fprintf(stderr, "ERROR: Could not start device watcher thread!\n");
 		return res;

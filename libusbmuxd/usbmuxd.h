@@ -34,7 +34,7 @@ typedef struct {
 /**
  * Callback function prototype.
  */
-typedef void (*usbmuxd_event_cb_t) (const usbmuxd_event_t *event);
+typedef void (*usbmuxd_event_cb_t) (const usbmuxd_event_t *event, void *user_data);
 
 /**
  * Subscribe a callback function so that applications get to know about
@@ -44,7 +44,7 @@ typedef void (*usbmuxd_event_cb_t) (const usbmuxd_event_t *event);
  *
  * @return 0 on success or negative on error.
  */
-int usbmuxd_subscribe(usbmuxd_event_cb_t callback);
+int usbmuxd_subscribe(usbmuxd_event_cb_t callback, void *user_data);
 
 /**
  * Unsubscribe callback.
