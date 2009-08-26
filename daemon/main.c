@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
 	/* set log level to specified verbosity */
 	log_level = verbose;
 
-	usbmuxd_log(LL_NOTICE, "usbmux v0.1 starting up");
+	usbmuxd_log(LL_NOTICE, "usbmux v%s starting up", USBMUXD_VERSION);
 	should_exit = 0;
 
 	set_signal_handlers();

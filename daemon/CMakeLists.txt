@@ -25,7 +25,7 @@ Please apply the patch in the contrib/ directory to your libusb 1.0 tree.
   add_definitions(-DEXPLICIT_ZLP_TRANSACTION)
 endif(NOT HAVE_LIBUSB_ZLP)
 
-add_definitions(-Wall -O2 -g -DUSBMUXD_DAEMON)
+add_definitions(-Wall -O2 -g -DUSBMUXD_DAEMON -DUSBMUXD_VERSION="${USBMUXD_VERSION}")
 add_executable(usbmuxd main.c usb-linux.c log.c ../common/utils.c device.c client.c)
 target_link_libraries(usbmuxd ${LIBS})
 
