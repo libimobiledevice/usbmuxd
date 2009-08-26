@@ -17,7 +17,7 @@ typedef struct {
 /**
  * event types for event callback function
  */
-enum usbmuxd_device_event {
+enum usbmuxd_event_type {
     UE_DEVICE_ADD = 1,
     UE_DEVICE_REMOVE
 };

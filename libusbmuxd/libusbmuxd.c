@@ -88,7 +88,7 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
  * A reference to a populated usbmuxd_event_t with information about the event
  * and the corresponding device will be passed to the callback function.
  */
-static void generate_event(usbmuxd_event_cb_t callback, const usbmuxd_device_info_t *dev, enum usbmuxd_device_event event, void *user_data)
+static void generate_event(usbmuxd_event_cb_t callback, const usbmuxd_device_info_t *dev, enum usbmuxd_event_type event, void *user_data)
 {
 	usbmuxd_event_t ev;
 
