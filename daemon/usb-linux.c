@@ -322,23 +322,8 @@ static int usb_discover(void)
 		usbdev->pid = devdesc.idProduct;
 		usbdev->dev = handle;
 		usbdev->alive = 1;
-		usbdev->wMaxPacketSize = 0;
-		struct libusb_config_descriptor *cfg;
-		if (libusb_get_active_config_descriptor(dev, &cfg) == 0
-				&& cfg && cfg->bNumInterfaces >= (USB_INTERFACE+1)) {
-			const struct libusb_interface *ifp = &cfg->interface[USB_INTERFACE];
-			if (ifp && ifp->num_altsetting >= 1) {
-				const struct libusb_interface_descriptor *as = &ifp->altsetting[0];
-				int i;
-				for (i = 0; i < as->bNumEndpoints; i++) {
-					const struct libusb_endpoint_descriptor *ep = &as->endpoint[i];
-					if (ep->bEndpointAddress == BULK_OUT) {
-						usbdev->wMaxPacketSize = ep->wMaxPacketSize;
-					}
-				}
-			}
-		}
-		if (usbdev->wMaxPacketSize == 0) {
+		usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, BULK_OUT);
+		if (usbdev->wMaxPacketSize <= 0) {
 			usbmuxd_log(LL_ERROR, "Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
 			usbdev->wMaxPacketSize = 64;
 		} else {
