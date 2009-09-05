@@ -187,7 +187,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			}
 
 			if (hdr.length != sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)) {
-				fprintf(stderr, "WARNING: unexpected packet size%d for MESSAGE_DEVICE_ADD (expected %d)!\n", hdr.length, sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record));
+				fprintf(stderr, "WARNING: unexpected packet size%d for MESSAGE_DEVICE_ADD (expected %d)!\n", hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)));
 			}
 			recv_len =  recv_buf_timeout(sfd, &dev, hdr.length - sizeof(struct usbmuxd_header), 0, 5000);
 			if (recv_len != (hdr.length - sizeof(struct usbmuxd_header))) {
@@ -207,7 +207,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			usbmuxd_device_info_t *dev;
 
 			if (hdr.length != sizeof(struct usbmuxd_header)+sizeof(uint32_t)) {
-				fprintf(stderr, "WARNING: unexpected packet size%d for MESSAGE_DEVICE_REMOVE (expected %d)!\n", hdr.length, sizeof(struct usbmuxd_header)+sizeof(uint32_t));
+				fprintf(stderr, "WARNING: unexpected packet size%d for MESSAGE_DEVICE_REMOVE (expected %d)!\n", hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(uint32_t)));
 			}
 			recv_len = recv_buf_timeout(sfd, &handle, sizeof(uint32_t), 0, 5000);
 			if (recv_len != sizeof(uint32_t)) {
