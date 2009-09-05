@@ -1,0 +1,72 @@
+From 13123672fc1edb1e8ce52f60eef045e3c901e5d6 Mon Sep 17 00:00:00 2001
+From: Nikias Bassen <nikias@gmx.li>
+Date: Sat, 5 Sep 2009 15:42:01 +0200
+Subject: [PATCH] New flag LIBUSB_TRANSFER_ZERO_PACKET for bulk/interrupt transfers.
+
+This flag will let the kernel append an additional zero-length packet
+to a tansfer. This is required for certain devices when sending packets
+with a size that is a multiple of wMaxPacketSize.
+---
+ libusb/libusb.h         |   18 +++++++++++++++++-
+ libusb/os/linux_usbfs.c |    3 +++
+ libusb/os/linux_usbfs.h |    1 +
+ 3 files changed, 21 insertions(+), 1 deletions(-)
+
+diff --git a/libusb/libusb.h b/libusb/libusb.h
+index 1126380..bf7f02d 100644
+--- a/libusb/libusb.h
++++ b/libusb/libusb.h
+@@ -672,7 +672,23 @@ enum libusb_transfer_flags {
+ 	 * If this flag is set, it is illegal to call libusb_free_transfer()
+ 	 * from your transfer callback, as this will result in a double-free
+ 	 * when this flag is acted upon. */
+-	LIBUSB_TRANSFER_FREE_TRANSFER = 1<<2
++	LIBUSB_TRANSFER_FREE_TRANSFER = 1<<2,
++
++	/** If this flag is set, a zero-length packet will be appended to
++	 * the transfer indicating that the transfer is complete.
++	 * Some devices require to be notified when a transfer is complete.
++	 * Usually a device knows about the end of the transfer if the last
++	 * packet's size is less than wMaxPacketSize.
++	 * But if the last packet of a transfer has _exactly_ the size of
++	 * wMaxPacketSize, the device does not know that it is the last
++	 * packet. This is where a zero-length packet is required, which
++	 * will let the device know that the transfer is complete.
++	 *
++	 * This flag is valid for the following transfer types:
++	 *  LIBUSB_TRANSFER_TYPE_BULK
++	 *  LIBUSB_TRANSFER_TYPE_INTERRUPT
++	 */
++	LIBUSB_TRANSFER_ZERO_PACKET = 1<<3
+ };
+ 
+ /** \ingroup asyncio
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 1280188..816bcbf 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -1307,6 +1307,9 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer,
+ 		else
+ 			urb->buffer_length = MAX_BULK_BUFFER_LENGTH;
+ 
++		if (i == num_urbs -1 && (transfer->flags & LIBUSB_TRANSFER_ZERO_PACKET))
++			urb->flags |= USBFS_URB_ZERO_PACKET;
++
+ 		r = ioctl(dpriv->fd, IOCTL_USBFS_SUBMITURB, urb);
+ 		if (r < 0) {
+ 			int j;
+diff --git a/libusb/os/linux_usbfs.h b/libusb/os/linux_usbfs.h
+index fdf5e9b..9ed0b4f 100644
+--- a/libusb/os/linux_usbfs.h
++++ b/libusb/os/linux_usbfs.h
+@@ -63,6 +63,7 @@ struct usbfs_getdriver {
+ #define USBFS_URB_DISABLE_SPD	1
+ #define USBFS_URB_ISO_ASAP	2
+ #define USBFS_URB_QUEUE_BULK	0x10
++#define USBFS_URB_ZERO_PACKET	0x40
+ 
+ enum usbfs_urb_type {
+ 	USBFS_URB_TYPE_ISO = 0,
+-- 
+1.6.0.4
+
