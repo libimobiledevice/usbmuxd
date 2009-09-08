@@ -296,7 +296,7 @@ int usbmuxd_unsubscribe()
 	return 0;
 }
 
-int usbmuxd_scan(usbmuxd_device_info_t ** available_devices)
+int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 {
 	struct usbmuxd_listen_request s_req;
 	int sfd;
@@ -340,7 +340,7 @@ int usbmuxd_scan(usbmuxd_device_info_t ** available_devices)
 		return -1;
 	}
 
-	*available_devices = NULL;
+	*device_list = NULL;
 	// receive device list
 	while (1) {
 		if (recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 1000) == sizeof(hdr)) {
@@ -362,7 +362,7 @@ int usbmuxd_scan(usbmuxd_device_info_t ** available_devices)
 				fprintf(stderr,
 						"%s: received less data than specified in header!\n", __func__);
 			} else {
-				newlist = (usbmuxd_device_info_t *) realloc(*available_devices, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
+				newlist = (usbmuxd_device_info_t *) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
 				if (newlist) {
 					newlist[dev_cnt].handle =
 						(int) dev_info.device_id;
@@ -373,7 +373,7 @@ int usbmuxd_scan(usbmuxd_device_info_t ** available_devices)
 					memcpy(newlist[dev_cnt].uuid,
 						   dev_info.serial_number,
 						   sizeof(newlist[dev_cnt].uuid));
-					*available_devices = newlist;
+					*device_list = newlist;
 					dev_cnt++;
 				} else {
 					fprintf(stderr,
@@ -390,11 +390,46 @@ int usbmuxd_scan(usbmuxd_device_info_t ** available_devices)
 	}
 
 	// terminating zero record
-	newlist = (usbmuxd_device_info_t*) realloc(*available_devices, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
+	newlist = (usbmuxd_device_info_t*) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
 	memset(newlist + dev_cnt, 0, sizeof(usbmuxd_device_info_t));
-	*available_devices = newlist;
+	*device_list = newlist;
 
 	return dev_cnt;
+}
+
+int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device)
+{
+	usbmuxd_device_info_t *dev_list = NULL;
+
+	if (!device) {
+		return -EINVAL;
+	}
+	if (usbmuxd_get_device_list(&dev_list) < 0) {
+		return -ENODEV;
+	}
+
+	int i;
+	int result = 0;
+	for (i = 0; dev_list[i].handle > 0; i++) {
+	 	if (!uuid) {
+			device->handle = dev_list[i].handle;
+			device->product_id = dev_list[i].product_id;
+			strcpy(device->uuid, dev_list[i].uuid);
+			result = 1;
+			break;
+		}
+		if (!strcmp(uuid, dev_list[i].uuid)) {
+			device->handle = dev_list[i].handle;
+			device->product_id = dev_list[i].product_id;
+			strcpy(device->uuid, dev_list[i].uuid);
+			result = 1;
+			break;
+		}
+	}
+
+	free(dev_list);
+
+	return result;
 }
 
 int usbmuxd_connect(const int handle, const unsigned short port)

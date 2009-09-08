@@ -57,12 +57,28 @@ int usbmuxd_unsubscribe();
 /**
  * Contacts usbmuxd and retrieves a list of connected devices.
  *
- * @param available_devices pointer to an array of usbmuxd_device_info_t
- *      that will hold records of the connected devices.
+ * @param device_list A pointer to an array of usbmuxd_device_info_t
+ *      that will hold records of the connected devices. The last record
+ *      is a null-terminated record with all fields set to 0/NULL.
+ * @note The user has to free the list returned.
  *
- * @return number of available devices, zero on no devices, or negative on error
+ * @return number of attached devices, zero on no devices, or negative
+ *   if an error occured.
  */
-int usbmuxd_scan(usbmuxd_device_info_t **available_devices);
+int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list);
+
+/**
+ * Gets device information for the device specified by uuid.
+ *
+ * @param uuid A device uuid of the device to look for. If uuid is NULL,
+ *      This function will return the first device found.
+ * @param device Pointer to a previously allocated (or static) 
+ *      usbmuxd_device_info_t that will be filled with the device info.
+ *
+ * @return 0 if no matching device is connected, 1 if the device was found,
+ *    or a negative value on error.
+ */
+int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device);
 
 /**
  * Request proxy connect to 
