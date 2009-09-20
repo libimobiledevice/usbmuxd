@@ -10,7 +10,7 @@ include(LibFindMacros)
 # Dependencies
 
 # Use pkg-config to get hints about paths
-libfind_pkg_check_modules(USB_PKGCONF libusb-1.0>=1.0.2)
+libfind_pkg_check_modules(USB_PKGCONF libusb-1.0>=1.0.3)
 
 # Include dir
 find_path(USB_INCLUDE_DIR
