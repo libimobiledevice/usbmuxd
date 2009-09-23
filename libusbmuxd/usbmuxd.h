@@ -68,6 +68,15 @@ int usbmuxd_unsubscribe();
 int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list);
 
 /**
+ * Frees the device list returned by an usbmuxd_get_device_list call
+ *
+ * @param device_list A pointer to an array of usbmuxd_device_info_t to free.
+ *
+ * @return 0 on success, -1 on error.
+ */
+int usbmuxd_device_list_free(usbmuxd_device_info_t **device_list);
+
+/**
  * Gets device information for the device specified by uuid.
  *
  * @param uuid A device uuid of the device to look for. If uuid is NULL,

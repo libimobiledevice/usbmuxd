@@ -397,6 +397,14 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	return dev_cnt;
 }
 
+int usbmuxd_device_list_free(usbmuxd_device_info_t **device_list)
+{
+	if (device_list) {
+		free(*device_list);
+	}
+	return 0;
+}
+
 int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device)
 {
 	usbmuxd_device_info_t *dev_list = NULL;
