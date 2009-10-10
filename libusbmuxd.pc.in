@@ -6,7 +6,7 @@ includedir=${CMAKE_INSTALL_PREFIX}/include
 Name: libusbmuxd
 Description: A library to communicate with the usbmux daemon
 Version: ${USBMUXD_VERSION}
-Requires: libusb-1.0 >= 1.0.2
+Requires: libusb-1.0 >= 1.0.3
 Libs: -L${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR} -lusbmuxd
 Cflags: -I${CMAKE_INSTALL_PREFIX}/include
 
