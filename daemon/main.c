@@ -48,6 +48,7 @@ static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
 
 int should_exit;
+int should_discover;
 
 static int verbose = 0;
 static int foreground = 0;
@@ -96,21 +97,26 @@ int create_socket(void) {
 
 void handle_signal(int sig)
 {
-	if (sig != SIGUSR1) {
+	if (sig != SIGUSR1 && sig != SIGUSR2) {
 		usbmuxd_log(LL_NOTICE,"Caught signal %d, exiting", sig);
 		should_exit = 1;
 	} else {
 		if(opt_udev) {
-			usbmuxd_log(LL_INFO, "Caught SIGUSR1, checking if we can terminate (no more devices attached)...");
-			if (device_get_count() > 0) {
-				// we can't quit, there are still devices attached.
-				usbmuxd_log(LL_NOTICE, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.");
-			} else {
-				// it's safe to quit
-				should_exit = 1;
+			if (sig == SIGUSR1) {
+				usbmuxd_log(LL_INFO, "Caught SIGUSR1, checking if we can terminate (no more devices attached)...");
+				if (device_get_count() > 0) {
+					// we can't quit, there are still devices attached.
+					usbmuxd_log(LL_NOTICE, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.");
+				} else {
+					// it's safe to quit
+					should_exit = 1;
+				}
+			} else if (sig == SIGUSR2) {
+				usbmuxd_log(LL_INFO, "Caught SIGUSR2, scheduling device discovery");
+				should_discover = 1;
 			}
 		} else {
-			usbmuxd_log(LL_INFO, "Caught SIGUSR1 but we weren't started in --udev mode, ignoring");
+			usbmuxd_log(LL_INFO, "Caught SIGUSR1/2 but we weren't started in --udev mode, ignoring");
 		}
 	}
 }
@@ -124,6 +130,7 @@ void set_signal_handlers(void)
 	sigaction(SIGQUIT, &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGUSR1, &sa, NULL);
+	sigaction(SIGUSR2, &sa, NULL);
 }
 
 int main_loop(int listenfd)
@@ -150,10 +157,17 @@ int main_loop(int listenfd)
 		usbmuxd_log(LL_FLOOD, "poll() returned %d", cnt);
 
 		if(cnt == -1) {
-			if(errno == EINTR && should_exit) {
-				usbmuxd_log(LL_INFO, "event processing interrupted");
-				fdlist_free(&pollfds);
-				return 0;
+			if(errno == EINTR) {
+				if(should_exit) {
+					usbmuxd_log(LL_INFO, "event processing interrupted");
+					fdlist_free(&pollfds);
+					return 0;
+				}
+				if(should_discover) {
+					should_discover = 0;
+					usbmuxd_log(LL_INFO, "device discovery triggered by udev");
+					usb_discover();
+				}
 			}
 		} else if(cnt == 0) {
 			if(usb_process() < 0) {
@@ -391,6 +405,7 @@ int main(int argc, char *argv[])
 
 	usbmuxd_log(LL_NOTICE, "usbmux v%s starting up", USBMUXD_VERSION);
 	should_exit = 0;
+	should_discover = 0;
 
 	set_signal_handlers();
 
@@ -425,8 +440,18 @@ int main(int argc, char *argv[])
 				usbmuxd_log(LL_ERROR, "Another instance is already running (pid %d). exiting.", lock.l_pid);
 				res = -1;
 			} else {
-				usbmuxd_log(LL_NOTICE, "Another instance is already running (pid %d). exiting.", lock.l_pid);
-				res = 0;
+				usbmuxd_log(LL_NOTICE, "Another instance is already running (pid %d). Telling it to check for devices.", lock.l_pid);
+				if (lock.l_pid && !kill(lock.l_pid, 0)) {
+					usbmuxd_log(LL_NOTICE, "Sending signal SIGUSR2 to instance with pid %d", lock.l_pid);
+					res = 0;
+					if (kill(lock.l_pid, SIGUSR2) < 0) {
+						usbmuxd_log(LL_FATAL, "Could not deliver SIGUSR2 to pid %d", lock.l_pid);
+						res = -1;
+					}
+				} else {
+					usbmuxd_log(LL_ERROR, "Could not determine pid of the other running instance!");
+					res = -1;
+				}
 			}
 			goto terminate;
 		}
@@ -522,6 +547,9 @@ int main(int argc, char *argv[])
 	if (report_to_parent)
 		if((res = notify_parent(0)) < 0)
 			goto terminate;
+
+	if(opt_udev)
+		usb_autodiscover(0); // discovery triggered by udev
 
 	res = main_loop(listenfd);
 	if(res < 0)

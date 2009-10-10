@@ -53,6 +53,7 @@ static struct collection device_list;
 static struct timeval next_dev_poll_time;
 
 static int devlist_failures;
+static int device_polling;
 
 static void usb_disconnect(struct usb_device *dev)
 {
@@ -214,7 +215,7 @@ static int start_rx(struct usb_device *dev)
 	return 0;
 }
 
-static int usb_discover(void)
+int usb_discover(void)
 {
 	int cnt, i, res;
 	int valid_count = 0;
@@ -393,10 +394,18 @@ void usb_get_fds(struct fdlist *list)
 	free(usbfds);
 }
 
+void usb_autodiscover(int enable)
+{
+	usbmuxd_log(LL_DEBUG, "usb polling enable: %d", enable);
+	device_polling = enable;
+}
+
 static int dev_poll_remain_ms(void)
 {
 	int msecs;
 	struct timeval tv;
+	if(!device_polling)
+		return 100000; // devices will never be polled if this is > 0
 	gettimeofday(&tv, NULL);
 	msecs = (next_dev_poll_time.tv_sec - tv.tv_sec) * 1000;
 	msecs += (next_dev_poll_time.tv_usec - tv.tv_usec) / 1000;
@@ -493,6 +502,7 @@ int usb_init(void)
 	usbmuxd_log(LL_DEBUG, "usb_init for linux / libusb 1.0");
 
 	devlist_failures = 0;
+	device_polling = 1;
 	res = libusb_init(NULL);
 	//libusb_set_debug(NULL, 3);
 	if(res != 0) {
