@@ -65,6 +65,11 @@ void fdlist_free(struct fdlist *list)
 	list->fds = NULL;
 }
 
+void fdlist_reset(struct fdlist *list)
+{
+	list->count = 0;
+}
+
 void collection_init(struct collection *col)
 {
 	col->list = malloc(sizeof(void *));

@@ -138,6 +138,7 @@ int main_loop(int listenfd)
 	int to, cnt, i, dto;
 	struct fdlist pollfds;
 
+	fdlist_create(&pollfds);
 	while(!should_exit) {
 		usbmuxd_log(LL_FLOOD, "main_loop iteration");
 		to = usb_get_timeout();
@@ -147,7 +148,7 @@ int main_loop(int listenfd)
 		if(dto < to)
 			to = dto;
 
-		fdlist_create(&pollfds);
+		fdlist_reset(&pollfds);
 		fdlist_add(&pollfds, FD_LISTEN, listenfd, POLLIN);
 		usb_get_fds(&pollfds);
 		client_get_fds(&pollfds);
@@ -201,8 +202,8 @@ int main_loop(int listenfd)
 				}
 			}
 		}
-		fdlist_free(&pollfds);
 	}
+	fdlist_free(&pollfds);
 	return 0;
 }
 

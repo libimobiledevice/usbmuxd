@@ -39,6 +39,7 @@ struct fdlist {
 void fdlist_create(struct fdlist *list);
 void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events);
 void fdlist_free(struct fdlist *list);
+void fdlist_reset(struct fdlist *list);
 
 struct collection {
 	void **list;
