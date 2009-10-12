@@ -379,7 +379,7 @@ void client_process(int fd, short events)
 	} ENDFOREACH
 
 	if(!client) {
-		usbmuxd_log(LL_ERROR, "client_process: fd %d not found in client list", fd);
+		usbmuxd_log(LL_INFO, "client_process: fd %d not found in client list", fd);
 		return;
 	}
 
