@@ -160,13 +160,13 @@ int main_loop(int listenfd)
 		if(cnt == -1) {
 			if(errno == EINTR) {
 				if(should_exit) {
-					usbmuxd_log(LL_INFO, "event processing interrupted");
+					usbmuxd_log(LL_INFO, "Event processing interrupted");
 					fdlist_free(&pollfds);
 					return 0;
 				}
 				if(should_discover) {
 					should_discover = 0;
-					usbmuxd_log(LL_INFO, "device discovery triggered by udev");
+					usbmuxd_log(LL_INFO, "Device discovery triggered by udev");
 					usb_discover();
 				}
 			}
@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
 	/* set log level to specified verbosity */
 	log_level = verbose;
 
-	usbmuxd_log(LL_NOTICE, "usbmux v%s starting up", USBMUXD_VERSION);
+	usbmuxd_log(LL_NOTICE, "usbmuxd v%s starting up", USBMUXD_VERSION);
 	should_exit = 0;
 	should_discover = 0;
 
@@ -556,7 +556,7 @@ int main(int argc, char *argv[])
 	if(res < 0)
 		usbmuxd_log(LL_FATAL, "main_loop failed");
 
-	usbmuxd_log(LL_NOTICE, "usbmux shutting down");
+	usbmuxd_log(LL_NOTICE, "usbmuxd shutting down");
 	device_kill_connections();
 	usb_shutdown();
 	device_shutdown();
