@@ -67,11 +67,11 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 	struct timeval ts;
 	struct tm *tp;
 
-	gettimeofday(&ts, NULL);
-	tp = localtime(&ts.tv_sec);
-
 	if(level > log_level)
 		return;
+
+	gettimeofday(&ts, NULL);
+	tp = localtime(&ts.tv_sec);
 
 	fs = malloc(20 + strlen(fmt));
 
