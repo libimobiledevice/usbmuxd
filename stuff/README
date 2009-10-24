@@ -1,3 +1,9 @@
+*** NOTE:
+*** Doing this is mostly obsolete. The preferred method to sync music to an
+*** iPhone now is to use ifuse or some other afc-based client, which does not
+*** require jailbreaking or adding this service. Please take a look at the
+*** libiphone, ifuse, and libgpod projects.
+
 com.openssh.sft.plist is a launchd configuration to set up a bare SFTP server
 on TCP port 2299 localhost-only for USB use. It's nice for relatively fast music
 syncing and file transfer under Linux (and it avoids encryption). Con: it gives
