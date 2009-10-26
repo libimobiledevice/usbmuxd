@@ -41,10 +41,13 @@ Building
   make
   sudo make install
 
+You should also create a usbmuxd user that has access to USB devices on your
+system. Alternatively, you can pass a different username after the -U argument.
+
 Running (with magic)
 ====================
 
-  (Unplug + replug your iPhone)
+  (Unplug + replug your jailbroken iPhone)
   ./iproxy 2222 22 &
   ssh -p 2222 root@localhost
 
@@ -53,6 +56,8 @@ output for the moment.  If this is getting in the way of your ssh login, then
 run the 'ssh' command from a different xterminal
 or virtual console.
 
+If you have iFuse, you can run "ifuse <mountpoint">. This doesn't require
+iproxy and works on all phones, jailbroken or not.
 
 Running (without magic)
 =======================
@@ -65,7 +70,6 @@ usbmuxd'.
   sudo usbmuxd -U -v -v &
   ./iproxy 2222 22 &
   ssh -p 2222 root@localhost
-
 
 Tip: Starting SSH if disabled
 =============================
@@ -82,7 +86,7 @@ the device), and then edit:
 
 to _remove_ the lines:
 
-  <key>Diabled</key>
+  <key>Disabled</key>
   <true/>
 
 Reboot the device and then sshd should be running.
