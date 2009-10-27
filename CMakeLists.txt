@@ -6,9 +6,13 @@ SET ( LIBUSBMUXD_SOVERSION "1" )
 
 cmake_minimum_required(VERSION 2.6)
 
-IF(NOT DEFINED CMAKE_INSTALL_LIBDIR)
-    SET(CMAKE_INSTALL_LIBDIR lib CACHE PATH "Output directory for libraries")
-ENDIF(NOT DEFINED CMAKE_INSTALL_LIBDIR)
+IF(NOT DEFINED LIB_SUFFIX)
+    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        SET(LIB_SUFFIX "64" CACHE STRING "Define suffix of library directory name (32/64)" )
+    ELSE(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        SET(LIB_SUFFIX "" CACHE STRING "Define suffix of library directory name (32/64)" )
+    ENDIF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+ENDIF(NOT DEFINED LIB_SUFFIX)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
 
@@ -20,7 +24,7 @@ add_subdirectory (udev)
 # pkg-config
 CONFIGURE_FILE ("${CMAKE_SOURCE_DIR}/libusbmuxd.pc.in" "${CMAKE_CURRENT_BINARY_DIR}/libusbmuxd.pc")
 # install pkg-config file
-INSTALL (FILES "${CMAKE_CURRENT_BINARY_DIR}/libusbmuxd.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig/)
+INSTALL (FILES "${CMAKE_CURRENT_BINARY_DIR}/libusbmuxd.pc" DESTINATION lib${LIB_SUFFIX}/pkgconfig/)
 
 # add uninstall target
 CONFIGURE_FILE( "${CMAKE_SOURCE_DIR}/Modules/cmake_uninstall.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake" IMMEDIATE @ONLY)
