@@ -41,7 +41,7 @@ Building
   make
   sudo make install
 
-You should also create a usbmuxd user that has access to USB devices on your
+You should also create a 'usbmux' user that has access to USB devices on your
 system. Alternatively, you can pass a different username after the -U argument.
 
 Running (with magic)
