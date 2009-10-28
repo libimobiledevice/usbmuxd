@@ -11,3 +11,9 @@ add_executable(usbmuxd main.c usb-linux.c log.c ../common/utils.c device.c clien
 target_link_libraries(usbmuxd ${LIBS})
 
 install(TARGETS usbmuxd RUNTIME DESTINATION sbin)
+
+message("
+* REMINDER
+* Remember to add a user named 'usbmux' with USB access permissions
+* for the udev hotplugging feature to work out of the box.
+")
