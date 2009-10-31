@@ -270,7 +270,7 @@ int usb_discover(void)
 		}
 		if(devdesc.idVendor != VID_APPLE)
 			continue;
-		if((devdesc.idProduct < PID_RANGE_LOW) &&
+		if((devdesc.idProduct < PID_RANGE_LOW) ||
 			(devdesc.idProduct > PID_RANGE_MAX))
 			continue;
 		libusb_device_handle *handle;
