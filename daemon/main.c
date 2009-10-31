@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #define _BSD_SOURCE
+#define _GNU_SOURCE
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -126,6 +127,17 @@ void handle_signal(int sig)
 void set_signal_handlers(void)
 {
 	struct sigaction sa;
+	sigset_t set;
+
+	// Mask all signals we handle. They will be unmasked by ppoll().
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGQUIT);
+	sigaddset(&set, SIGTERM);
+	sigaddset(&set, SIGUSR1);
+	sigaddset(&set, SIGUSR2);
+	sigprocmask(SIG_SETMASK, &set, NULL);
+	
 	memset(&sa, 0, sizeof(struct sigaction));
 	sa.sa_handler = handle_signal;
 	sigaction(SIGINT, &sa, NULL);
@@ -139,6 +151,10 @@ int main_loop(int listenfd)
 {
 	int to, cnt, i, dto;
 	struct fdlist pollfds;
+	struct timespec tspec;
+
+	sigset_t empty_sigset;
+	sigemptyset(&empty_sigset); // unmask all signals
 
 	fdlist_create(&pollfds);
 	while(!should_exit) {
@@ -156,15 +172,15 @@ int main_loop(int listenfd)
 		client_get_fds(&pollfds);
 		usbmuxd_log(LL_FLOOD, "fd count is %d", pollfds.count);
 
-		cnt = poll(pollfds.fds, pollfds.count, to);
+		tspec.tv_sec = to / 1000;
+		tspec.tv_nsec = (to % 1000) * 1000000;
+		cnt = ppoll(pollfds.fds, pollfds.count, &tspec, &empty_sigset);
 		usbmuxd_log(LL_FLOOD, "poll() returned %d", cnt);
-
 		if(cnt == -1) {
 			if(errno == EINTR) {
 				if(should_exit) {
 					usbmuxd_log(LL_INFO, "Event processing interrupted");
-					fdlist_free(&pollfds);
-					return 0;
+					break;
 				}
 				if(should_discover) {
 					should_discover = 0;
