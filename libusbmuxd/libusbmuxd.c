@@ -194,11 +194,10 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
-		// TODO: is this behaviour correct?
 		FOREACH(usbmuxd_device_info_t *dev, &devices) {
 			generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
+			collection_remove(&devices, dev);
 		} ENDFOREACH
-		collection_free(&devices);
 		return recv_len;
 	} else if (recv_len == sizeof(hdr)) {
 		if (hdr.message == MESSAGE_DEVICE_ADD) {
