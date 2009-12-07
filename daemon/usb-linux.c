@@ -136,7 +136,6 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 	int res;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, (void*)buf, length, tx_callback, dev, 0);
-	xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
 	if((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %d", buf, length, dev->bus, dev->address, res);
 		libusb_free_transfer(xfer);
@@ -149,7 +148,6 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 		xfer = libusb_alloc_transfer(0);
 		void *buffer = malloc(1);
 		libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, buffer, 0, tx_callback, dev, 0);
-		xfer->flags = LIBUSB_TRANSFER_SHORT_NOT_OK;
 		if((res = libusb_submit_transfer(xfer)) < 0) {
 			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %d", dev->bus, dev->address, res);
 			libusb_free_transfer(xfer);
