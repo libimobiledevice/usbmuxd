@@ -1,7 +1,7 @@
 /*
 	libusbmuxd - client library to talk to usbmuxd
 
-Copyright (C) 2009	Nikias Bassen <nikias@gmx.li>
+Copyright (C) 2009-2010	Nikias Bassen <nikias@gmx.li>
 Copyright (C) 2009	Paul Sladen <libiphone@paul.sladen.org>
 Copyright (C) 2009	Martin Szulecki <opensuse@sukimashita.com>
 
@@ -122,8 +122,6 @@ static void generate_event(usbmuxd_event_cb_t callback, const usbmuxd_device_inf
 	ev.event = event;
 	memcpy(&ev.device, dev, sizeof(usbmuxd_device_info_t));
 
-	printf("%s: event=%d, handle=%d\n", __func__, ev.event, ev.device.handle);
-
 	callback(&ev, user_data);
 }
 
@@ -146,11 +144,8 @@ static int usbmuxd_listen()
 
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
-		fprintf(stderr, "DEBUG: waiting for usbmuxd to come up.\n");
-
 		while (event_cb) {
 			if ((sfd = connect_usbmuxd_socket()) > 0) {
-				fprintf(stderr, "DEBUG: usbmuxd started\n");
 				break;
 			}
 			sleep(1);
@@ -158,17 +153,17 @@ static int usbmuxd_listen()
 	}
 
 	if (sfd < 0) {
-		fprintf(stderr, "ERROR: usbmuxd was supposed to be running here...\n");
+		fprintf(stderr, "%s: ERROR: usbmuxd was supposed to be running here...\n", __func__);
 		return sfd;
 	}
 
 	if (send_buf(sfd, &req, req.header.length) != (int)req.header.length) {
-		fprintf(stderr, "ERROR: could not send listen packet\n");
+		fprintf(stderr, "%s: ERROR: could not send listen packet\n", __func__);
 		close(sfd);
 		return -1;
 	}
 	if (usbmuxd_get_result(sfd, req.header.tag, &res) && (res != 0)) {
-		fprintf(stderr, "ERROR: did not get OK\n");
+		fprintf(stderr, "%s: ERROR: did not get OK\n", __func__);
 		close(sfd);
 		return -1;
 	}
@@ -190,7 +185,6 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 0);
 	if (recv_len < 0) {
 		int i;
-		fprintf(stderr, "DEBUG: connection closed.\n");
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
@@ -204,16 +198,16 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			struct usbmuxd_device_record dev;
 			usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 			if (!devinfo) {
-				fprintf(stderr, "Out of memory!\n");
+				fprintf(stderr, "%s: Out of memory!\n", __func__);
 				return -1;
 			}
 
 			if (hdr.length != sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)) {
-				fprintf(stderr, "WARNING: unexpected packet size%d for MESSAGE_DEVICE_ADD (expected %d)!\n", hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)));
+				fprintf(stderr, "%s: WARNING: unexpected packet size %d for MESSAGE_DEVICE_ADD (expected %d)!\n", __func__, hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)));
 			}
 			recv_len =  recv_buf_timeout(sfd, &dev, hdr.length - sizeof(struct usbmuxd_header), 0, 5000);
 			if (recv_len != (hdr.length - sizeof(struct usbmuxd_header))) {
-				fprintf(stderr, "Could not receive packet\n");
+				fprintf(stderr, "%s: ERROR: Could not receive packet\n", __func__);
 				return recv_len;
 			}
 
@@ -229,17 +223,17 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			usbmuxd_device_info_t *dev;
 
 			if (hdr.length != sizeof(struct usbmuxd_header)+sizeof(uint32_t)) {
-				fprintf(stderr, "WARNING: unexpected packet size%d for MESSAGE_DEVICE_REMOVE (expected %d)!\n", hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(uint32_t)));
+				fprintf(stderr, "%s: WARNING: unexpected packet size %d for MESSAGE_DEVICE_REMOVE (expected %d)!\n", __func__, hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(uint32_t)));
 			}
 			recv_len = recv_buf_timeout(sfd, &handle, sizeof(uint32_t), 0, 5000);
 			if (recv_len != sizeof(uint32_t)) {
-				fprintf(stderr, "Could not receive packet\n");
+				fprintf(stderr, "%s: ERROR: Could not receive packet\n", __func__);
 				return recv_len;
 			}
 
 			dev = devices_find(handle);
 			if (!dev) {
-				fprintf(stderr, "WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", handle);
+				fprintf(stderr, "%s: WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", __func__, handle);
 			} else {
 				generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 				collection_remove(&devices, dev);
@@ -266,22 +260,18 @@ static void *device_monitor(void *data)
 
 		listenfd = usbmuxd_listen();
 		if (listenfd < 0) {
-			fprintf(stderr, "DEBUG: listenfd=%d\n", listenfd);
 			continue;
 		}
 
 		while (event_cb) {
-			printf("waiting for events\n");
 			int res = get_next_event(listenfd, event_cb, data);
 			if (res < 0) {
-			    fprintf(stderr, "%s: closing connection (code %d)\n", __func__, res);
 			    break;
 			}
 		}
 	}
 
 	collection_free(&devices);
-	printf("%s: terminated\n", __func__);
 
 	return NULL;
 }
@@ -297,7 +287,7 @@ int usbmuxd_subscribe(usbmuxd_event_cb_t callback, void *user_data)
 
 	res = pthread_create(&devmon, NULL, device_monitor, user_data);
 	if (res != 0) {
-		fprintf(stderr, "ERROR: Could not start device watcher thread!\n");
+		fprintf(stderr, "%s: ERROR: Could not start device watcher thread!\n", __func__);
 		return res;
 	}
 	return 0;
@@ -308,7 +298,6 @@ int usbmuxd_unsubscribe()
 	event_cb = NULL;
 
 	if (pthread_kill(devmon, 0) == 0) {
-		printf("%s: unsubscribing callback\n", __func__);
 		close(listenfd);
 		listenfd = -1;
 		pthread_kill(devmon, SIGINT);
