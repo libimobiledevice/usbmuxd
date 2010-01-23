@@ -16,6 +16,8 @@ ENDIF(NOT DEFINED LIB_SUFFIX)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
 
+add_definitions(-Wall)
+
 add_subdirectory (libusbmuxd)
 add_subdirectory (daemon)
 add_subdirectory (tools)
