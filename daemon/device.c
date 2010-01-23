@@ -38,7 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 int next_device_id;
 
-#define DEV_PKTBUF_SIZE 65536
+#define DEV_MRU 65536
 
 #define CONN_INBUF_SIZE		262144
 #define CONN_OUTBUF_SIZE	65536
@@ -90,13 +90,13 @@ struct mux_connection
 	uint32_t tx_seq, tx_ack, tx_acked, tx_win;
 	uint32_t rx_seq, rx_recvd, rx_ack, rx_win;
 	int max_payload;
-	int sendable;
+	uint32_t sendable;
 	int flags;
 	unsigned char *ib_buf;
-	int ib_size;
-	int ib_capacity;
+	uint32_t ib_size;
+	uint32_t ib_capacity;
 	unsigned char *ob_buf;
-	int ob_capacity;
+	uint32_t ob_capacity;
 	short events;
 	uint64_t last_ack_time;
 };
@@ -109,7 +109,7 @@ struct mux_device
 	struct collection connections;
 	uint16_t next_sport;
 	unsigned char *pktbuf;
-	int pktlen;
+	uint32_t pktlen;
 };
 
 static struct collection device_list;
@@ -404,7 +404,7 @@ void device_client_process(int device_id, struct mux_client *client, short event
 	update_connection(conn);
 }
 
-static void connection_device_input(struct mux_connection *conn, unsigned char *payload, int payload_length)
+static void connection_device_input(struct mux_connection *conn, unsigned char *payload, uint32_t payload_length)
 {
 	if((conn->ib_size + payload_length) > conn->ib_capacity) {
 		usbmuxd_log(LL_ERROR, "Input buffer overflow on device %d connection %d->%d (space=%d, payload=%d)", conn->dev->id, conn->sport, conn->dport, conn->ib_capacity-conn->ib_size, payload_length);
@@ -459,7 +459,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	client_device_add(&info);
 }
 
-static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, int payload_length)
+static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
 {
 	usbmuxd_log(LL_DEBUG, "[IN] dev=%d sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%d",
 		dev->id, ntohs(th->th_sport), ntohs(th->th_dport), ntohl(th->th_seq), ntohl(th->th_ack), th->th_flags, ntohs(th->th_win) << 8, ntohs(th->th_win), payload_length);
@@ -531,7 +531,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 	}
 }
 
-void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int length)
+void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_t length)
 {
 	struct mux_device *dev = NULL;
 	FOREACH(struct mux_device *tdev, &device_list) {
@@ -548,11 +548,17 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int len
 	if(!length)
 		return;
 
+	// sanity check (should never happen with current USB implementation)
+	if((length > USB_MRU) || (length > DEV_MRU)) {
+		usbmuxd_log(LL_ERROR, "Too much data received from USB (%d), file a bug", length);
+		return;
+	}
+
 	usbmuxd_log(LL_SPEW, "Mux data input for device %p: %p len %d", dev, buffer, length);
 
 	// handle broken up transfers
 	if(dev->pktlen) {
-		if((length + dev->pktlen) > DEV_PKTBUF_SIZE) {
+		if((length + dev->pktlen) > DEV_MRU) {
 			usbmuxd_log(LL_ERROR, "Incoming split packet is too large (%d so far), dropping!", length + dev->pktlen);
 			dev->pktlen = 0;
 			return;
@@ -588,13 +594,21 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int len
 
 	struct tcphdr *th;
 	unsigned char *payload;
-	int payload_length;
+	uint32_t payload_length;
 
 	switch(ntohl(mhdr->protocol)) {
 		case MUX_PROTO_VERSION:
+			if(length < (sizeof(struct mux_header) + sizeof(struct version_header))) {
+				usbmuxd_log(LL_ERROR, "Incoming version packet is too small (%d)", length);
+				return;
+			}
 			device_version_input(dev, (struct version_header *)(mhdr+1));
 			break;
 		case MUX_PROTO_TCP:
+			if(length < (sizeof(struct mux_header) + sizeof(struct tcphdr))) {
+				usbmuxd_log(LL_ERROR, "Incoming TCP packet is too small (%d)", length);
+				return;
+			}
 			th = (struct tcphdr *)(mhdr+1);
 			payload = (unsigned char *)(th+1);
 			payload_length = length - sizeof(struct tcphdr) - sizeof(struct mux_header);
@@ -618,7 +632,7 @@ int device_add(struct usb_device *usbdev)
 	dev->usbdev = usbdev;
 	dev->state = MUXDEV_INIT;
 	dev->next_sport = 1;
-	dev->pktbuf = malloc(DEV_PKTBUF_SIZE);
+	dev->pktbuf = malloc(DEV_MRU);
 	dev->pktlen = 0;
 	struct version_header vh;
 	vh.major = htonl(1);

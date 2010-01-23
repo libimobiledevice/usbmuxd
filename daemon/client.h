@@ -28,8 +28,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 struct device_info;
 struct mux_client;
 
-int client_read(struct mux_client *client, void *buffer, int len);
-int client_write(struct mux_client *client, void *buffer, int len);
+int client_read(struct mux_client *client, void *buffer, uint32_t len);
+int client_write(struct mux_client *client, void *buffer, uint32_t len);
 int client_set_events(struct mux_client *client, short events);
 void client_close(struct mux_client *client);
 int client_notify_connect(struct mux_client *client, enum usbmuxd_result result);

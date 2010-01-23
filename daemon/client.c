@@ -52,11 +52,11 @@ enum client_state {
 struct mux_client {
 	int fd;
 	unsigned char *ob_buf;
-	int ob_size;
-	int ob_capacity;
+	uint32_t ob_size;
+	uint32_t ob_capacity;
 	unsigned char *ib_buf;
-	int ib_size;
-	int ib_capacity;
+	uint32_t ib_size;
+	uint32_t ib_capacity;
 	short events, devents;
 	uint32_t connect_tag;
 	int connect_device;
@@ -65,7 +65,7 @@ struct mux_client {
 
 static struct collection client_list;
 
-int client_read(struct mux_client *client, void *buffer, int len)
+int client_read(struct mux_client *client, void *buffer, uint32_t len)
 {
 	usbmuxd_log(LL_SPEW, "client_read fd %d buf %p len %d", client->fd, buffer, len);
 	if(client->state != CLIENT_CONNECTED) {
@@ -75,7 +75,7 @@ int client_read(struct mux_client *client, void *buffer, int len)
 	return recv(client->fd, buffer, len, 0);
 }
 
-int client_write(struct mux_client *client, void *buffer, int len)
+int client_write(struct mux_client *client, void *buffer, uint32_t len)
 {
 	usbmuxd_log(LL_SPEW, "client_write fd %d buf %p len %d", client->fd, buffer, len);
 	if(client->state != CLIENT_CONNECTED) {
