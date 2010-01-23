@@ -552,6 +552,11 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, int len
 
 	// handle broken up transfers
 	if(dev->pktlen) {
+		if((length + dev->pktlen) > DEV_PKTBUF_SIZE) {
+			usbmuxd_log(LL_ERROR, "Incoming split packet is too large (%d so far), dropping!", length + dev->pktlen);
+			dev->pktlen = 0;
+			return;
+		}
 		memcpy(dev->pktbuf + dev->pktlen, buffer, length);
 		struct mux_header *mhdr = (struct mux_header *)dev->pktbuf;
 		if((length < USB_MRU) || (ntohl(mhdr->length) == length)) {
