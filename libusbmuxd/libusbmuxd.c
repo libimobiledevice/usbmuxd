@@ -136,7 +136,6 @@ static int usbmuxd_listen()
 	int sfd;
 	uint32_t res = -1;
 	struct usbmuxd_listen_request req;
-	struct usbmuxd_header hdr;
 
 	req.header.length = sizeof(struct usbmuxd_listen_request);
 	req.header.version = USBMUXD_PROTOCOL_VERSION;
@@ -179,13 +178,12 @@ static int usbmuxd_listen()
 int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 {
 	int recv_len;
-	struct usbmuxd_listen_request req;
 	struct usbmuxd_header hdr;
 
 	/* block until we receive something */
 	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 0);
 	if (recv_len < 0) {
-		int i;
+		fprintf(stderr, "DEBUG: connection closed.\n");
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
