@@ -183,7 +183,6 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 	/* block until we receive something */
 	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 0);
 	if (recv_len < 0) {
-		fprintf(stderr, "DEBUG: connection closed.\n");
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
