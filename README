@@ -1,9 +1,12 @@
 Background
 ==========
 
-'usbmuxd' stands for "USB multiplexing daemon".  To the user/developer what it
-actually does is to proxy requests over a USB cable on directly to a listening
-TCP port on the iPhone.
+'usbmuxd' stands for "USB multiplexing daemon". This daemon is in charge of
+multiplexing connections over USB to an iPhone or iPod touch. To users, it means
+you can sync your music, contacts, photos, etc. over USB. To developers, it
+means you can connect to any listening localhost socket on the device. usbmuxd
+is not used for tethering data transfer, which uses a dedicated USB interface as
+a virtual network device.
 
 Multiple connections to different TCP ports can happen in parallel. An example
 (and useful) tool called 'iproxy' is included that allows you to forward
@@ -11,26 +14,31 @@ localhost ports to the device---allows SSH over USB on jailbroken devices, or
 allowing access the lockdown daemon (and then to all of the file access, sync,
 notification and backup services running on the device).
 
-This higher-level layers are handled by libiphone.  The version of libiphone
-compatible with the 'usbmuxd' infrastructure is called 'libiphone-usbmuxd'. 
-'ifuse' is then able to sit on top of this.
+The higher-level layers are handled by libimobiledevice. 'ifuse' is then able
+to sit on top of this and mount your device's AFC filesystem share.
 
 There is also a Python implementation of the client library in the python-client
 library, and an example tcprelay.py which performs a similar function to iproxy.
 This implementation supports OSX and Windows and the new iTunes plist-based
 usbmuxd protocol, so it is portable and will run on those operating systems with
 no modification, using Apple's native usbmuxd. This is useful if you need to
-tunnel to your phone from another OS in a pinch. Run python tcpclient.py --help
+tunnel to your device from another OS in a pinch. Run python tcpclient.py --help
 for usage information.
 
 License
 =======
 
 The contents of this package are licensed under the GNU General Public License,
-versions 2 or 3 (see COPYING.GPLv2 and COPYING.GPLv3), except for Libuxbmuxd
+versions 2 or 3 (see COPYING.GPLv2 and COPYING.GPLv3), except for libuxbmuxd
 which is licensed under the GNU Lesser General Public License, version 2.1 or,
 at your option, any later version (see COPYING.LGPLv2.1). If a more permissive
 license is specified at the top of a source file, it takes precedence over this.
+
+Legal
+=====
+
+Apple, iPhone, and iPod touch are trademarks of Apple Inc., registered in the
+U.S. and other countries.
 
 Building
 ========
@@ -47,17 +55,17 @@ system. Alternatively, you can pass a different username after the -U argument.
 Running (with magic)
 ====================
 
-  (Unplug + replug your jailbroken iPhone)
+  (Unplug + replug your jailbroken device)
   ./iproxy 2222 22 &
   ssh -p 2222 root@localhost
 
-Hopefully you get the normal SSH login prompt.  You may still lots of debugging
-output for the moment.  If this is getting in the way of your ssh login, then
-run the 'ssh' command from a different xterminal
-or virtual console.
+Hopefully you get the normal SSH login prompt. You may still lots of debugging
+output for the moment. If this is getting in the way of your ssh login, then
+run the 'ssh' command from a different xterminal or virtual console. Of course,
+you need to have OpenSSH installed on your jailbroken device for this to work.
 
 If you have iFuse, you can run "ifuse <mountpoint">. This doesn't require
-iproxy and works on all phones, jailbroken or not.
+iproxy and works on all devices, jailbroken or not.
 
 Running (without magic)
 =======================
@@ -74,7 +82,7 @@ usbmuxd'.
 Tip: Starting SSH if disabled
 =============================
 
-If your iphone is rooted, but SSH isn't started and you _cannot_ (for instance,
+If your device is rooted, but SSH isn't started and you _cannot_ (for instance,
 cracked/broken screen) get to the Services control panel on the device, then you
 can start the SSH service over the USB by
 mounting the (jailbroken) filesystem.
@@ -94,7 +102,7 @@ Reboot the device and then sshd should be running.
 TODO
 ====
 
-The server currently assumes that the phone is well-behaved and does not do a
+The server currently assumes that the device is well-behaved and does not do a
 bunch of checks like looking for the expected SEQ and ACK numbers from it. This
 is normally not an issue, but it's annoying for debugging because lost packets
 (which shouldn't happen, but can happen if the code is buggy) mean that stuff
