@@ -56,7 +56,7 @@ int should_discover;
 static int verbose = 0;
 static int foreground = 0;
 static int drop_privileges = 0;
-static const char *drop_user = "usbmux";
+static const char *drop_user = NULL;
 static int opt_udev = 0;
 static int opt_exit = 0;
 static int exit_signal = 0;
@@ -336,8 +336,7 @@ static void usage()
 	printf("\t-h|--help                 Print this message.\n");
 	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
 	printf("\t-f|--foreground           Do not daemonize (implies one -v).\n");
-	printf("\t-U|--user[=USER]          Change to this user after startup (needs usb privileges).\n");
-	printf("\t                          If USER is not specified, defaults to usbmux.\n");
+	printf("\t-U|--user USER            Change to this user after startup (needs usb privileges).\n");
 	printf("\t-u|--udev                 Run in udev operation mode.\n");
 	printf("\t-x|--exit                 Tell a running instance to exit if there are no devices\n");
 	printf("\t                          connected (must be in udev mode).\n");
@@ -361,7 +360,7 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfvuU::xX", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvuU:xX", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -378,8 +377,7 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 'U':
 			drop_privileges = 1;
-			if(optarg)
-				drop_user = optarg;
+			drop_user = optarg;
 			break;
 		case 'u':
 			opt_udev = 1;
@@ -519,7 +517,13 @@ int main(int argc, char *argv[])
 
 	// drop elevated privileges
 	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
-		struct passwd *pw = getpwnam(drop_user);
+		struct passwd *pw;
+		if (!drop_user) {
+			usbmuxd_log(LL_FATAL, "No user to drop privileges to?");
+			res = -1;
+			goto terminate;
+		}
+		pw = getpwnam(drop_user);
 		if (!pw) {
 			usbmuxd_log(LL_FATAL, "Dropping privileges failed, check if user '%s' exists!", drop_user);
 			res = -1;
