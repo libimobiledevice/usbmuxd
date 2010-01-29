@@ -525,32 +525,35 @@ int main(int argc, char *argv[])
 			res = -1;
 			goto terminate;
 		}
+		if (pw->pw_uid == 0) {
+			usbmuxd_log(LL_INFO, "Not dropping privileges to root");
+		} else {
+			if ((res = initgroups(drop_user, pw->pw_gid)) < 0) {
+				usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set supplementary groups)");
+				goto terminate;
+			}
+			if ((res = setgid(pw->pw_gid)) < 0) {
+				usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set group ID to %d)", pw->pw_gid);
+				goto terminate;
+			}
+			if ((res = setuid(pw->pw_uid)) < 0) {
+				usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set user ID to %d)", pw->pw_uid);
+				goto terminate;
+			}
 
-		if ((res = initgroups(drop_user, pw->pw_gid)) < 0) {
-			usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set supplementary groups)");
-			goto terminate;
+			// security check
+			if (setuid(0) != -1) {
+				usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
+				res = -1;
+				goto terminate;
+			}
+			if (getuid() != pw->pw_uid || getgid() != pw->pw_gid) {
+				usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
+				res = -1;
+				goto terminate;
+			}
+			usbmuxd_log(LL_NOTICE, "Successfully dropped privileges to '%s'", drop_user);
 		}
-		if ((res = setgid(pw->pw_gid)) < 0) {
-			usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set group ID to %d)", pw->pw_gid);
-			goto terminate;
-		}
-		if ((res = setuid(pw->pw_uid)) < 0) {
-			usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set user ID to %d)", pw->pw_uid);
-			goto terminate;
-		}
-
-		// security check
-		if (setuid(0) != -1) {
-			usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
-			res = -1;
-			goto terminate;
-		}
-		if (getuid() != pw->pw_uid || getgid() != pw->pw_gid) {
-			usbmuxd_log(LL_FATAL, "Failed to drop privileges properly!");
-			res = -1;
-			goto terminate;
-		}
-		usbmuxd_log(LL_NOTICE, "Successfully dropped privileges to '%s'", drop_user);
 	}
 
 	client_init();
