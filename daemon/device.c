@@ -461,12 +461,18 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 
 static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
 {
-	usbmuxd_log(LL_DEBUG, "[IN] dev=%d sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%d",
-		dev->id, ntohs(th->th_sport), ntohs(th->th_dport), ntohl(th->th_seq), ntohl(th->th_ack), th->th_flags, ntohs(th->th_win) << 8, ntohs(th->th_win), payload_length);
-
 	uint16_t sport = ntohs(th->th_dport);
 	uint16_t dport = ntohs(th->th_sport);
 	struct mux_connection *conn = NULL;
+
+	usbmuxd_log(LL_DEBUG, "[IN] dev=%d sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%d",
+		dev->id, dport, sport, ntohl(th->th_seq), ntohl(th->th_ack), th->th_flags, ntohs(th->th_win) << 8, ntohs(th->th_win), payload_length);
+
+	if(dev->state != MUXDEV_ACTIVE) {
+		usbmuxd_log(LL_ERROR, "Received TCP packet from device %d but the device isn't active yet, discarding\n", dev->id);
+		return;
+	}
+
 	FOREACH(struct mux_connection *lconn, &dev->connections) {
 		if(lconn->sport == sport && lconn->dport == dport) {
 			conn = lconn;
