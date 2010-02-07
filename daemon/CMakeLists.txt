@@ -6,9 +6,8 @@ include_directories (${CMAKE_SOURCE_DIR}/common)
 include_directories (${CMAKE_SOURCE_DIR}/daemon)
 include_directories (${CMAKE_SOURCE_DIR}/libusbmuxd)
 
-add_definitions(-O2 -g)
 add_definitions(-DUSBMUXD_DAEMON -DUSBMUXD_VERSION="${USBMUXD_VERSION}")
-add_executable(usbmuxd main.c usb-linux.c log.c ../common/utils.c device.c client.c)
+add_executable(usbmuxd main.c usb-linux.c log.c ${CMAKE_SOURCE_DIR}/common/utils.c device.c client.c)
 target_link_libraries(usbmuxd ${LIBS})
 
 install(TARGETS usbmuxd RUNTIME DESTINATION sbin)
