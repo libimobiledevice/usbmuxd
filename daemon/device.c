@@ -166,7 +166,7 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 	buffer = malloc(total);
 	struct mux_header *mhdr = (struct mux_header *)buffer;
 	mhdr->protocol = htonl(proto);
-	mhdr->length = htonl(total);;
+	mhdr->length = htonl(total);
 	memcpy(buffer + sizeof(struct mux_header), header, hdrlen);
 	if(data && length)
 		memcpy(buffer + sizeof(struct mux_header) + hdrlen, data, length);
