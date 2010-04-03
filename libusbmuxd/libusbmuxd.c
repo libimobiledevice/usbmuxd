@@ -353,7 +353,7 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	// receive device list
 	while (1) {
 		if (recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 1000) == sizeof(hdr)) {
-			if (hdr.length != sizeof(hdr)+sizeof(dev_info)) {
+			if ((hdr.length < 48) || (hdr.length > sizeof(hdr)+sizeof(dev_info))) {
 				// invalid packet size received!
 				fprintf(stderr,
 						"%s: Invalid packet size (%d) received when expecting a device info record.\n",
