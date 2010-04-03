@@ -42,8 +42,6 @@ TODO: improve code...
 static uint16_t listen_port = 0;
 static uint16_t device_port = 0;
 
-pthread_mutex_t smutex = PTHREAD_MUTEX_INITIALIZER;
-
 struct client_data {
     int fd;
     int sfd;
