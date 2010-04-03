@@ -148,7 +148,7 @@ int create_socket(uint16_t port)
 		return -1;
 	}
 
-	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
 		perror("setsockopt()");
 		close(sfd);
 		return -1;
@@ -204,7 +204,7 @@ int connect_socket(const char *addr, uint16_t port)
 		return -1;
 	}
 
-	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
 		perror("setsockopt()");
 		close(sfd);
 		return -1;
