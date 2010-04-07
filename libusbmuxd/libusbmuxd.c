@@ -398,6 +398,9 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 		}
 	}
 
+	// explicitly close connection
+	close(sfd);
+
 	// terminating zero record
 	newlist = (usbmuxd_device_info_t*) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
 	memset(newlist + dev_cnt, 0, sizeof(usbmuxd_device_info_t));
