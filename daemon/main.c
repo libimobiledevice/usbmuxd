@@ -440,6 +440,7 @@ int main(int argc, char *argv[])
 	should_discover = 0;
 
 	set_signal_handlers();
+	signal(SIGPIPE, SIG_IGN);
 
 	res = lfd = open(lockfile, O_WRONLY|O_CREAT, 0644);
 	if(res == -1) {
