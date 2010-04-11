@@ -1,10 +1,16 @@
 PROJECT(usbmuxd)
 
-set(USBMUXD_VERSION "1.0.0")
-set(LIBUSBMUXD_VERSION "${USBMUXD_VERSION}")
+cmake_minimum_required(VERSION 2.6)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
+
+include(VersionTag)
+
+set(USBMUXD_VERSION "${VERSION_TAG}")
+set(LIBUSBMUXD_VERSION "${VERSION_TAG}")
 set(LIBUSBMUXD_SOVERSION "1")
 
-cmake_minimum_required(VERSION 2.6)
+message("-- Configuring usbmuxd v${VERSION_TAG}")
 
 if(NOT DEFINED LIB_SUFFIX)
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
