@@ -89,7 +89,7 @@ struct mux_connection
 	uint16_t sport, dport;
 	uint32_t tx_seq, tx_ack, tx_acked, tx_win;
 	uint32_t rx_seq, rx_recvd, rx_ack, rx_win;
-	int max_payload;
+	uint32_t max_payload;
 	uint32_t sendable;
 	int flags;
 	unsigned char *ib_buf;
