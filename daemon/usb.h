@@ -26,8 +26,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <stdint.h>
 #include "utils.h"
 
-#define BULK_IN 0x85
-#define BULK_OUT 0x04
+#define INTERFACE_CLASS 255
+#define INTERFACE_SUBCLASS 254
+#define INTERFACE_PROTOCOL 2
 
 // libusb fragments packets larger than this (usbfs limitation)
 // on input, this creates race conditions and other issues
@@ -46,8 +47,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define VID_APPLE 0x5ac
 #define PID_RANGE_LOW 0x1290
 #define PID_RANGE_MAX 0x129a
-
-#define USB_INTERFACE 1
 
 struct usb_device;
 

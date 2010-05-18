@@ -45,6 +45,7 @@ struct usb_device {
 	uint16_t vid, pid;
 	char serial[256];
 	int alive;
+	uint8_t interface, ep_in, ep_out;
 	struct libusb_transfer *rx_xfer;
 	struct collection tx_xfers;
 	int wMaxPacketSize;
@@ -85,7 +86,7 @@ static void usb_disconnect(struct usb_device *dev)
 		}
 	}
 	collection_free(&dev->tx_xfers);
-	libusb_release_interface(dev->dev, USB_INTERFACE);
+	libusb_release_interface(dev->dev, dev->interface);
 	libusb_close(dev->dev);
 	dev->dev = NULL;
 	collection_remove(&device_list, dev);
@@ -135,7 +136,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 {
 	int res;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
-	libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, (void*)buf, length, tx_callback, dev, 0);
+	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_out, (void*)buf, length, tx_callback, dev, 0);
 	if((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %d", buf, length, dev->bus, dev->address, res);
 		libusb_free_transfer(xfer);
@@ -147,7 +148,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 		// Send Zero Length Packet
 		xfer = libusb_alloc_transfer(0);
 		void *buffer = malloc(1);
-		libusb_fill_bulk_transfer(xfer, dev->dev, BULK_OUT, buffer, 0, tx_callback, dev, 0);
+		libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_out, buffer, 0, tx_callback, dev, 0);
 		if((res = libusb_submit_transfer(xfer)) < 0) {
 			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %d", dev->bus, dev->address, res);
 			libusb_free_transfer(xfer);
@@ -205,7 +206,7 @@ static int start_rx(struct usb_device *dev)
 	void *buf;
 	dev->rx_xfer = libusb_alloc_transfer(0);
 	buf = malloc(USB_MRU);
-	libusb_fill_bulk_transfer(dev->rx_xfer, dev->dev, BULK_IN, buf, USB_MRU, rx_callback, dev, 0);
+	libusb_fill_bulk_transfer(dev->rx_xfer, dev->dev, dev->ep_in, buf, USB_MRU, rx_callback, dev, 0);
 	if((res = libusb_submit_transfer(dev->rx_xfer)) != 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device %d-%d: %d", dev->bus, dev->address, res);
 		libusb_free_transfer(dev->rx_xfer);
@@ -217,7 +218,7 @@ static int start_rx(struct usb_device *dev)
 
 int usb_discover(void)
 {
-	int cnt, i, res;
+	int cnt, i, j, res;
 	int valid_count = 0;
 	libusb_device **devs;
 
@@ -291,17 +292,57 @@ int usb_discover(void)
 				continue;
 			}
 		}
-		if((res = libusb_claim_interface(handle, USB_INTERFACE)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %d", USB_INTERFACE, bus, address, res);
+
+		struct libusb_config_descriptor *config;
+		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+			usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
 			libusb_close(handle);
 			continue;
 		}
+
 		struct usb_device *usbdev;
 		usbdev = malloc(sizeof(struct usb_device));
 
+		for(j=0; j<config->bNumInterfaces; j++) {
+			const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+			if(intf->bInterfaceClass != INTERFACE_CLASS ||
+			   intf->bInterfaceSubClass != INTERFACE_SUBCLASS ||
+			   intf->bInterfaceProtocol != INTERFACE_PROTOCOL)
+				continue;
+			if(intf->bNumEndpoints != 2) {
+				usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				continue;
+			}
+			if((intf->endpoint[0].bEndpointAddress & 0x80) != LIBUSB_ENDPOINT_OUT ||
+			   (intf->endpoint[1].bEndpointAddress & 0x80) != LIBUSB_ENDPOINT_IN) {
+				usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				continue;
+			}
+			usbdev->interface = intf->bInterfaceNumber;
+			usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
+			usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
+			usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+			break;
+		}
+		libusb_free_config_descriptor(config);
+
+		if(j == config->bNumInterfaces) {
+			usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
+			libusb_close(handle);
+			free(usbdev);
+			continue;
+		}
+
+		if((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
+			usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %d", usbdev->interface, bus, address, res);
+			libusb_close(handle);
+			free(usbdev);
+			continue;
+		}
+
 		if((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)usbdev->serial, 256)) <= 0) {
 			usbmuxd_log(LL_WARNING, "Could not get serial number for device %d-%d: %d", bus, address, res);
-			libusb_release_interface(handle, USB_INTERFACE);
+			libusb_release_interface(handle, usbdev->interface);
 			libusb_close(handle);
 			free(usbdev);
 			continue;
@@ -313,7 +354,7 @@ int usb_discover(void)
 		usbdev->pid = devdesc.idProduct;
 		usbdev->dev = handle;
 		usbdev->alive = 1;
-		usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, BULK_OUT);
+		usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, usbdev->ep_out);
 		if (usbdev->wMaxPacketSize <= 0) {
 			usbmuxd_log(LL_ERROR, "Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
 			usbdev->wMaxPacketSize = 64;
