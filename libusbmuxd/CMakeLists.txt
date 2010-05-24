@@ -3,7 +3,11 @@ find_package(Threads)
 
 add_library (libusbmuxd SHARED libusbmuxd.c sock_stuff.c ${CMAKE_SOURCE_DIR}/common/utils.c)
 find_library (PTHREAD pthread)
-target_link_libraries (libusbmuxd ${CMAKE_THREAD_LIBS_INIT})
+
+if (HAVE_PLIST)
+  message("-- libusbmuxd will be built with protocol version 1 support")
+endif()
+target_link_libraries (libusbmuxd ${CMAKE_THREAD_LIBS_INIT} ${OPT_LIBS})
 
 # 'lib' is a UNIXism, the proper CMake target is usbmuxd
 # But we can't use that due to the conflict with the usbmuxd daemon,

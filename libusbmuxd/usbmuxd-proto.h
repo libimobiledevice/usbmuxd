@@ -52,7 +52,7 @@ enum usbmuxd_msgtype {
 	MESSAGE_DEVICE_REMOVE = 5,
 	//???
 	//???
-	//MESSAGE_PLIST = 8,
+	MESSAGE_PLIST = 8,
 };
 
 struct usbmuxd_header {

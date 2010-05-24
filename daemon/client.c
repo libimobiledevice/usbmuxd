@@ -32,12 +32,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/un.h>
 #include <arpa/inet.h>
 
+#ifdef HAVE_PLIST
+#include <plist/plist.h>
+#endif
+
 #include "log.h"
 #include "usb.h"
 #include "client.h"
 #include "device.h"
 
+#ifdef HAVE_PLIST
+#define CMD_BUF_SIZE	1024
+#else
 #define CMD_BUF_SIZE	256
+#endif
 #define REPLY_BUF_SIZE	1024
 
 enum client_state {
@@ -61,6 +69,7 @@ struct mux_client {
 	uint32_t connect_tag;
 	int connect_device;
 	enum client_state state;
+	uint32_t proto_version;
 };
 
 static struct collection client_list;
@@ -155,7 +164,7 @@ void client_get_fds(struct fdlist *list)
 static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtype msg, void *payload, int payload_length)
 {
 	struct usbmuxd_header hdr;
-	hdr.version = USBMUXD_PROTOCOL_VERSION;
+	hdr.version = client->proto_version;
 	hdr.length = sizeof(hdr) + payload_length;
 	hdr.message = msg;
 	hdr.tag = tag;
@@ -175,7 +184,30 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 
 static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 {
-	return send_pkt(client, tag, MESSAGE_RESULT, &result, sizeof(uint32_t));
+	int res = -1;
+#ifdef HAVE_PLIST
+	if (client->proto_version == 1) {
+		/* XML plist packet */
+		char *xml = NULL;
+		uint32_t xmlsize = 0;
+		plist_t dict = plist_new_dict();
+		plist_dict_insert_item(dict, "MessageType", plist_new_string("Result"));
+		plist_dict_insert_item(dict, "Number", plist_new_uint(result));
+		plist_to_xml(dict, &xml, &xmlsize);
+		plist_free(dict);
+		if (xml) {
+			res = send_pkt(client, tag, MESSAGE_PLIST, xml, xmlsize);
+			free(xml);
+		} else {
+			usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
+		}
+	} else
+#endif
+	{
+		/* binary packet */
+		res = send_pkt(client, tag, MESSAGE_RESULT, &result, sizeof(uint32_t));
+	}
+	return res;
 }
 
 int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
@@ -203,19 +235,73 @@ int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 
 static int notify_device_add(struct mux_client *client, struct device_info *dev)
 {
-	struct usbmuxd_device_record dmsg;
-	memset(&dmsg, 0, sizeof(dmsg));
-	dmsg.device_id = dev->id;
-	strncpy(dmsg.serial_number, dev->serial, 256);
-	dmsg.serial_number[255] = 0;
-	dmsg.location = dev->location;
-	dmsg.product_id = dev->pid;
-	return send_pkt(client, 0, MESSAGE_DEVICE_ADD, &dmsg, sizeof(dmsg));
+	int res = -1;
+#ifdef HAVE_PLIST
+	if (client->proto_version == 1) {
+		/* XML plist packet */
+		char *xml = NULL;
+		uint32_t xmlsize = 0;
+		plist_t dict = plist_new_dict();
+		plist_dict_insert_item(dict, "MessageType", plist_new_string("Attached"));
+		plist_t props = plist_new_dict();
+		// TODO: get current usb speed
+		plist_dict_insert_item(props, "ConnectionSpeed", plist_new_uint(480000000));
+		plist_dict_insert_item(props, "ConnectionType", plist_new_string("USB"));
+		plist_dict_insert_item(props, "DeviceID", plist_new_uint(dev->id));
+		plist_dict_insert_item(props, "LocationID", plist_new_uint(dev->location));
+		plist_dict_insert_item(props, "ProductID", plist_new_uint(dev->pid));
+		plist_dict_insert_item(props, "SerialNumber", plist_new_string(dev->serial));
+		plist_dict_insert_item(dict, "Properties", props);
+		plist_to_xml(dict, &xml, &xmlsize);
+		plist_free(dict);
+		if (xml) {
+			res = send_pkt(client, 0, MESSAGE_PLIST, xml, xmlsize);
+			free(xml);
+		} else {
+			usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
+		}
+	} else
+#endif
+	{
+		/* binary packet */
+		struct usbmuxd_device_record dmsg;
+		memset(&dmsg, 0, sizeof(dmsg));
+		dmsg.device_id = dev->id;
+		strncpy(dmsg.serial_number, dev->serial, 256);
+		dmsg.serial_number[255] = 0;
+		dmsg.location = dev->location;
+		dmsg.product_id = dev->pid;
+		res = send_pkt(client, 0, MESSAGE_DEVICE_ADD, &dmsg, sizeof(dmsg));
+	}
+	return res;
 }
 
 static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 {
-	return send_pkt(client, 0, MESSAGE_DEVICE_REMOVE, &device_id, sizeof(uint32_t));
+	int res = -1;
+#ifdef HAVE_PLIST
+	if (client->proto_version == 1) {
+		/* XML plist packet */
+		char *xml = NULL;
+		uint32_t xmlsize = 0;
+		plist_t dict = plist_new_dict();
+		plist_dict_insert_item(dict, "MessageType", plist_new_string("Detached"));
+		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(device_id));
+		plist_to_xml(dict, &xml, &xmlsize);
+		plist_free(dict);
+		if (xml) {
+			res = send_pkt(client, 0, MESSAGE_PLIST, xml, xmlsize);
+			free(xml);
+		} else {
+			usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
+		}
+	} else
+#endif
+	{
+		/* binary packet */
+		res = send_pkt(client, 0, MESSAGE_DEVICE_REMOVE, &device_id, sizeof(uint32_t));
+	}
+	return res;
 }
 
 static int start_listen(struct mux_client *client)
@@ -263,7 +349,92 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 	}
 
 	struct usbmuxd_connect_request *ch;
+#ifdef HAVE_PLIST
+	char *payload;
+	uint32_t payload_size;
+#endif
+
 	switch(hdr->message) {
+#ifdef HAVE_PLIST
+		case MESSAGE_PLIST:
+			client->proto_version = 1;
+			payload = (char*)(hdr) + sizeof(struct usbmuxd_header);
+			payload_size = hdr->length - sizeof(struct usbmuxd_header);
+			plist_t dict = NULL;
+			plist_from_xml(payload, payload_size, &dict);
+			if (!dict) {
+				usbmuxd_log(LL_ERROR, "Could not parse plist from payload!");
+				return -1;
+			} else {
+				char *message = NULL;
+				plist_t node = plist_dict_get_item(dict, "MessageType");
+				plist_get_string_val(node, &message);
+				if (!message) {
+					usbmuxd_log(LL_ERROR, "Could not extract MessageType from plist!");
+					plist_free(dict);
+					return -1;
+				}
+				if (!strcmp(message, "Listen")) {
+					free(message);
+					plist_free(dict);
+					if (send_result(client, hdr->tag, 0) < 0)
+						return -1;
+					usbmuxd_log(LL_DEBUG, "Client %d now LISTENING", client->fd);
+					return start_listen(client);
+				} else if (!strcmp(message, "Connect")) {
+					uint64_t val;
+					uint16_t portnum = 0;
+					uint32_t device_id = 0;
+					free(message);
+					// get device id
+					node = plist_dict_get_item(dict, "DeviceID");
+					if (!node) {
+						usbmuxd_log(LL_ERROR, "Received connect request without device_id!");
+						plist_free(dict);
+						if (send_result(client, hdr->tag, RESULT_BADDEV) < 0)
+							return -1;
+						return 0;
+					}
+					val = 0;
+					plist_get_uint_val(node, &val);
+					device_id = (uint32_t)val;
+
+					// get port number
+					node = plist_dict_get_item(dict, "PortNumber");
+					if (!node) {
+						usbmuxd_log(LL_ERROR, "Received connect request without port number!");
+						plist_free(dict);
+						if (send_result(client, hdr->tag, RESULT_BADCOMMAND) < 0)
+							return -1;
+						return 0;
+					}
+					val = 0;
+					plist_get_uint_val(node, &val);
+					portnum = (uint16_t)val;
+
+					usbmuxd_log(LL_DEBUG, "Client %d connection request to device %d port %d", client->fd, device_id, ntohs(portnum));
+					res = device_start_connect(device_id, ntohs(portnum), client);
+					if(res < 0) {
+						if (send_result(client, hdr->tag, -res) < 0)
+							return -1;
+					} else {
+						client->connect_tag = hdr->tag;
+						client->connect_device = device_id;
+						client->state = CLIENT_CONNECTING1;
+					}
+					return 0;
+				} else {
+					usbmuxd_log(LL_ERROR, "Unexpected command '%s' received!", message);
+					free(message);
+					plist_free(dict);
+					if (send_result(client, hdr->tag, RESULT_BADCOMMAND) < 0)
+						return -1;
+					return 0;
+				}
+			}
+			// should not be reached?!
+			return -1;
+#endif
 		case MESSAGE_LISTEN:
 			if(send_result(client, hdr->tag, 0) < 0)
 				return -1;
@@ -341,8 +512,13 @@ static void process_recv(struct mux_client *client)
 		did_read = 1;
 	}
 	struct usbmuxd_header *hdr = (void*)client->ib_buf;
+#ifdef HAVE_PLIST
+	if((hdr->version != 0) && (hdr->version != 1)) {
+		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected 0 or 1, got %d", client->fd, hdr->version);
+#else
 	if(hdr->version != USBMUXD_PROTOCOL_VERSION) {
 		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, USBMUXD_PROTOCOL_VERSION, hdr->version);
+#endif
 		client_close(client);
 	}
 	if(hdr->length > client->ib_capacity) {

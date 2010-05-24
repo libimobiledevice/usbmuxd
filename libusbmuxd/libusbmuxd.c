@@ -32,6 +32,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <signal.h>
 #include <pthread.h>
 
+#ifdef HAVE_PLIST
+#include <plist/plist.h>
+#define PLIST_BUNDLE_ID "com.marcansoft.usbmuxd"
+#define PLIST_CLIENT_VERSION_STRING "usbmuxd built for freedom"
+#define PLIST_PROGNAME "libusbmuxd"
+#endif
+
 // usbmuxd public interface
 #include "usbmuxd.h"
 // usbmuxd protocol 
@@ -47,6 +54,7 @@ pthread_t devmon;
 static int listenfd = -1;
 
 static int use_tag = 0;
+static int proto_version = 0;
 
 /**
  * Finds a device info record by its handle.
@@ -104,7 +112,95 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 		}
 	}
 
-	*payload = payload_loc;
+#ifdef HAVE_PLIST
+	if (hdr.message == MESSAGE_PLIST) {
+		char *message = NULL;
+		plist_t plist = NULL;
+		plist_from_xml(payload_loc, payload_size, &plist);
+		free(payload_loc);
+
+		if (!plist) {
+			fprintf(stderr, "%s: Error getting plist from payload!\n", __func__);
+			return -EBADMSG;
+		}
+
+		plist_t node = plist_dict_get_item(plist, "MessageType");
+		if (plist_get_node_type(node) != PLIST_STRING) {
+			fprintf(stderr, "%s: Error getting message type from plist!\n", __func__);
+			free(plist);
+			return -EBADMSG;
+		}
+		
+		plist_get_string_val(node, &message);
+		if (message) {
+			uint64_t val = 0;
+			if (strcmp(message, "Result") == 0) {
+				/* result message */
+				uint32_t dwval = 0;
+				plist_t n = plist_dict_get_item(plist, "Number");
+				plist_get_uint_val(n, &val);
+				*payload = malloc(sizeof(uint32_t));
+				dwval = val;
+				memcpy(*payload, &dwval, sizeof(dwval));
+				hdr.length = sizeof(hdr) + sizeof(dwval);
+				hdr.message = MESSAGE_RESULT;
+			} else if (strcmp(message, "Attached") == 0) {
+				/* device add message */
+				struct usbmuxd_device_record *dev = NULL;
+				plist_t props = plist_dict_get_item(plist, "Properties");
+				if (!props) {
+					fprintf(stderr, "%s: Could not get properties for message '%s' from plist!\n", __func__, message);
+					plist_free(plist);
+					return -EBADMSG;
+				}
+				dev = (struct usbmuxd_device_record*)malloc(sizeof(struct usbmuxd_device_record));
+				memset(dev, 0, sizeof(struct usbmuxd_device_record));
+
+				plist_t n = plist_dict_get_item(props, "DeviceID");
+				plist_get_uint_val(n, &val);
+				dev->device_id = (uint32_t)val;
+
+				n = plist_dict_get_item(props, "ProductID");
+				plist_get_uint_val(n, &val);
+				dev->product_id = (uint32_t)val;
+
+				n = plist_dict_get_item(props, "SerialNumber");
+				char *strval = NULL;
+				plist_get_string_val(n, &strval);
+				if (strval) {
+					strcpy(dev->serial_number, strval);
+					free(strval);
+				}
+				n = plist_dict_get_item(props, "LocationID");
+				plist_get_uint_val(n, &val);
+				dev->location = (uint32_t)val;
+				*payload = (void*)dev;
+				hdr.length = sizeof(hdr) + sizeof(struct usbmuxd_device_record);
+				hdr.message = MESSAGE_DEVICE_ADD;
+			} else if (strcmp(message, "Detached") == 0) {
+				/* device remove message */
+				uint32_t dwval = 0;
+				plist_t n = plist_dict_get_item(plist, "DeviceID");
+				if (n) {
+					plist_get_uint_val(n, &val);
+					*payload = malloc(sizeof(uint32_t));
+					dwval = val;
+					memcpy(*payload, &dwval, sizeof(dwval));
+					hdr.length = sizeof(hdr) + sizeof(dwval);
+					hdr.message = MESSAGE_DEVICE_REMOVE;
+				}
+			} else {
+				fprintf(stderr, "%s: Unexpected message '%s' in plist!\n", __func__, message);
+				plist_free(plist);
+				return -EBADMSG;
+			}
+		}
+		plist_free(plist);
+	} else
+#endif
+	{
+		*payload = payload_loc;
+	}
 
 	memcpy(header, &hdr, sizeof(hdr));
 
@@ -159,7 +255,7 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 	struct usbmuxd_header header;
 
 	header.length = sizeof(struct usbmuxd_header);
-	header.version = USBMUXD_PROTOCOL_VERSION;
+	header.version = proto_version;
 	header.message = message;
 	header.tag = tag;
 	if (payload && (payload_size > 0)) {
@@ -183,23 +279,74 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 
 static int send_listen_packet(int sfd, uint32_t tag)
 {
-	return send_packet(sfd, MESSAGE_LISTEN, tag, NULL, 0);
+	int res = 0;
+#ifdef HAVE_PLIST
+	if (proto_version == 1) {
+		/* plist packet */
+		char *payload = NULL;
+		uint32_t payload_size = 0;
+		plist_t plist;
+
+		/* construct message plist */
+		plist = plist_new_dict();
+		plist_dict_insert_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
+		plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
+		plist_dict_insert_item(plist, "MessageType", plist_new_string("Listen"));
+		plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));
+		plist_to_xml(plist, &payload, &payload_size);
+		plist_free(plist);
+
+		res = send_packet(sfd, MESSAGE_PLIST, tag, payload, payload_size);
+		free(payload);
+	} else
+#endif
+	{
+		/* binary packet */
+		res = send_packet(sfd, MESSAGE_LISTEN, tag, NULL, 0);
+	}
+	return res;
 }
 
 static int send_connect_packet(int sfd, uint32_t tag, uint32_t device_id, uint16_t port)
 {
-	struct {
-		uint32_t device_id;
-		uint16_t port;
-		uint16_t reserved;
-	} conninfo;
+	int res = 0;
+#ifdef HAVE_PLIST
+	if (proto_version == 1) {
+		/* plist packet */
+		char *payload = NULL;
+		uint32_t payload_size = 0;
+		plist_t plist;
 
-	conninfo.device_id = device_id;
-	conninfo.port = htons(port);
-	conninfo.reserved = 0;
+		/* construct message plist */
+		plist = plist_new_dict();
+		plist_dict_insert_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
+		plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
+		plist_dict_insert_item(plist, "MessageType", plist_new_string("Connect"));
+		plist_dict_insert_item(plist, "DeviceID", plist_new_uint(device_id));
+		plist_dict_insert_item(plist, "PortNumber", plist_new_uint(port));
+		plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));
+		plist_to_xml(plist, &payload, &payload_size);
+		plist_free(plist);
 
-	return send_packet(sfd, MESSAGE_CONNECT, tag, &conninfo, sizeof(conninfo));
+		res = send_packet(sfd, MESSAGE_PLIST, tag, (void*)payload, payload_size);
+		free(payload);
+	} else
+#endif
+	{
+		/* binary packet */
+		struct {
+			uint32_t device_id;
+			uint16_t port;
+			uint16_t reserved;
+		} conninfo;
 
+		conninfo.device_id = device_id;
+		conninfo.port = htons(port);
+		conninfo.reserved = 0;
+
+		res = send_packet(sfd, MESSAGE_CONNECT, tag, &conninfo, sizeof(conninfo));
+	}
+	return res;
 }
 
 /**
@@ -231,6 +378,9 @@ static int usbmuxd_listen()
 	int sfd;
 	uint32_t res = -1;
 
+#ifdef HAVE_PLIST
+retry:
+#endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
 		while (event_cb) {
@@ -254,6 +404,12 @@ static int usbmuxd_listen()
 	}
 	if (usbmuxd_get_result(sfd, use_tag, &res) && (res != 0)) {
 		close(sfd);
+#ifdef HAVE_PLIST
+		if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
+			proto_version = 1;
+			goto retry;
+		}
+#endif
 		fprintf(stderr, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
 	}
@@ -396,6 +552,9 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	int dev_cnt = 0;
 	void *payload = NULL;
 
+#ifdef HAVE_PLIST
+retry:
+#endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
 		fprintf(stderr, "%s: error opening socket!\n", __func__);
@@ -410,6 +569,12 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 			listen_success = 1;
 		} else {
 			close(sfd);
+#ifdef HAVE_PLIST
+			if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
+				proto_version = 1;
+				goto retry;
+			}
+#endif
 			fprintf(stderr,
 					"%s: Did not get response to scan request (with result=0)...\n",
 					__func__);
@@ -521,6 +686,9 @@ int usbmuxd_connect(const int handle, const unsigned short port)
 	int connected = 0;
 	uint32_t res = -1;
 
+#ifdef HAVE_PLIST
+retry:
+#endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
 		fprintf(stderr, "%s: Error: Connection to usbmuxd failed: %s\n",
@@ -539,6 +707,13 @@ int usbmuxd_connect(const int handle, const unsigned short port)
 				//fprintf(stderr, "%s: Connect success!\n", __func__);
 				connected = 1;
 			} else {
+#ifdef HAVE_PLIST
+				if ((res == RESULT_BADVERSION) && (proto_version == 0)) {
+					proto_version = 1;
+					close(sfd);
+					goto retry;
+				}
+#endif
 				fprintf(stderr, "%s: Connect failed, Error code=%d\n",
 						__func__, res);
 			}
