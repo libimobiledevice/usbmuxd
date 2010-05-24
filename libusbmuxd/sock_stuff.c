@@ -254,13 +254,13 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	do {
 		eagain = 0;
 		switch (fdm) {
-		case FD_READ:
+		case FDM_READ:
 			sret = select(fd + 1, &fds, NULL, NULL, pto);
 			break;
-		case FD_WRITE:
+		case FDM_WRITE:
 			sret = select(fd + 1, NULL, &fds, NULL, pto);
 			break;
-		case FD_EXCEPT:
+		case FDM_EXCEPT:
 			sret = select(fd + 1, NULL, NULL, &fds, pto);
 			break;
 		default:
@@ -308,7 +308,7 @@ int recv_buf_timeout(int fd, void *data, size_t length, int flags,
 	int result;
 
 	// check if data is available
-	res = check_fd(fd, FD_READ, timeout);
+	res = check_fd(fd, FDM_READ, timeout);
 	if (res <= 0) {
 		return res;
 	}

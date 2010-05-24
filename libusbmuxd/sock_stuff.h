@@ -27,9 +27,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <stdint.h>
 
 enum fd_mode {
-	FD_READ,
-	FD_WRITE,
-	FD_EXCEPT
+	FDM_READ,
+	FDM_WRITE,
+	FDM_EXCEPT
 };
 typedef enum fd_mode fd_mode;
 
