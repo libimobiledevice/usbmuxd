@@ -201,7 +201,7 @@ int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 	return 0;
 }
 
-static int notify_device(struct mux_client *client, struct device_info *dev)
+static int notify_device_add(struct mux_client *client, struct device_info *dev)
 {
 	struct usbmuxd_device_record dmsg;
 	memset(&dmsg, 0, sizeof(dmsg));
@@ -211,6 +211,11 @@ static int notify_device(struct mux_client *client, struct device_info *dev)
 	dmsg.location = dev->location;
 	dmsg.product_id = dev->pid;
 	return send_pkt(client, 0, MESSAGE_DEVICE_ADD, &dmsg, sizeof(dmsg));
+}
+
+static int notify_device_remove(struct mux_client *client, uint32_t device_id)
+{
+	return send_pkt(client, 0, MESSAGE_DEVICE_REMOVE, &device_id, sizeof(uint32_t));
 }
 
 static int start_listen(struct mux_client *client)
@@ -235,7 +240,7 @@ static int start_listen(struct mux_client *client)
 	}
 	dev = devs;
 	for(i=0; i<count; i++) {
-		if(notify_device(client, dev++) < 0) {
+		if(notify_device_add(client, dev++) < 0) {
 			free(devs);
 			return -1;
 		}
@@ -402,7 +407,7 @@ void client_device_add(struct device_info *dev)
 	usbmuxd_log(LL_DEBUG, "client_device_add: id %d, location 0x%x, serial %s", dev->id, dev->location, dev->serial);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
-			notify_device(client, dev);
+			notify_device_add(client, dev);
 	} ENDFOREACH
 }
 void client_device_remove(int device_id)
@@ -411,7 +416,7 @@ void client_device_remove(int device_id)
 	usbmuxd_log(LL_DEBUG, "client_device_remove: id %d", device_id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
-			send_pkt(client, 0, MESSAGE_DEVICE_REMOVE, &id, sizeof(uint32_t));
+			notify_device_remove(client, id);
 	} ENDFOREACH
 }
 
