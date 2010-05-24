@@ -67,7 +67,7 @@ static usbmuxd_device_info_t *devices_find(int handle)
  */
 static int connect_usbmuxd_socket()
 {
-#ifdef WINDOWS
+#ifdef WIN32
 	return connect_socket("127.0.0.1", 27015);
 #else
 	return connect_unix_socket(USBMUXD_SOCKET_FILE);
