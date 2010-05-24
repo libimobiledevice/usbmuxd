@@ -46,6 +46,8 @@ static usbmuxd_event_cb_t event_cb = NULL;
 pthread_t devmon;
 static int listenfd = -1;
 
+static int use_tag = 0;
+
 /**
  * Finds a device info record by its handle.
  * if the record is not found, NULL is returned.
@@ -152,6 +154,53 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 	return -EPROTO;
 }
 
+static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, uint32_t payload_size)
+{
+	struct usbmuxd_header header;
+
+	header.length = sizeof(struct usbmuxd_header);
+	header.version = USBMUXD_PROTOCOL_VERSION;
+	header.message = message;
+	header.tag = tag;
+	if (payload && (payload_size > 0)) {
+		header.length += payload_size;
+	}
+	int sent = send_buf(sfd, &header, sizeof(header));
+	if (sent != sizeof(header)) {
+		fprintf(stderr, "%s: ERROR: could not send packet header\n", __func__);
+		return -1;
+	}
+	if (payload && (payload_size > 0)) {
+		sent += send_buf(sfd, payload, payload_size);
+	}
+	if (sent != (int)header.length) {
+		fprintf(stderr, "%s: ERROR: could not send whole packet\n", __func__);
+		close(sfd);
+		return -1;
+	}
+	return sent;
+}
+
+static int send_listen_packet(int sfd, uint32_t tag)
+{
+	return send_packet(sfd, MESSAGE_LISTEN, tag, NULL, 0);
+}
+
+static int send_connect_packet(int sfd, uint32_t tag, uint32_t device_id, uint16_t port)
+{
+	struct {
+		uint32_t device_id;
+		uint16_t port;
+		uint16_t reserved;
+	} conninfo;
+
+	conninfo.device_id = device_id;
+	conninfo.port = htons(port);
+	conninfo.reserved = 0;
+
+	return send_packet(sfd, MESSAGE_CONNECT, tag, &conninfo, sizeof(conninfo));
+
+}
 
 /**
  * Generates an event, i.e. calls the callback function.
@@ -181,12 +230,6 @@ static int usbmuxd_listen()
 {
 	int sfd;
 	uint32_t res = -1;
-	struct usbmuxd_listen_request req;
-
-	req.header.length = sizeof(struct usbmuxd_listen_request);
-	req.header.version = USBMUXD_PROTOCOL_VERSION;
-	req.header.message = MESSAGE_LISTEN;
-	req.header.tag = 2;
 
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
@@ -203,12 +246,13 @@ static int usbmuxd_listen()
 		return sfd;
 	}
 
-	if (send_buf(sfd, &req, req.header.length) != (int)req.header.length) {
+	use_tag++;
+	if (send_listen_packet(sfd, use_tag) <= 0) {
 		fprintf(stderr, "%s: ERROR: could not send listen packet\n", __func__);
 		close(sfd);
 		return -1;
 	}
-	if (usbmuxd_get_result(sfd, req.header.tag, &res) && (res != 0)) {
+	if (usbmuxd_get_result(sfd, use_tag, &res) && (res != 0)) {
 		close(sfd);
 		fprintf(stderr, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
@@ -343,7 +387,6 @@ int usbmuxd_unsubscribe()
 
 int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 {
-	struct usbmuxd_listen_request s_req;
 	int sfd;
 	int listen_success = 0;
 	uint32_t res;
@@ -359,17 +402,11 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 		return sfd;
 	}
 
-	s_req.header.length = sizeof(struct usbmuxd_listen_request);
-	s_req.header.version = USBMUXD_PROTOCOL_VERSION;
-	s_req.header.message = MESSAGE_LISTEN;
-	s_req.header.tag = 2;
-
-	// send scan request packet
-	if (send_buf(sfd, &s_req, s_req.header.length) ==
-		(int) s_req.header.length) {
+	use_tag++;
+	if (send_listen_packet(sfd, use_tag) > 0) {
 		res = -1;
 		// get response
-		if (usbmuxd_get_result(sfd, s_req.header.tag, &res) && (res == 0)) {
+		if (usbmuxd_get_result(sfd, use_tag, &res) && (res == 0)) {
 			listen_success = 1;
 		} else {
 			close(sfd);
@@ -481,7 +518,6 @@ int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device)
 int usbmuxd_connect(const int handle, const unsigned short port)
 {
 	int sfd;
-	struct usbmuxd_connect_request c_req;
 	int connected = 0;
 	uint32_t res = -1;
 
@@ -492,20 +528,13 @@ int usbmuxd_connect(const int handle, const unsigned short port)
 		return sfd;
 	}
 
-	c_req.header.length = sizeof(c_req);
-	c_req.header.version = USBMUXD_PROTOCOL_VERSION;
-	c_req.header.message = MESSAGE_CONNECT;
-	c_req.header.tag = 3;
-	c_req.device_id = (uint32_t) handle;
-	c_req.port = htons(port);
-	c_req.reserved = 0;
-
-	if (send_buf(sfd, &c_req, sizeof(c_req)) < 0) {
-		perror("send");
+	use_tag++;
+	if (send_connect_packet(sfd, use_tag, (uint32_t)handle, (uint16_t)port) <= 0) {
+		fprintf(stderr, "%s: Error sending connect message!\n", __func__);
 	} else {
 		// read ACK
 		//fprintf(stderr, "%s: Reading connect result...\n", __func__);
-		if (usbmuxd_get_result(sfd, c_req.header.tag, &res)) {
+		if (usbmuxd_get_result(sfd, use_tag, &res)) {
 			if (res == 0) {
 				//fprintf(stderr, "%s: Connect success!\n", __func__);
 				connected = 1;
