@@ -45,6 +45,7 @@ void sock_stuff_set_verbose(int level)
 	verbose = level;
 }
 
+#ifndef WIN32
 int create_unix_socket(const char *filename)
 {
 	struct sockaddr_un name;
@@ -136,6 +137,7 @@ int connect_unix_socket(const char *filename)
 
 	return sfd;
 }
+#endif
 
 int create_socket(uint16_t port)
 {

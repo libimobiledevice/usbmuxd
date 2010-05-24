@@ -33,8 +33,10 @@ enum fd_mode {
 };
 typedef enum fd_mode fd_mode;
 
+#ifndef WIN32
 int create_unix_socket(const char *filename);
 int connect_unix_socket(const char *filename);
+#endif
 int create_socket(uint16_t port);
 int connect_socket(const char *addr, uint16_t port);
 int check_fd(int fd, fd_mode fdm, unsigned int timeout);
