@@ -317,7 +317,7 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	struct usbmuxd_device_record dev_info;
 	int dev_cnt = 0;
 
-	sfd = connect_unix_socket(USBMUXD_SOCKET_FILE);
+	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
 		fprintf(stderr, "%s: error opening socket!\n", __func__);
 		return sfd;
