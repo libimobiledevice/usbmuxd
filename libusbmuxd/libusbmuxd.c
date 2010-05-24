@@ -74,38 +74,84 @@ static int connect_usbmuxd_socket()
 #endif
 }
 
+static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload, int timeout)
+{
+	int recv_len;
+	struct usbmuxd_header hdr;
+	char *payload_loc = NULL;
+
+	header->length = 0;
+	header->version = 0;
+	header->message = 0;
+	header->tag = 0;
+
+	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, timeout);
+	if (recv_len < 0) {
+		return recv_len;
+	} else if (recv_len < sizeof(hdr)) {
+		return recv_len;
+	}
+
+	uint32_t payload_size = hdr.length - sizeof(hdr);
+	if (payload_size > 0) {
+		payload_loc = (char*)malloc(payload_size);
+		if (recv_buf_timeout(sfd, payload_loc, payload_size, 0, 5000) != payload_size) {
+			fprintf(stderr, "%s: Error receiving payload of size %d\n", __func__, payload_size);
+			free(payload_loc);
+			return -EBADMSG;
+		}
+	}
+
+	*payload = payload_loc;
+
+	memcpy(header, &hdr, sizeof(hdr));
+
+	return hdr.length;
+}
+
 /**
  * Retrieves the result code to a previously sent request.
  */
 static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 {
-	struct usbmuxd_result_msg res;
+	struct usbmuxd_header hdr;
 	int recv_len;
+	uint32_t *res = NULL;
 
 	if (!result) {
 		return -EINVAL;
 	}
+	*result = -1;
 
-	if ((recv_len = recv_buf(sfd, &res, sizeof(res))) <= 0) {
-		perror("recv");
+	if ((recv_len = receive_packet(sfd, &hdr, (void**)&res, 5000)) < 0) {
+		fprintf(stderr, "%s: Error receiving packet: %d\n", __func__, errno);
+		if (res)
+			free(res);
 		return -errno;
-	} else {
-		if ((recv_len == sizeof(res))
-			&& (res.header.length == (uint32_t) recv_len)
-			&& (res.header.version == USBMUXD_PROTOCOL_VERSION)
-			&& (res.header.message == MESSAGE_RESULT)
-			) {
-			*result = res.result;
-			if (res.header.tag == tag) {
-				return 1;
-			} else {
-				return 0;
-			}
-		}
+	}
+	if (recv_len < sizeof(hdr)) {
+		fprintf(stderr, "%s: Received packet is too small!\n", __func__);
+		if (res)
+			free(res);
+		return -EPROTO;
 	}
 
-	return -1;
+	if (hdr.message == MESSAGE_RESULT) {
+		int ret = 0;
+		if (res && (hdr.tag == tag)) {
+			memcpy(result, res, sizeof(uint32_t));
+			ret = 1;
+		}
+		if (res)
+			free(res);
+		return ret;
+	}
+	fprintf(stderr, "%s: Unexpected message of type %d received!\n", __func__, hdr.message);
+	if (res)
+		free(res);
+	return -EPROTO;
 }
+
 
 /**
  * Generates an event, i.e. calls the callback function.
@@ -163,8 +209,8 @@ static int usbmuxd_listen()
 		return -1;
 	}
 	if (usbmuxd_get_result(sfd, req.header.tag, &res) && (res != 0)) {
-		fprintf(stderr, "%s: ERROR: did not get OK\n", __func__);
 		close(sfd);
+		fprintf(stderr, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
 	}
 
@@ -177,12 +223,11 @@ static int usbmuxd_listen()
  */
 int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 {
-	int recv_len;
 	struct usbmuxd_header hdr;
+	void *payload = NULL;
 
 	/* block until we receive something */
-	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 0);
-	if (recv_len < 0) {
+	if (receive_packet(sfd, &hdr, &payload, 0) < 0) {
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
@@ -190,57 +235,48 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 			collection_remove(&devices, dev);
 		} ENDFOREACH
-		return recv_len;
-	} else if (recv_len == sizeof(hdr)) {
-		if (hdr.message == MESSAGE_DEVICE_ADD) {
-			struct usbmuxd_device_record dev;
-			usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
-			if (!devinfo) {
-				fprintf(stderr, "%s: Out of memory!\n", __func__);
-				return -1;
-			}
+		return -EIO;
+	}
 
-			if (hdr.length != sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)) {
-				fprintf(stderr, "%s: WARNING: unexpected packet size %d for MESSAGE_DEVICE_ADD (expected %d)!\n", __func__, hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(struct usbmuxd_device_record)));
-			}
-			recv_len =  recv_buf_timeout(sfd, &dev, hdr.length - sizeof(struct usbmuxd_header), 0, 5000);
-			if (recv_len != (hdr.length - sizeof(struct usbmuxd_header))) {
-				fprintf(stderr, "%s: ERROR: Could not receive packet\n", __func__);
-				return recv_len;
-			}
+	if ((hdr.length > sizeof(hdr)) && !payload) {
+		fprintf(stderr, "%s: Invalid packet received, payload is missing!\n", __func__);
+		return -EBADMSG;
+	}
 
-			devinfo->handle = dev.device_id;
-			devinfo->product_id = dev.product_id;
-			memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
-			memcpy(devinfo->uuid, dev.serial_number, sizeof(devinfo->uuid));
+	if (hdr.message == MESSAGE_DEVICE_ADD) {
+		struct usbmuxd_device_record *dev = payload;
+		usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
+		if (!devinfo) {
+			fprintf(stderr, "%s: Out of memory!\n", __func__);
+			free(payload);
+			return -1;
+		}
 
-			collection_add(&devices, devinfo);
-			generate_event(callback, devinfo, UE_DEVICE_ADD, user_data);
-		} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
-			uint32_t handle;
-			usbmuxd_device_info_t *dev;
+		devinfo->handle = dev->device_id;
+		devinfo->product_id = dev->product_id;
+		memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
+		memcpy(devinfo->uuid, dev->serial_number, sizeof(devinfo->uuid));
 
-			if (hdr.length != sizeof(struct usbmuxd_header)+sizeof(uint32_t)) {
-				fprintf(stderr, "%s: WARNING: unexpected packet size %d for MESSAGE_DEVICE_REMOVE (expected %d)!\n", __func__, hdr.length, (int)(sizeof(struct usbmuxd_header)+sizeof(uint32_t)));
-			}
-			recv_len = recv_buf_timeout(sfd, &handle, sizeof(uint32_t), 0, 5000);
-			if (recv_len != sizeof(uint32_t)) {
-				fprintf(stderr, "%s: ERROR: Could not receive packet\n", __func__);
-				return recv_len;
-			}
+		collection_add(&devices, devinfo);
+		generate_event(callback, devinfo, UE_DEVICE_ADD, user_data);
+	} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
+		uint32_t handle;
+		usbmuxd_device_info_t *devinfo;
 
-			dev = devices_find(handle);
-			if (!dev) {
-				fprintf(stderr, "%s: WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", __func__, handle);
-			} else {
-				generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
-				collection_remove(&devices, dev);
-			}
+		memcpy(&handle, payload, sizeof(uint32_t));
+
+		devinfo = devices_find(handle);
+		if (!devinfo) {
+			fprintf(stderr, "%s: WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", __func__, handle);
 		} else {
-			fprintf(stderr, "%s: Unknown message type %d length %d\n", __func__, hdr.message, hdr.length);
+			generate_event(callback, devinfo, UE_DEVICE_REMOVE, user_data);
+			collection_remove(&devices, devinfo);
 		}
 	} else {
-		fprintf(stderr, "%s: ERROR: incomplete packet received!\n", __func__);
+		fprintf(stderr, "%s: Unexpected message type %d length %d received!\n", __func__, hdr.message, hdr.length);
+	}
+	if (payload) {
+		free(payload);
 	}
 	return 0;
 }
@@ -311,11 +347,11 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	int sfd;
 	int listen_success = 0;
 	uint32_t res;
-	int recv_len;
 	usbmuxd_device_info_t *newlist = NULL;
 	struct usbmuxd_header hdr;
-	struct usbmuxd_device_record dev_info;
+	struct usbmuxd_device_record *dev_info;
 	int dev_cnt = 0;
+	void *payload = NULL;
 
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
@@ -336,10 +372,10 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 		if (usbmuxd_get_result(sfd, s_req.header.tag, &res) && (res == 0)) {
 			listen_success = 1;
 		} else {
+			close(sfd);
 			fprintf(stderr,
 					"%s: Did not get response to scan request (with result=0)...\n",
 					__func__);
-			close(sfd);
 			return res;
 		}
 	}
@@ -352,45 +388,35 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	*device_list = NULL;
 	// receive device list
 	while (1) {
-		if (recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, 1000) == sizeof(hdr)) {
-			if ((hdr.length < 48) || (hdr.length > sizeof(hdr)+sizeof(dev_info))) {
-				// invalid packet size received!
-				fprintf(stderr,
-						"%s: Invalid packet size (%d) received when expecting a device info record.\n",
-						__func__, hdr.length);
-				break;
-			}
-
-			recv_len = recv_buf(sfd, &dev_info, hdr.length - sizeof(hdr));
-			if (recv_len <= 0) {
-				fprintf(stderr,
-						"%s: Error when receiving device info record\n",
-						__func__);
-				break;
-			} else if ((uint32_t) recv_len < hdr.length - sizeof(hdr)) {
-				fprintf(stderr,
-						"%s: received less data than specified in header!\n", __func__);
-			} else {
+		if (receive_packet(sfd, &hdr, &payload, 1000) > 0) {
+			if (hdr.message == MESSAGE_DEVICE_ADD) {
+				dev_info = payload;
 				newlist = (usbmuxd_device_info_t *) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
 				if (newlist) {
 					newlist[dev_cnt].handle =
-						(int) dev_info.device_id;
+						(int) dev_info->device_id;
 					newlist[dev_cnt].product_id =
-						dev_info.product_id;
+						dev_info->product_id;
 					memset(newlist[dev_cnt].uuid, '\0',
 						   sizeof(newlist[dev_cnt].uuid));
 					memcpy(newlist[dev_cnt].uuid,
-						   dev_info.serial_number,
+						   dev_info->serial_number,
 						   sizeof(newlist[dev_cnt].uuid));
 					*device_list = newlist;
 					dev_cnt++;
 				} else {
 					fprintf(stderr,
-							"%s: ERROR: out of memory when trying to realloc!\n",
-							__func__);
+						"%s: ERROR: out of memory when trying to realloc!\n",
+						__func__);
+					if (payload)
+						free(payload);
 					break;
 				}
+			} else {
+				fprintf(stderr, "%s: Unexpected message %d\n", __func__, hdr.message);
 			}
+			if (payload)
+				free(payload);
 		} else {
 			// we _should_ have all of them now.
 			// or perhaps an error occured.
