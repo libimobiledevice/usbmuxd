@@ -286,6 +286,26 @@ int usb_discover(void)
 			continue;
 		}
 		if (current_config != devdesc.bNumConfigurations) {
+			struct libusb_config_descriptor *config;
+			if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+				usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
+			} else {
+				for(j=0; j<config->bNumInterfaces; j++) {
+					const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+					if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
+						usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %d", intf->bInterfaceNumber, bus, address, res);
+						continue;
+					}
+					if(res == 1) {
+						usbmuxd_log(LL_INFO, "Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
+						if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
+							usbmuxd_log(LL_WARNING, "Could not detach kernel driver (%d), configuration change will probably fail!", res);
+							continue;
+						}
+					}
+				}
+				libusb_free_config_descriptor(config);
+			}
 			if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
 				usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
 				libusb_close(handle);
