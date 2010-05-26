@@ -29,11 +29,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#ifdef WIN32
+#include <windows.h>
+#include <winsock2.h>
+static int wsa_init = 0;
+#else
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#endif
 #include "sock_stuff.h"
 
 #define RECV_TIMEOUT 20000
@@ -143,6 +149,16 @@ int create_socket(uint16_t port)
 {
 	int sfd = -1;
 	int yes = 1;
+#ifdef WIN32
+	WSADATA wsa_data;
+	if (!wsa_init) {
+		if (WSAStartup(MAKEWORD(2,2), &wsa_data) != ERROR_SUCCESS) {
+			fprintf(stderr, "WSAStartup failed!\n");
+			ExitProcess(-1);
+		}
+		wsa_init = 1;
+	}
+#endif
 	struct sockaddr_in saddr;
 
 	if (0 > (sfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP))) {
@@ -182,6 +198,16 @@ int connect_socket(const char *addr, uint16_t port)
 	int yes = 1;
 	struct hostent *hp;
 	struct sockaddr_in saddr;
+#ifdef WIN32
+	WSADATA wsa_data;
+	if (!wsa_init) {
+		if (WSAStartup(MAKEWORD(2,2), &wsa_data) != ERROR_SUCCESS) {
+			fprintf(stderr, "WSAStartup failed!\n");
+			ExitProcess(-1);
+		}
+		wsa_init = 1;
+	}
+#endif
 
 	if (!addr) {
 		errno = EINVAL;

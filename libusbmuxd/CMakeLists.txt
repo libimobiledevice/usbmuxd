@@ -7,6 +7,9 @@ find_library (PTHREAD pthread)
 if (HAVE_PLIST)
   message("-- libusbmuxd will be built with protocol version 1 support")
 endif()
+if(WIN32)
+  set(OPT_LIBS ${OPT_LIBS} ws2_32)
+endif()
 target_link_libraries (libusbmuxd ${CMAKE_THREAD_LIBS_INIT} ${OPT_LIBS})
 
 # 'lib' is a UNIXism, the proper CMake target is usbmuxd

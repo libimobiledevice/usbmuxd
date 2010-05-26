@@ -30,11 +30,17 @@ TODO: improve code...
 #include <string.h>
 #include <fcntl.h>
 #include <stddef.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 #include <errno.h>
+#ifdef WIN32
+#include <windows.h>
+#include <winsock2.h>
+typedef unsigned int socklen_t;
+#else
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <arpa/inet.h>
+#endif
 #include <pthread.h>
 #include "sock_stuff.h"
 #include "usbmuxd.h"
@@ -98,7 +104,7 @@ void *run_ctos_loop(void *arg)
     int recv_len;
     int sent;
     char buffer[131072];
-    pthread_t stoc = 0;
+    pthread_t stoc;
 
     printf("%s: fd = %d\n", __func__, cdata->fd);
 

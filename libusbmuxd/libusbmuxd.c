@@ -26,8 +26,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef WIN32
+#include <windows.h>
+#include <winsock2.h>
+#define sleep(x) Sleep(x*1000)
+#else
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#endif
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
