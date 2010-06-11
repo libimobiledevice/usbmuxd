@@ -84,10 +84,9 @@ Tip: Starting SSH if disabled
 
 If your device is rooted, but SSH isn't started and you _cannot_ (for instance,
 cracked/broken screen) get to the Services control panel on the device, then you
-can start the SSH service over the USB by
-mounting the (jailbroken) filesystem.
+can start the SSH service over the USB by mounting the (jailbroken) filesystem.
 
-You will need to mount it usbing 'ifuse --afc2' (to access the root directory of
+You will need to mount it using 'ifuse --afc2' (to access the root directory of
 the device), and then edit:
 
   /Library/LaunchDaemons/com.openssh.sshd.plist
@@ -156,7 +155,7 @@ that you need, at minimum, TWO connections to usbmuxd to do anything useful.
 
 On Windows, usbmuxd works the same way but a TCP connection to localhost port
 27015 replaces the UNIX socket. On OSX, the UNIX socket is /var/run/usbmuxd. The
-server and client implemented here default to /tmp/usbmuxd at the moment.
+server and client implemented here default the same /var/run/usbmuxd socket.
 
 The phone protocol operates over a pair of USB bulk endpoints. There is an outer
 layer used for packet size info and a "protocol" (version and TCP are the only
