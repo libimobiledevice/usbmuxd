@@ -42,6 +42,7 @@ typedef unsigned int socklen_t;
 #include <arpa/inet.h>
 #endif
 #include <pthread.h>
+#include <netinet/in.h>
 #include "sock_stuff.h"
 #include "usbmuxd.h"
 

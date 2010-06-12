@@ -147,7 +147,7 @@ void set_signal_handlers(void)
 	sigaction(SIGUSR2, &sa, NULL);
 }
 
-#ifdef __APPLE__
+#if defined(__FreeBSD__) || defined(__APPLE__)
 static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout, const sigset_t *sigmask)
 {
 	int ready;
