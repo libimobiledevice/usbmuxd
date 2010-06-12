@@ -329,7 +329,7 @@ static int send_connect_packet(int sfd, uint32_t tag, uint32_t device_id, uint16
 		plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
 		plist_dict_insert_item(plist, "MessageType", plist_new_string("Connect"));
 		plist_dict_insert_item(plist, "DeviceID", plist_new_uint(device_id));
-		plist_dict_insert_item(plist, "PortNumber", plist_new_uint(port));
+		plist_dict_insert_item(plist, "PortNumber", plist_new_uint(htons(port)));
 		plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));
 		plist_to_xml(plist, &payload, &payload_size);
 		plist_free(plist);
