@@ -5,6 +5,7 @@ add_library (libusbmuxd SHARED libusbmuxd.c sock_stuff.c ${CMAKE_SOURCE_DIR}/com
 find_library (PTHREAD pthread)
 
 if (HAVE_PLIST)
+  add_definitions("-DHAVE_PLIST")
   message("-- libusbmuxd will be built with protocol version 1 support")
 endif()
 if(WIN32)
