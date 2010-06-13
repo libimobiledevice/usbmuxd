@@ -520,14 +520,17 @@ static void process_recv(struct mux_client *client)
 		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, USBMUXD_PROTOCOL_VERSION, hdr->version);
 #endif
 		client_close(client);
+		return;
 	}
 	if(hdr->length > client->ib_capacity) {
 		usbmuxd_log(LL_INFO, "Client %d message is too long (%d bytes)", client->fd, hdr->length);
 		client_close(client);
+		return;
 	}
 	if(hdr->length < sizeof(struct usbmuxd_header)) {
 		usbmuxd_log(LL_ERROR, "Client %d message is too short (%d bytes)", client->fd, hdr->length);
 		client_close(client);
+		return;
 	}
 	if(client->ib_size < hdr->length) {
 		if(did_read)
