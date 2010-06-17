@@ -322,6 +322,7 @@ int usb_discover(void)
 
 		struct usb_device *usbdev;
 		usbdev = malloc(sizeof(struct usb_device));
+		memset(usbdev, 0, sizeof(*usbdev));
 
 		for(j=0; j<config->bNumInterfaces; j++) {
 			const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
