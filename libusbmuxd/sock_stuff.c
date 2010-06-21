@@ -192,6 +192,7 @@ int create_socket(uint16_t port)
 	return sfd;
 }
 
+#if defined(WIN32) || defined(__CYGWIN__)
 int connect_socket(const char *addr, uint16_t port)
 {
 	int sfd = -1;
@@ -251,6 +252,7 @@ int connect_socket(const char *addr, uint16_t port)
 
 	return sfd;
 }
+#endif /* WIN32 || __CYGWIN__ */
 
 int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 {
