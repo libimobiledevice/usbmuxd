@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#ifdef USBMUXD_DAEMON
 #include <poll.h>
 
 enum fdowner {
@@ -41,6 +42,7 @@ void fdlist_create(struct fdlist *list);
 void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events);
 void fdlist_free(struct fdlist *list);
 void fdlist_reset(struct fdlist *list);
+#endif
 
 struct collection {
 	void **list;

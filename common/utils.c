@@ -35,6 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 # define util_error(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
+#ifdef USBMUXD_DAEMON
 void fdlist_create(struct fdlist *list)
 {
 	list->count = 0;
@@ -70,6 +71,7 @@ void fdlist_reset(struct fdlist *list)
 {
 	list->count = 0;
 }
+#endif
 
 void collection_init(struct collection *col)
 {
