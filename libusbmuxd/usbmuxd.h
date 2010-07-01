@@ -25,6 +25,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define __USBMUXD_H
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Device information structure holding data to identify the device.
  * The relevant 'handle' should be passed to 'usbmuxd_connect()', to
@@ -169,5 +173,9 @@ int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes
  * @return 0 on success, a negative errno value otherwise.
  */
 int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __USBMUXD_H */

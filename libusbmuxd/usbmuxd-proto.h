@@ -34,6 +34,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum usbmuxd_result {
 	RESULT_OK = 0,
 	RESULT_BADCOMMAND = 1,
@@ -85,5 +89,9 @@ struct usbmuxd_device_record {
 	uint16_t padding;
 	uint32_t location;
 } __attribute__((__packed__));
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __USBMUXD_PROTO_H */
