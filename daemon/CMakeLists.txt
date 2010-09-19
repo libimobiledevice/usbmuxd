@@ -1,5 +1,6 @@
 find_package(USB REQUIRED)
 include_directories(${USB_INCLUDE_DIRS})
+include_directories(${OPT_INCLUDES})
 set(LIBS ${LIBS} ${USB_LIBRARIES} ${OPT_LIBS})
 if(HAVE_PLIST)
   add_definitions("-DHAVE_PLIST")

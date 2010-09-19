@@ -11,6 +11,7 @@ endif()
 if(WIN32)
   set(OPT_LIBS ${OPT_LIBS} ws2_32)
 endif()
+include_directories(${OPT_INCLUDES})
 target_link_libraries (libusbmuxd ${CMAKE_THREAD_LIBS_INIT} ${OPT_LIBS})
 
 # 'lib' is a UNIXism, the proper CMake target is usbmuxd
