@@ -46,7 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define VID_APPLE 0x5ac
 #define PID_RANGE_LOW 0x1290
-#define PID_RANGE_MAX 0x129a
+#define PID_RANGE_MAX 0x129f
 
 struct usb_device;
 
