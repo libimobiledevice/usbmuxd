@@ -277,7 +277,7 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 	}
 	if (sent != (int)header.length) {
 		fprintf(stderr, "%s: ERROR: could not send whole packet\n", __func__);
-		close(sfd);
+		close_socket(sfd);
 		return -1;
 	}
 	return sent;
@@ -405,11 +405,11 @@ retry:
 	use_tag++;
 	if (send_listen_packet(sfd, use_tag) <= 0) {
 		fprintf(stderr, "%s: ERROR: could not send listen packet\n", __func__);
-		close(sfd);
+		close_socket(sfd);
 		return -1;
 	}
 	if (usbmuxd_get_result(sfd, use_tag, &res) && (res != 0)) {
-		close(sfd);
+		close_socket(sfd);
 #ifdef HAVE_PLIST
 		if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
 			proto_version = 1;
@@ -538,7 +538,7 @@ int usbmuxd_unsubscribe()
 	event_cb = NULL;
 
 	if (pthread_kill(devmon, 0) == 0) {
-		close(listenfd);
+		close_socket(listenfd);
 		listenfd = -1;
 		pthread_kill(devmon, SIGINT);
 		pthread_join(devmon, NULL);
@@ -574,7 +574,7 @@ retry:
 		if (usbmuxd_get_result(sfd, use_tag, &res) && (res == 0)) {
 			listen_success = 1;
 		} else {
-			close(sfd);
+			close_socket(sfd);
 #ifdef HAVE_PLIST
 			if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
 				proto_version = 1;
@@ -633,7 +633,7 @@ retry:
 	}
 
 	// explicitly close connection
-	close(sfd);
+	close_socket(sfd);
 
 	// terminating zero record
 	newlist = (usbmuxd_device_info_t*) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
@@ -716,7 +716,7 @@ retry:
 #ifdef HAVE_PLIST
 				if ((res == RESULT_BADVERSION) && (proto_version == 0)) {
 					proto_version = 1;
-					close(sfd);
+					close_socket(sfd);
 					goto retry;
 				}
 #endif
@@ -730,14 +730,14 @@ retry:
 		return sfd;
 	}
 
-	close(sfd);
+	close_socket(sfd);
 
 	return -1;
 }
 
 int usbmuxd_disconnect(int sfd)
 {
-	return close(sfd);
+	return close_socket(sfd);
 }
 
 int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)

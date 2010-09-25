@@ -85,13 +85,13 @@ int create_unix_socket(const char *filename)
 
 	if (bind(sock, (struct sockaddr *) &name, size) < 0) {
 		perror("bind");
-		close(sock);
+		close_socket(sock);
 		return -1;
 	}
 
 	if (listen(sock, 10) < 0) {
 		perror("listen");
-		close(sock);
+		close_socket(sock);
 		return -1;
 	}
 
@@ -134,7 +134,7 @@ int connect_unix_socket(const char *filename)
 			+ strlen(name.sun_path) + 1);
 
 	if (connect(sfd, (struct sockaddr *) &name, size) < 0) {
-		close(sfd);
+		close_socket(sfd);
 		if (verbose >= 2)
 			fprintf(stderr, "%s: connect: %s\n", __func__,
 					strerror(errno));
@@ -168,7 +168,7 @@ int create_socket(uint16_t port)
 
 	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
 		perror("setsockopt()");
-		close(sfd);
+		close_socket(sfd);
 		return -1;
 	}
 
@@ -179,13 +179,13 @@ int create_socket(uint16_t port)
 
 	if (0 > bind(sfd, (struct sockaddr *) &saddr, sizeof(saddr))) {
 		perror("bind()");
-		close(sfd);
+		close_socket(sfd);
 		return -1;
 	}
 
 	if (listen(sfd, 1) == -1) {
 		perror("listen()");
-		close(sfd);
+		close_socket(sfd);
 		return -1;
 	}
 
@@ -235,7 +235,7 @@ int connect_socket(const char *addr, uint16_t port)
 
 	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
 		perror("setsockopt()");
-		close(sfd);
+		close_socket(sfd);
 		return -1;
 	}
 
@@ -246,7 +246,7 @@ int connect_socket(const char *addr, uint16_t port)
 
 	if (connect(sfd, (struct sockaddr *) &saddr, sizeof(saddr)) < 0) {
 		perror("connect");
-		close(sfd);
+		close_socket(sfd);
 		return -2;
 	}
 
@@ -319,6 +319,14 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	} while (eagain);
 
 	return sret;
+}
+
+int close_socket(int fd) {
+#ifdef WIN32
+	return closesocket(fd);
+#else
+	return close(fd);
+#endif
 }
 
 int recv_buf(int fd, void *data, size_t length)

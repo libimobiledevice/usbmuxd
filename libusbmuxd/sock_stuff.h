@@ -43,6 +43,8 @@ int connect_socket(const char *addr, uint16_t port);
 #endif
 int check_fd(int fd, fd_mode fdm, unsigned int timeout);
 
+int close_socket(int fd);
+
 int recv_buf(int fd, void *data, size_t size);
 int peek_buf(int fd, void *data, size_t size);
 int recv_buf_timeout(int fd, void *data, size_t size, int flags,
