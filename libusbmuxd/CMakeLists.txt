@@ -21,6 +21,10 @@ set_target_properties(libusbmuxd PROPERTIES OUTPUT_NAME usbmuxd)
 set_target_properties(libusbmuxd PROPERTIES VERSION ${LIBUSBMUXD_VERSION})
 set_target_properties(libusbmuxd PROPERTIES SOVERSION ${LIBUSBMUXD_SOVERSION})
 
+if(APPLE)
+  set_target_properties(libusbmuxd PROPERTIES INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
+endif()
+
 install(TARGETS libusbmuxd
 	RUNTIME DESTINATION bin
 	ARCHIVE DESTINATION lib${LIB_SUFFIX}
