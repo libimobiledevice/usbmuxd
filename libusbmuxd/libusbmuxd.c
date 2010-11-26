@@ -405,7 +405,11 @@ static int usbmuxd_listen_inotify()
 {
 	int inot_fd;
 	int watch_fd;
-	int sfd;;
+	int sfd;
+
+	sfd = connect_usbmuxd_socket();
+	if (sfd >= 0)
+		return sfd;
 
 	sfd = -1;
 	inot_fd = inotify_init ();
