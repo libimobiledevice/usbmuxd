@@ -1,10 +1,14 @@
 include_directories (${CMAKE_SOURCE_DIR}/common)
 find_package(Threads)
+
+option(WANT_INOTIFY "Build with inotify support" ON)
+if (WANT_INOTIFY)
 find_package(Inotify)
 if (INOTIFY_FOUND)
   add_definitions("-DHAVE_INOTIFY")
   message("-- libusbmuxd will be built with inotify support")
 endif()
+endif(WANT_INOTIFY)
 
 add_library (libusbmuxd SHARED libusbmuxd.c sock_stuff.c ${CMAKE_SOURCE_DIR}/common/utils.c)
 find_library (PTHREAD pthread)
