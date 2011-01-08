@@ -30,9 +30,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <windows.h>
 #include <winsock2.h>
 #define sleep(x) Sleep(x*1000)
+#define EPROTO 71
+#define EBADMSG 77
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 #endif
 
 #ifdef HAVE_INOTIFY
@@ -45,7 +48,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <unistd.h>
 #include <signal.h>
-#include <pthread.h>
 
 #ifdef HAVE_PLIST
 #include <plist/plist.h>
@@ -65,7 +67,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 static struct collection devices;
 static usbmuxd_event_cb_t event_cb = NULL;
+#ifdef WIN32
+HANDLE devmon = NULL;
+#else
 pthread_t devmon;
+#endif
 static int listenfd = -1;
 
 static int use_tag = 0;
@@ -605,7 +611,15 @@ int usbmuxd_subscribe(usbmuxd_event_cb_t callback, void *user_data)
 	}
 	event_cb = callback;
 
+#ifdef WIN32
+	res = 0;
+	devmon = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)device_monitor, user_data, 0, NULL);
+	if (devmon == NULL) {
+		res = GetLastError();
+	}
+#else
 	res = pthread_create(&devmon, NULL, device_monitor, user_data);
+#endif
 	if (res != 0) {
 		fprintf(stderr, "%s: ERROR: Could not start device watcher thread!\n", __func__);
 		return res;
@@ -617,12 +631,20 @@ int usbmuxd_unsubscribe()
 {
 	event_cb = NULL;
 
+#ifdef WIN32
+	if (devmon != NULL) {
+		close_socket(listenfd);
+		listenfd = -1;
+		WaitForSingleObject(devmon, INFINITE);
+	}
+#else
 	if (pthread_kill(devmon, 0) == 0) {
 		close_socket(listenfd);
 		listenfd = -1;
 		pthread_kill(devmon, SIGINT);
 		pthread_join(devmon, NULL);
 	}
+#endif
 
 	return 0;
 }

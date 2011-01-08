@@ -40,9 +40,9 @@ typedef unsigned int socklen_t;
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
-#endif
 #include <pthread.h>
 #include <netinet/in.h>
+#endif
 #include "sock_stuff.h"
 #include "usbmuxd.h"
 
@@ -105,12 +105,20 @@ void *run_ctos_loop(void *arg)
     int recv_len;
     int sent;
     char buffer[131072];
+#ifdef WIN32
+    HANDLE stoc = NULL;
+#else
     pthread_t stoc;
+#endif
 
     printf("%s: fd = %d\n", __func__, cdata->fd);
 
     cdata->stop_stoc = 0;
+#ifdef WIN32
+    stoc = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)run_stoc_loop, cdata, 0, NULL);
+#else
     pthread_create(&stoc, NULL, run_stoc_loop, cdata);
+#endif
 
     while (!cdata->stop_ctos && cdata->fd>0 && cdata->sfd>0) {
 	recv_len = recv_buf_timeout(cdata->fd, buffer, sizeof(buffer), 0, 5000);
@@ -143,7 +151,11 @@ void *run_ctos_loop(void *arg)
     cdata->fd = -1;
     cdata->stop_stoc = 1;
 
+#ifdef WIN32
+    WaitForSingleObject(stoc, INFINITE);
+#else
     pthread_join(stoc, NULL);
+#endif
 
     return NULL;
 }
@@ -152,7 +164,11 @@ void *acceptor_thread(void *arg)
 {
     struct client_data *cdata;
     usbmuxd_device_info_t *dev_list = NULL;
+#ifdef WIN32
+    HANDLE ctos = NULL;
+#else
     pthread_t ctos;
+#endif
     int count;
 
     if (!arg) {
@@ -184,8 +200,13 @@ void *acceptor_thread(void *arg)
     	fprintf(stderr, "Error connecting to device!\n");
     } else {
 	cdata->stop_ctos = 0;
+#ifdef WIN32
+	ctos = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)run_ctos_loop, cdata, 0, NULL);
+	WaitForSingleObject(ctos, INFINITE);
+#else
 	pthread_create(&ctos, NULL, run_ctos_loop, cdata);
 	pthread_join(ctos, NULL);
+#endif
     }
 
     if (cdata->fd > 0) {
@@ -226,7 +247,11 @@ int main(int argc, char **argv)
 	fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
 	return -errno;
     } else {
+#ifdef WIN32
+	HANDLE acceptor = NULL;
+#else
 	pthread_t acceptor;
+#endif
 	struct sockaddr_in c_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
 	struct client_data cdata;
@@ -237,8 +262,13 @@ int main(int argc, char **argv)
 	    if (c_sock) {
 		printf("accepted connection, fd = %d\n", c_sock);
 		cdata.fd = c_sock;
+#ifdef WIN32
+		acceptor = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)acceptor_thread, &cdata, 0, NULL);
+		WaitForSingleObject(acceptor, INFINITE);
+#else
 		pthread_create(&acceptor, NULL, acceptor_thread, &cdata);
 		pthread_join(acceptor, NULL);
+#endif
 	    } else {
 		break;
 	    }

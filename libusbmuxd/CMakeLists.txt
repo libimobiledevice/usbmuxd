@@ -33,6 +33,9 @@ set_target_properties(libusbmuxd PROPERTIES SOVERSION ${LIBUSBMUXD_SOVERSION})
 if(APPLE)
   set_target_properties(libusbmuxd PROPERTIES INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
 endif()
+if(WIN32)
+  set_target_properties(libusbmuxd PROPERTIES PREFIX "lib" IMPORT_PREFIX "lib")
+endif()
 
 install(TARGETS libusbmuxd
 	RUNTIME DESTINATION bin
