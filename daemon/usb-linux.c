@@ -334,16 +334,23 @@ int usb_discover(void)
 				usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
 				continue;
 			}
-			if((intf->endpoint[0].bEndpointAddress & 0x80) != LIBUSB_ENDPOINT_OUT ||
-			   (intf->endpoint[1].bEndpointAddress & 0x80) != LIBUSB_ENDPOINT_IN) {
+			if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+			   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usbdev->interface = intf->bInterfaceNumber;
+				usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
+				usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
+				usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+				break;
+			} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+			          (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usbdev->interface = intf->bInterfaceNumber;
+				usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
+				usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
+				usbmuxd_log(LL_INFO, "Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+				break;
+			} else {
 				usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
-				continue;
 			}
-			usbdev->interface = intf->bInterfaceNumber;
-			usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
-			usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
-			usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
-			break;
 		}
 		libusb_free_config_descriptor(config);
 
