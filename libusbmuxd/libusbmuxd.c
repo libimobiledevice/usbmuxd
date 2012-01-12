@@ -189,7 +189,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				char *strval = NULL;
 				plist_get_string_val(n, &strval);
 				if (strval) {
-					strcpy(dev->serial_number, strval);
+					strncpy(dev->serial_number, strval, 255);
 					free(strval);
 				}
 				n = plist_dict_get_item(props, "LocationID");
