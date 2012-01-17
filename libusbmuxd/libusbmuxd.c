@@ -71,6 +71,7 @@ static usbmuxd_event_cb_t event_cb = NULL;
 HANDLE devmon = NULL;
 #else
 pthread_t devmon;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 static int listenfd = -1;
 
@@ -526,6 +527,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		FOREACH(usbmuxd_device_info_t *dev, &devices) {
 			generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 			collection_remove(&devices, dev);
+			free(dev);
 		} ENDFOREACH
 		return -EIO;
 	}
@@ -563,6 +565,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		} else {
 			generate_event(callback, devinfo, UE_DEVICE_REMOVE, user_data);
 			collection_remove(&devices, devinfo);
+			free(devinfo);
 		}
 	} else {
 		fprintf(stderr, "%s: Unexpected message type %d length %d received!\n", __func__, hdr.message, hdr.length);
