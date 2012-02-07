@@ -567,7 +567,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			collection_remove(&devices, devinfo);
 			free(devinfo);
 		}
-	} else {
+	} else if (hdr.length > 0) {
 		fprintf(stderr, "%s: Unexpected message type %d length %d received!\n", __func__, hdr.message, hdr.length);
 	}
 	if (payload) {
