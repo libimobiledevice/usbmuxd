@@ -657,11 +657,14 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 	int sfd;
 	int listen_success = 0;
 	uint32_t res;
+	struct collection tmpdevs;
 	usbmuxd_device_info_t *newlist = NULL;
 	struct usbmuxd_header hdr;
-	struct usbmuxd_device_record *dev_info;
+	struct usbmuxd_device_record *dev;
 	int dev_cnt = 0;
 	void *payload = NULL;
+
+	*device_list = NULL;
 
 #ifdef HAVE_PLIST
 retry:
@@ -698,32 +701,42 @@ retry:
 		return -1;
 	}
 
-	*device_list = NULL;
+	collection_init(&tmpdevs);
+
 	// receive device list
 	while (1) {
 		if (receive_packet(sfd, &hdr, &payload, 1000) > 0) {
 			if (hdr.message == MESSAGE_DEVICE_ADD) {
-				dev_info = payload;
-				newlist = (usbmuxd_device_info_t *) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
-				if (newlist) {
-					newlist[dev_cnt].handle =
-						(int) dev_info->device_id;
-					newlist[dev_cnt].product_id =
-						dev_info->product_id;
-					memset(newlist[dev_cnt].uuid, '\0',
-						   sizeof(newlist[dev_cnt].uuid));
-					memcpy(newlist[dev_cnt].uuid,
-						   dev_info->serial_number,
-						   sizeof(newlist[dev_cnt].uuid));
-					*device_list = newlist;
-					dev_cnt++;
-				} else {
-					fprintf(stderr,
-						"%s: ERROR: out of memory when trying to realloc!\n",
-						__func__);
-					if (payload)
-						free(payload);
-					break;
+				dev = payload;
+				usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
+				if (!devinfo) {
+					fprintf(stderr, "%s: Out of memory!\n", __func__);
+					free(payload);
+					return -1;
+				}
+
+				devinfo->handle = dev->device_id;
+				devinfo->product_id = dev->product_id;
+				memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
+				memcpy(devinfo->uuid, dev->serial_number, sizeof(devinfo->uuid));
+
+				collection_add(&tmpdevs, devinfo);
+
+			} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
+				uint32_t handle;
+				usbmuxd_device_info_t *devinfo = NULL;
+
+				memcpy(&handle, payload, sizeof(uint32_t));
+
+				FOREACH(usbmuxd_device_info_t *di, &tmpdevs) {
+					if (di && di->handle == handle) {
+						devinfo = di;
+						break;
+					}
+				} ENDFOREACH
+				if (devinfo) {
+					collection_remove(&tmpdevs, devinfo);
+					free(devinfo);
 				}
 			} else {
 				fprintf(stderr, "%s: Unexpected message %d\n", __func__, hdr.message);
@@ -740,9 +753,19 @@ retry:
 	// explicitly close connection
 	close_socket(sfd);
 
-	// terminating zero record
-	newlist = (usbmuxd_device_info_t*) realloc(*device_list, sizeof(usbmuxd_device_info_t) * (dev_cnt + 1));
-	memset(newlist + dev_cnt, 0, sizeof(usbmuxd_device_info_t));
+	// create copy of device info entries from collection
+	newlist = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t) * (collection_count(&tmpdevs) + 1));
+	dev_cnt = 0;
+	FOREACH(usbmuxd_device_info_t *di, &tmpdevs) {
+		if (di) {
+			memcpy(&newlist[dev_cnt], di, sizeof(usbmuxd_device_info_t));
+			free(di);
+			dev_cnt++;
+		}
+	} ENDFOREACH
+	collection_free(&tmpdevs);
+
+	memset(&newlist[dev_cnt], 0, sizeof(usbmuxd_device_info_t));
 	*device_list = newlist;
 
 	return dev_cnt;
