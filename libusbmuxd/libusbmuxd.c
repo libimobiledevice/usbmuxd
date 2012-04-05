@@ -551,6 +551,10 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
 		memcpy(devinfo->uuid, dev->serial_number, sizeof(devinfo->uuid));
 
+		if (strcasecmp(devinfo->uuid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
+			sprintf(devinfo->uuid + 32, "%08x", devinfo->handle);
+		}
+
 		collection_add(&devices, devinfo);
 		generate_event(callback, devinfo, UE_DEVICE_ADD, user_data);
 	} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
@@ -719,6 +723,10 @@ retry:
 				devinfo->product_id = dev->product_id;
 				memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
 				memcpy(devinfo->uuid, dev->serial_number, sizeof(devinfo->uuid));
+
+				if (strcasecmp(devinfo->uuid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
+					sprintf(devinfo->uuid + 32, "%08x", devinfo->handle);
+				}
 
 				collection_add(&tmpdevs, devinfo);
 
