@@ -33,6 +33,13 @@ enum fd_mode {
 };
 typedef enum fd_mode fd_mode;
 
+#ifdef WIN32
+#include <winsock2.h>
+#define SHUT_RD SD_READ
+#define SHUT_WR SD_WRITE
+#define SHUT_RDWR SD_BOTH
+#endif
+
 #ifndef WIN32
 int create_unix_socket(const char *filename);
 int connect_unix_socket(const char *filename);
@@ -43,6 +50,7 @@ int connect_socket(const char *addr, uint16_t port);
 #endif
 int check_fd(int fd, fd_mode fdm, unsigned int timeout);
 
+int shutdown_socket(int fd, int how);
 int close_socket(int fd);
 
 int recv_buf(int fd, void *data, size_t size);

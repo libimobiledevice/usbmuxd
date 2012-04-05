@@ -321,6 +321,11 @@ int check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	return sret;
 }
 
+int shutdown_socket(int fd, int how)
+{
+	return shutdown(fd, how);
+}
+
 int close_socket(int fd) {
 #ifdef WIN32
 	return closesocket(fd);

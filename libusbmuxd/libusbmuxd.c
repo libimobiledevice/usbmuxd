@@ -602,6 +602,9 @@ static void *device_monitor(void *data)
 
 	collection_free(&devices);
 
+	close_socket(listenfd);
+	listenfd = -1;
+
 	return NULL;
 }
 
@@ -634,17 +637,14 @@ int usbmuxd_unsubscribe()
 {
 	event_cb = NULL;
 
+	shutdown_socket(listenfd, SHUT_RDWR);
+
 #ifdef WIN32
 	if (devmon != NULL) {
-		close_socket(listenfd);
-		listenfd = -1;
 		WaitForSingleObject(devmon, INFINITE);
 	}
 #else
 	if (pthread_kill(devmon, 0) == 0) {
-		close_socket(listenfd);
-		listenfd = -1;
-		pthread_kill(devmon, SIGINT);
 		pthread_join(devmon, NULL);
 	}
 #endif
