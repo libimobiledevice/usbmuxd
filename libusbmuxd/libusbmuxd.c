@@ -580,6 +580,14 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 	return 0;
 }
 
+static void device_monitor_cleanup(void* data)
+{
+	collection_free(&devices);
+
+	close_socket(listenfd);
+	listenfd = -1;
+}
+
 /**
  * Device Monitor thread function.
  *
@@ -589,6 +597,9 @@ static void *device_monitor(void *data)
 {
 	collection_init(&devices);
 
+#ifndef WIN32
+	pthread_cleanup_push(device_monitor_cleanup, NULL);
+#endif
 	while (event_cb) {
 
 		listenfd = usbmuxd_listen();
@@ -604,11 +615,11 @@ static void *device_monitor(void *data)
 		}
 	}
 
-	collection_free(&devices);
-
-	close_socket(listenfd);
-	listenfd = -1;
-
+#ifndef WIN32
+	pthread_cleanup_pop(1);
+#else
+	device_monitor_cleanup();
+#endif
 	return NULL;
 }
 
@@ -649,6 +660,7 @@ int usbmuxd_unsubscribe()
 	}
 #else
 	if (pthread_kill(devmon, 0) == 0) {
+		pthread_cancel(devmon);
 		pthread_join(devmon, NULL);
 	}
 #endif
