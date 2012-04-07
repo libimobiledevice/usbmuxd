@@ -411,7 +411,7 @@ static int usbmuxd_listen_poll()
 static int usbmuxd_listen_inotify()
 {
 	int inot_fd;
-	int watch_fd;
+	int watch_d;
 	int sfd;
 
 	sfd = connect_usbmuxd_socket();
@@ -426,9 +426,9 @@ static int usbmuxd_listen_inotify()
 	}
 
 	/* inotify is setup, listen for events that concern us */
-	watch_fd = inotify_add_watch (inot_fd, USBMUXD_DIRNAME, IN_CREATE);
-	if (watch_fd < 0) {
-		fprintf (stderr, "Failed to setup watch for socket dir\n");
+	watch_d = inotify_add_watch (inot_fd, USBMUXD_DIRNAME, IN_CREATE);
+	if (watch_d < 0) {
+		fprintf (stderr, "Failed to setup watch descriptor for socket dir\n");
 		close (inot_fd);
 		return -2;
 	}
@@ -457,7 +457,7 @@ static int usbmuxd_listen_inotify()
 	}
 
 end:
-	close(watch_fd);
+	inotify_rm_watch(inot_fd, watch_d);
 	close(inot_fd);
 
 	return sfd;
