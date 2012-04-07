@@ -8,7 +8,7 @@ include(VersionTag)
 
 set(USBMUXD_VERSION "${VERSION_TAG}")
 set(LIBUSBMUXD_VERSION "${VERSION_TAG}")
-set(LIBUSBMUXD_SOVERSION "1")
+set(LIBUSBMUXD_SOVERSION "2")
 
 message("-- Configuring usbmuxd v${VERSION_TAG}")
 
