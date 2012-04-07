@@ -38,7 +38,7 @@ extern "C" {
 typedef struct {
 	int handle;
 	int product_id;
-	char uuid[41];
+	char udid[41];
 } usbmuxd_device_info_t;
 
 /**
@@ -104,9 +104,9 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list);
 int usbmuxd_device_list_free(usbmuxd_device_info_t **device_list);
 
 /**
- * Gets device information for the device specified by uuid.
+ * Gets device information for the device specified by udid.
  *
- * @param uuid A device uuid of the device to look for. If uuid is NULL,
+ * @param udid A device UDID of the device to look for. If udid is NULL,
  *      This function will return the first device found.
  * @param device Pointer to a previously allocated (or static) 
  *      usbmuxd_device_info_t that will be filled with the device info.
@@ -114,7 +114,7 @@ int usbmuxd_device_list_free(usbmuxd_device_info_t **device_list);
  * @return 0 if no matching device is connected, 1 if the device was found,
  *    or a negative value on error.
  */
-int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device);
+int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device);
 
 /**
  * Request proxy connect to 

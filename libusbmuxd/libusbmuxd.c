@@ -548,11 +548,11 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 
 		devinfo->handle = dev->device_id;
 		devinfo->product_id = dev->product_id;
-		memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
-		memcpy(devinfo->uuid, dev->serial_number, sizeof(devinfo->uuid));
+		memset(devinfo->udid, '\0', sizeof(devinfo->udid));
+		memcpy(devinfo->udid, dev->serial_number, sizeof(devinfo->udid));
 
-		if (strcasecmp(devinfo->uuid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
-			sprintf(devinfo->uuid + 32, "%08x", devinfo->handle);
+		if (strcasecmp(devinfo->udid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
+			sprintf(devinfo->udid + 32, "%08x", devinfo->handle);
 		}
 
 		collection_add(&devices, devinfo);
@@ -733,11 +733,11 @@ retry:
 
 				devinfo->handle = dev->device_id;
 				devinfo->product_id = dev->product_id;
-				memset(devinfo->uuid, '\0', sizeof(devinfo->uuid));
-				memcpy(devinfo->uuid, dev->serial_number, sizeof(devinfo->uuid));
+				memset(devinfo->udid, '\0', sizeof(devinfo->udid));
+				memcpy(devinfo->udid, dev->serial_number, sizeof(devinfo->udid));
 
-				if (strcasecmp(devinfo->uuid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
-					sprintf(devinfo->uuid + 32, "%08x", devinfo->handle);
+				if (strcasecmp(devinfo->udid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
+					sprintf(devinfo->udid + 32, "%08x", devinfo->handle);
 				}
 
 				collection_add(&tmpdevs, devinfo);
@@ -799,7 +799,7 @@ int usbmuxd_device_list_free(usbmuxd_device_info_t **device_list)
 	return 0;
 }
 
-int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device)
+int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device)
 {
 	usbmuxd_device_info_t *dev_list = NULL;
 
@@ -813,17 +813,17 @@ int usbmuxd_get_device_by_uuid(const char *uuid, usbmuxd_device_info_t *device)
 	int i;
 	int result = 0;
 	for (i = 0; dev_list[i].handle > 0; i++) {
-	 	if (!uuid) {
+	 	if (!udid) {
 			device->handle = dev_list[i].handle;
 			device->product_id = dev_list[i].product_id;
-			strcpy(device->uuid, dev_list[i].uuid);
+			strcpy(device->udid, dev_list[i].udid);
 			result = 1;
 			break;
 		}
-		if (!strcmp(uuid, dev_list[i].uuid)) {
+		if (!strcmp(udid, dev_list[i].udid)) {
 			device->handle = dev_list[i].handle;
 			device->product_id = dev_list[i].product_id;
-			strcpy(device->uuid, dev_list[i].uuid);
+			strcpy(device->udid, dev_list[i].udid);
 			result = 1;
 			break;
 		}
