@@ -422,7 +422,7 @@ static int usbmuxd_listen_inotify()
 	inot_fd = inotify_init ();
 	if (inot_fd < 0) {
 		fprintf (stderr, "Failed to setup inotify\n");
-		return -1;
+		return -2;
 	}
 
 	/* inotify is setup, listen for events that concern us */
@@ -430,7 +430,7 @@ static int usbmuxd_listen_inotify()
 	if (watch_fd < 0) {
 		fprintf (stderr, "Failed to setup watch for socket dir\n");
 		close (inot_fd);
-		return -1;
+		return -2;
 	}
 
 	while (1) {
@@ -478,7 +478,7 @@ retry:
 
 #ifdef HAVE_INOTIFY
 	sfd = usbmuxd_listen_inotify();
-	if (sfd < 0)
+	if (sfd == -2)
 		sfd = usbmuxd_listen_poll();
 #else
 	sfd = usbmuxd_listen_poll();
