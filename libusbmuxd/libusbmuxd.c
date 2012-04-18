@@ -618,7 +618,7 @@ static void *device_monitor(void *data)
 #ifndef WIN32
 	pthread_cleanup_pop(1);
 #else
-	device_monitor_cleanup();
+	device_monitor_cleanup(NULL);
 #endif
 	return NULL;
 }
