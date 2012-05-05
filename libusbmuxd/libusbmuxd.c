@@ -69,9 +69,15 @@ static struct collection devices;
 static usbmuxd_event_cb_t event_cb = NULL;
 #ifdef WIN32
 HANDLE devmon = NULL;
+CRITICAL_SECTION mutex;
+static int mutex_initialized = 0;
+#define LOCK if (!mutex_initialized) { InitializeCriticalSection(&mutex); mutex_initialized = 1; } EnterCriticalSection(&mutex);
+#define UNLOCK LeaveCriticalSection(&mutex);
 #else
 pthread_t devmon;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK pthread_mutex_lock(&mutex)
+#define UNLOCK pthread_mutex_unlock(&mutex)	
 #endif
 static int listenfd = -1;
 
@@ -490,12 +496,15 @@ retry:
 	}
 
 	use_tag++;
+	LOCK;
 	if (send_listen_packet(sfd, use_tag) <= 0) {
+		UNLOCK;
 		fprintf(stderr, "%s: ERROR: could not send listen packet\n", __func__);
 		close_socket(sfd);
 		return -1;
 	}
 	if (usbmuxd_get_result(sfd, use_tag, &res) && (res != 0)) {
+		UNLOCK;
 		close_socket(sfd);
 #ifdef HAVE_PLIST
 		if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
@@ -506,6 +515,7 @@ retry:
 		fprintf(stderr, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
 	}
+	UNLOCK;
 
 	return sfd;
 }
@@ -692,12 +702,14 @@ retry:
 	}
 
 	use_tag++;
+	LOCK;
 	if (send_listen_packet(sfd, use_tag) > 0) {
 		res = -1;
 		// get response
 		if (usbmuxd_get_result(sfd, use_tag, &res) && (res == 0)) {
 			listen_success = 1;
 		} else {
+			UNLOCK;
 			close_socket(sfd);
 #ifdef HAVE_PLIST
 			if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
@@ -713,6 +725,7 @@ retry:
 	}
 
 	if (!listen_success) {
+		UNLOCK;
 		fprintf(stderr, "%s: Could not send listen request!\n", __func__);
 		return -1;
 	}
@@ -726,6 +739,7 @@ retry:
 				dev = payload;
 				usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 				if (!devinfo) {
+					UNLOCK;
 					fprintf(stderr, "%s: Out of memory!\n", __func__);
 					free(payload);
 					return -1;
@@ -769,6 +783,7 @@ retry:
 			break;
 		}
 	}
+	UNLOCK;
 
 	// explicitly close connection
 	close_socket(sfd);
