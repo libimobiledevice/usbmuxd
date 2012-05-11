@@ -174,6 +174,8 @@ int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes
  */
 int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes);
 
+void libusbmuxd_set_debug_level(int level);
+
 #ifdef __cplusplus
 }
 #endif

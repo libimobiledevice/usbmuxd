@@ -65,6 +65,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 // misc utility functions
 #include "utils.h"
 
+static int libusbmuxd_debug = 0;
+#define DEBUG(x, y, ...) if (x <= libusbmuxd_debug) fprintf(stderr, (y), __VA_ARGS__);
+
 static struct collection devices;
 static usbmuxd_event_cb_t event_cb = NULL;
 #ifdef WIN32
@@ -134,7 +137,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 	if (payload_size > 0) {
 		payload_loc = (char*)malloc(payload_size);
 		if (recv_buf_timeout(sfd, payload_loc, payload_size, 0, 5000) != payload_size) {
-			fprintf(stderr, "%s: Error receiving payload of size %d\n", __func__, payload_size);
+			DEBUG(1, "%s: Error receiving payload of size %d\n", __func__, payload_size);
 			free(payload_loc);
 			return -EBADMSG;
 		}
@@ -148,13 +151,13 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 		free(payload_loc);
 
 		if (!plist) {
-			fprintf(stderr, "%s: Error getting plist from payload!\n", __func__);
+			DEBUG(1, "%s: Error getting plist from payload!\n", __func__);
 			return -EBADMSG;
 		}
 
 		plist_t node = plist_dict_get_item(plist, "MessageType");
 		if (plist_get_node_type(node) != PLIST_STRING) {
-			fprintf(stderr, "%s: Error getting message type from plist!\n", __func__);
+			DEBUG(1, "%s: Error getting message type from plist!\n", __func__);
 			free(plist);
 			return -EBADMSG;
 		}
@@ -177,7 +180,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				struct usbmuxd_device_record *dev = NULL;
 				plist_t props = plist_dict_get_item(plist, "Properties");
 				if (!props) {
-					fprintf(stderr, "%s: Could not get properties for message '%s' from plist!\n", __func__, message);
+					DEBUG(1, "%s: Could not get properties for message '%s' from plist!\n", __func__, message);
 					plist_free(plist);
 					return -EBADMSG;
 				}
@@ -218,7 +221,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 					hdr.message = MESSAGE_DEVICE_REMOVE;
 				}
 			} else {
-				fprintf(stderr, "%s: Unexpected message '%s' in plist!\n", __func__, message);
+				DEBUG(1, "%s: Unexpected message '%s' in plist!\n", __func__, message);
 				plist_free(plist);
 				return -EBADMSG;
 			}
@@ -250,13 +253,13 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 	*result = -1;
 
 	if ((recv_len = receive_packet(sfd, &hdr, (void**)&res, 5000)) < 0) {
-		fprintf(stderr, "%s: Error receiving packet: %d\n", __func__, errno);
+		DEBUG(1, "%s: Error receiving packet: %d\n", __func__, errno);
 		if (res)
 			free(res);
 		return -errno;
 	}
 	if (recv_len < sizeof(hdr)) {
-		fprintf(stderr, "%s: Received packet is too small!\n", __func__);
+		DEBUG(1, "%s: Received packet is too small!\n", __func__);
 		if (res)
 			free(res);
 		return -EPROTO;
@@ -272,7 +275,7 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 			free(res);
 		return ret;
 	}
-	fprintf(stderr, "%s: Unexpected message of type %d received!\n", __func__, hdr.message);
+	DEBUG(1, "%s: Unexpected message of type %d received!\n", __func__, hdr.message);
 	if (res)
 		free(res);
 	return -EPROTO;
@@ -291,14 +294,14 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 	}
 	int sent = send_buf(sfd, &header, sizeof(header));
 	if (sent != sizeof(header)) {
-		fprintf(stderr, "%s: ERROR: could not send packet header\n", __func__);
+		DEBUG(1, "%s: ERROR: could not send packet header\n", __func__);
 		return -1;
 	}
 	if (payload && (payload_size > 0)) {
 		sent += send_buf(sfd, payload, payload_size);
 	}
 	if (sent != (int)header.length) {
-		fprintf(stderr, "%s: ERROR: could not send whole packet\n", __func__);
+		DEBUG(1, "%s: ERROR: could not send whole packet\n", __func__);
 		close_socket(sfd);
 		return -1;
 	}
@@ -427,14 +430,14 @@ static int usbmuxd_listen_inotify()
 	sfd = -1;
 	inot_fd = inotify_init ();
 	if (inot_fd < 0) {
-		fprintf (stderr, "Failed to setup inotify\n");
+		DEBUG(1, "%s: Failed to setup inotify\n", __func__);
 		return -2;
 	}
 
 	/* inotify is setup, listen for events that concern us */
 	watch_d = inotify_add_watch (inot_fd, USBMUXD_DIRNAME, IN_CREATE);
 	if (watch_d < 0) {
-		fprintf (stderr, "Failed to setup watch descriptor for socket dir\n");
+		DEBUG(1, "%s: Failed to setup watch descriptor for socket dir\n", __func__);
 		close (inot_fd);
 		return -2;
 	}
@@ -491,7 +494,7 @@ retry:
 #endif
 
 	if (sfd < 0) {
-		fprintf(stderr, "%s: ERROR: usbmuxd was supposed to be running here...\n", __func__);
+		DEBUG(1, "%s: ERROR: usbmuxd was supposed to be running here...\n", __func__);
 		return sfd;
 	}
 
@@ -499,7 +502,7 @@ retry:
 	LOCK;
 	if (send_listen_packet(sfd, use_tag) <= 0) {
 		UNLOCK;
-		fprintf(stderr, "%s: ERROR: could not send listen packet\n", __func__);
+		DEBUG(1, "%s: ERROR: could not send listen packet\n", __func__);
 		close_socket(sfd);
 		return -1;
 	}
@@ -512,7 +515,7 @@ retry:
 			goto retry;
 		}
 #endif
-		fprintf(stderr, "%s: ERROR: did not get OK but %d\n", __func__, res);
+		DEBUG(1, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
 	}
 	UNLOCK;
@@ -543,7 +546,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 	}
 
 	if ((hdr.length > sizeof(hdr)) && !payload) {
-		fprintf(stderr, "%s: Invalid packet received, payload is missing!\n", __func__);
+		DEBUG(1, "%s: Invalid packet received, payload is missing!\n", __func__);
 		return -EBADMSG;
 	}
 
@@ -551,7 +554,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		struct usbmuxd_device_record *dev = payload;
 		usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 		if (!devinfo) {
-			fprintf(stderr, "%s: Out of memory!\n", __func__);
+			DEBUG(1, "%s: Out of memory!\n", __func__);
 			free(payload);
 			return -1;
 		}
@@ -575,14 +578,14 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 
 		devinfo = devices_find(handle);
 		if (!devinfo) {
-			fprintf(stderr, "%s: WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", __func__, handle);
+			DEBUG(1, "%s: WARNING: got device remove message for handle %d, but couldn't find the corresponding handle in the device list. This event will be ignored.\n", __func__, handle);
 		} else {
 			generate_event(callback, devinfo, UE_DEVICE_REMOVE, user_data);
 			collection_remove(&devices, devinfo);
 			free(devinfo);
 		}
 	} else if (hdr.length > 0) {
-		fprintf(stderr, "%s: Unexpected message type %d length %d received!\n", __func__, hdr.message, hdr.length);
+		DEBUG(1, "%s: Unexpected message type %d length %d received!\n", __func__, hdr.message, hdr.length);
 	}
 	if (payload) {
 		free(payload);
@@ -652,7 +655,7 @@ int usbmuxd_subscribe(usbmuxd_event_cb_t callback, void *user_data)
 	res = pthread_create(&devmon, NULL, device_monitor, user_data);
 #endif
 	if (res != 0) {
-		fprintf(stderr, "%s: ERROR: Could not start device watcher thread!\n", __func__);
+		DEBUG(1, "%s: ERROR: Could not start device watcher thread!\n", __func__);
 		return res;
 	}
 	return 0;
@@ -697,7 +700,7 @@ retry:
 #endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
-		fprintf(stderr, "%s: error opening socket!\n", __func__);
+		DEBUG(1, "%s: error opening socket!\n", __func__);
 		return sfd;
 	}
 
@@ -717,16 +720,14 @@ retry:
 				goto retry;
 			}
 #endif
-			fprintf(stderr,
-					"%s: Did not get response to scan request (with result=0)...\n",
-					__func__);
+			DEBUG(1, "%s: Did not get response to scan request (with result=0)...\n", __func__);
 			return res;
 		}
 	}
 
 	if (!listen_success) {
 		UNLOCK;
-		fprintf(stderr, "%s: Could not send listen request!\n", __func__);
+		DEBUG(1, "%s: Could not send listen request!\n", __func__);
 		return -1;
 	}
 
@@ -740,7 +741,7 @@ retry:
 				usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 				if (!devinfo) {
 					UNLOCK;
-					fprintf(stderr, "%s: Out of memory!\n", __func__);
+					DEBUG(1, "%s: Out of memory!\n", __func__);
 					free(payload);
 					return -1;
 				}
@@ -773,7 +774,7 @@ retry:
 					free(devinfo);
 				}
 			} else {
-				fprintf(stderr, "%s: Unexpected message %d\n", __func__, hdr.message);
+				DEBUG(1, "%s: Unexpected message %d\n", __func__, hdr.message);
 			}
 			if (payload)
 				free(payload);
@@ -860,20 +861,20 @@ retry:
 #endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
-		fprintf(stderr, "%s: Error: Connection to usbmuxd failed: %s\n",
+		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n",
 				__func__, strerror(errno));
 		return sfd;
 	}
 
 	use_tag++;
 	if (send_connect_packet(sfd, use_tag, (uint32_t)handle, (uint16_t)port) <= 0) {
-		fprintf(stderr, "%s: Error sending connect message!\n", __func__);
+		DEBUG(1, "%s: Error sending connect message!\n", __func__);
 	} else {
 		// read ACK
-		//fprintf(stderr, "%s: Reading connect result...\n", __func__);
+		DEBUG(2, "%s: Reading connect result...\n", __func__);
 		if (usbmuxd_get_result(sfd, use_tag, &res)) {
 			if (res == 0) {
-				//fprintf(stderr, "%s: Connect success!\n", __func__);
+				DEBUG(2, "%s: Connect success!\n", __func__);
 				connected = 1;
 			} else {
 #ifdef HAVE_PLIST
@@ -883,8 +884,7 @@ retry:
 					goto retry;
 				}
 #endif
-				fprintf(stderr, "%s: Connect failed, Error code=%d\n",
-						__func__, res);
+				DEBUG(1, "%s: Connect failed, Error code=%d\n", __func__, res);
 			}
 		}
 	}
@@ -914,10 +914,10 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 	num_sent = send(sfd, (void*)data, len, 0);
 	if (num_sent < 0) {
 		*sent_bytes = 0;
-		fprintf(stderr, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(errno));
+		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(errno));
 		return num_sent;
 	} else if ((uint32_t)num_sent < len) {
-		fprintf(stderr, "%s: Warning: Did not send enough (only %d of %d)\n", __func__, num_sent, len);
+		DEBUG(1, "%s: Warning: Did not send enough (only %d of %d)\n", __func__, num_sent, len);
 	}
 
 	*sent_bytes = num_sent;
@@ -943,3 +943,8 @@ int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes)
 	return usbmuxd_recv_timeout(sfd, data, len, recv_bytes, 5000);
 }
 
+void libusbmuxd_set_debug_level(int level)
+{
+	libusbmuxd_debug = level;
+	sock_stuff_set_verbose(level);
+}
