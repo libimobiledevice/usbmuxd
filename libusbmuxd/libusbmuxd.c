@@ -417,11 +417,17 @@ static int usbmuxd_listen_poll()
 }
 
 #ifdef HAVE_INOTIFY
+static int use_inotify = 1;
+
 static int usbmuxd_listen_inotify()
 {
 	int inot_fd;
 	int watch_d;
 	int sfd;
+
+	if (!use_inotify) {
+		return -2;
+	}
 
 	sfd = connect_usbmuxd_socket();
 	if (sfd >= 0)
@@ -941,6 +947,14 @@ int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes
 int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes)
 {
 	return usbmuxd_recv_timeout(sfd, data, len, recv_bytes, 5000);
+}
+
+void libusbmuxd_set_use_inotify(int set)
+{
+#ifdef HAVE_INOTIFY
+	use_inotify = set;
+#endif
+	return;
 }
 
 void libusbmuxd_set_debug_level(int level)

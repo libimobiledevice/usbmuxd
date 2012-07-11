@@ -174,6 +174,14 @@ int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes
  */
 int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes);
 
+/**
+ * Enable or disable the use of inotify extension. Enabled by default.
+ * Use 0 to disable and 1 to enable inotify support.
+ * This only has an effect on linux systems if inotify support has been built
+ * in. Otherwise and on all other platforms this function has no effect.
+ */
+void libusbmuxd_set_use_inotify(int set);
+
 void libusbmuxd_set_debug_level(int level);
 
 #ifdef __cplusplus
