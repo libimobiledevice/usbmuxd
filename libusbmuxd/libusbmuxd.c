@@ -181,6 +181,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				plist_t props = plist_dict_get_item(plist, "Properties");
 				if (!props) {
 					DEBUG(1, "%s: Could not get properties for message '%s' from plist!\n", __func__, message);
+					free(message);
 					plist_free(plist);
 					return -EBADMSG;
 				}
@@ -222,9 +223,11 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				}
 			} else {
 				DEBUG(1, "%s: Unexpected message '%s' in plist!\n", __func__, message);
+				free(message);
 				plist_free(plist);
 				return -EBADMSG;
 			}
+			free(message);
 		}
 		plist_free(plist);
 	} else
