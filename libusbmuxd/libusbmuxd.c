@@ -604,6 +604,10 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 
 static void device_monitor_cleanup(void* data)
 {
+	FOREACH(usbmuxd_device_info_t *dev, &devices) {
+		collection_remove(&devices, dev);
+		free(dev);
+	} ENDFOREACH
 	collection_free(&devices);
 
 	close_socket(listenfd);
