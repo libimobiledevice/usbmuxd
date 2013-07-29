@@ -30,7 +30,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <windows.h>
 #include <winsock2.h>
 #define sleep(x) Sleep(x*1000)
-#define EPROTO 71
+#ifndef EPROTO
+#define EPROTO 134
+#endif
 #define EBADMSG 77
 #else
 #include <sys/socket.h>
