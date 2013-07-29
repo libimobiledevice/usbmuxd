@@ -33,7 +33,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef EPROTO
 #define EPROTO 134
 #endif
-#define EBADMSG 77
+#ifndef EBADMSG
+#define EBADMSG 104
+#endif
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h>
