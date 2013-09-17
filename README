@@ -17,21 +17,11 @@ notification and backup services running on the device).
 The higher-level layers are handled by libimobiledevice. 'ifuse' is then able
 to sit on top of this and mount your device's AFC filesystem share.
 
-There is also a Python implementation of the client library in the python-client
-library, and an example tcprelay.py which performs a similar function to iproxy.
-This implementation supports OSX and Windows and the new iTunes plist-based
-usbmuxd protocol, so it is portable and will run on those operating systems with
-no modification, using Apple's native usbmuxd. This is useful if you need to
-tunnel to your device from another OS in a pinch. Run python tcpclient.py --help
-for usage information.
-
 License
 =======
 
 The contents of this package are licensed under the GNU General Public License,
-versions 2 or 3 (see COPYING.GPLv2 and COPYING.GPLv3), except for libuxbmuxd
-which is licensed under the GNU Lesser General Public License, version 2.1 or,
-at your option, any later version (see COPYING.LGPLv2.1). If a more permissive
+versions 2 or 3 (see COPYING.GPLv2 and COPYING.GPLv3). If a more permissive
 license is specified at the top of a source file, it takes precedence over this.
 
 Legal

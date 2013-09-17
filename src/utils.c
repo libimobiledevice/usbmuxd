@@ -29,14 +29,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <stdio.h>
 #include "utils.h"
 
-#ifdef USBMUXD_DAEMON
-# include "log.h"
-# define util_error(...) usbmuxd_log(LL_ERROR, __VA_ARGS__)
-#else
-# define util_error(...) fprintf(stderr, __VA_ARGS__)
-#endif
+#include "log.h"
+#define util_error(...) usbmuxd_log(LL_ERROR, __VA_ARGS__)
 
-#ifdef USBMUXD_DAEMON
 void fdlist_create(struct fdlist *list)
 {
 	list->count = 0;
@@ -72,7 +67,6 @@ void fdlist_reset(struct fdlist *list)
 {
 	list->count = 0;
 }
-#endif
 
 void collection_init(struct collection *col)
 {
