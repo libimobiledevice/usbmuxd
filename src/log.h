@@ -33,7 +33,7 @@ enum loglevel {
 	LL_FLOOD,
 };
 
-extern int log_level;
+extern unsigned int log_level;
 
 void log_enable_syslog();
 void log_disable_syslog();

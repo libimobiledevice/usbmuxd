@@ -69,7 +69,7 @@ static int daemon_pipe;
 
 static int report_to_parent = 0;
 
-int create_socket(void) {
+static int create_socket(void) {
 	struct sockaddr_un bind_addr;
 	int listenfd;
 
@@ -103,7 +103,7 @@ int create_socket(void) {
 	return listenfd;
 }
 
-void handle_signal(int sig)
+static void handle_signal(int sig)
 {
 	if (sig != SIGUSR1 && sig != SIGUSR2) {
 		usbmuxd_log(LL_NOTICE,"Caught signal %d, exiting", sig);
@@ -129,7 +129,7 @@ void handle_signal(int sig)
 	}
 }
 
-void set_signal_handlers(void)
+static void set_signal_handlers(void)
 {
 	struct sigaction sa;
 	sigset_t set;
@@ -167,7 +167,7 @@ static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout
 }
 #endif
 
-int main_loop(int listenfd)
+static int main_loop(int listenfd)
 {
 	int to, cnt, i, dto;
 	struct fdlist pollfds;
@@ -524,7 +524,7 @@ int main(int argc, char *argv[])
 		goto terminate;
 	}
 	sprintf(pids, "%d", getpid());
-	if ((res = write(lfd, pids, strlen(pids))) != strlen(pids)) {
+	if ((size_t)(res = write(lfd, pids, strlen(pids))) != strlen(pids)) {
 		usbmuxd_log(LL_FATAL, "Could not write pidfile!");
 		if(res >= 0)
 			res = -2;
