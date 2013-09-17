@@ -114,7 +114,7 @@ struct mux_device
 
 static struct collection device_list;
 
-uint64_t mstime64(void)
+static uint64_t mstime64(void)
 {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);

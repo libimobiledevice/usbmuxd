@@ -121,6 +121,9 @@ static void tx_callback(struct libusb_transfer *xfer)
 				usbmuxd_log(LL_ERROR, "TX transfer overflow for device %d-%d", dev->bus, dev->address);
 				break;
 			// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+			default:
+				// this should never be reached.
+				break;
 		}
 		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
 		// we'll do device_remove there too
@@ -190,6 +193,9 @@ static void rx_callback(struct libusb_transfer *xfer)
 				usbmuxd_log(LL_ERROR, "RX transfer overflow for device %d-%d", dev->bus, dev->address);
 				break;
 			// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+			default:
+				// this should never be reached.
+				break;
 		}
 		free(xfer->buffer);
 		dev->rx_xfer = NULL;

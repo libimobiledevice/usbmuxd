@@ -318,7 +318,7 @@ static int start_listen(struct mux_client *client)
 	count = device_get_list(devs);
 
 	// going to need a larger buffer for many devices
-	int needed_buffer = count * (sizeof(struct usbmuxd_device_record) + sizeof(struct usbmuxd_header)) + REPLY_BUF_SIZE;
+	uint32_t needed_buffer = count * (sizeof(struct usbmuxd_device_record) + sizeof(struct usbmuxd_header)) + REPLY_BUF_SIZE;
 	if(client->ob_capacity < needed_buffer) {
 		usbmuxd_log(LL_DEBUG, "Enlarging client %d reply buffer %d -> %d to make space for device notifications", client->fd, client->ob_capacity, needed_buffer);
 		client->ob_buf = realloc(client->ob_buf, needed_buffer);
@@ -464,7 +464,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 
 static void process_send(struct mux_client *client)
 {
-	int res;
+	uint32_t res;
 	if(!client->ob_size) {
 		usbmuxd_log(LL_WARNING, "Client %d OUT process but nothing to send?", client->fd);
 		client->events &= ~POLLOUT;
