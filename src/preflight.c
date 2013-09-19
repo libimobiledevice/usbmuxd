@@ -137,6 +137,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 		goto leave;
 	}
 
+	int is_device_paired = 0;
 	char *host_id = NULL;
 	userpref_device_record_get_host_id(dev->udid, &host_id);
 	lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
@@ -150,6 +151,8 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
 	if (lerr == LOCKDOWN_E_INVALID_HOST_ID) {
 		usbmuxd_log(LL_INFO, "%s: Device %s is not paired with this host.", __func__, _dev->udid);
+	} else {
+		is_device_paired = 1;
 	}
 
 	plist_t value = NULL;
@@ -172,6 +175,11 @@ static void* preflight_worker_handle_device_add(void* userdata)
 		usbmuxd_log(LL_INFO, "%s: Found ProductVersion %s device %s", __func__, version_str, _dev->udid);
 
 		set_untrusted_host_buid(lockdown);
+
+		/* if not paired, trigger the trust dialog to make sure it appears */
+		if (!is_device_paired) {
+			lockdownd_pair(lockdown, NULL);
+		}
 
 		lockdownd_service_descriptor_t service = NULL;
 		lerr = lockdownd_start_service(lockdown, "com.apple.mobile.insecure_notification_proxy", &service);
