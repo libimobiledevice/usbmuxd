@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "device.h"
 
+extern void userpref_device_record_get_host_id(const char *udid, char **host_id);
+
 void preflight_worker_device_add(struct device_info* info);
 
 #endif
