@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <inttypes.h>
 #include "device.h"
 #include "client.h"
+#include "preflight.h"
 #include "usb.h"
 #include "log.h"
 
@@ -106,6 +107,7 @@ struct mux_device
 	struct usb_device *usbdev;
 	int id;
 	enum mux_dev_state state;
+	int visible;
 	struct collection connections;
 	uint16_t next_sport;
 	unsigned char *pktbuf;
@@ -478,7 +480,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	info.location = usb_get_location(dev->usbdev);
 	info.serial = usb_get_serial(dev->usbdev);
 	info.pid = usb_get_pid(dev->usbdev);
-	client_device_add(&info);
+	preflight_worker_device_add(&info);
 }
 
 
@@ -694,6 +696,7 @@ int device_add(struct usb_device *usbdev)
 	dev->id = id;
 	dev->usbdev = usbdev;
 	dev->state = MUXDEV_INIT;
+	dev->visible = 0;
 	dev->next_sport = 1;
 	dev->pktbuf = malloc(DEV_MRU);
 	dev->pktlen = 0;
@@ -732,11 +735,21 @@ void device_remove(struct usb_device *usbdev)
 	usbmuxd_log(LL_WARNING, "Cannot find device entry while removing USB device %p on location 0x%x", usbdev, usb_get_location(usbdev));
 }
 
+void device_set_visible(int device_id)
+{
+	FOREACH(struct mux_device *dev, &device_list) {
+		if(dev->id == device_id) {
+			dev->visible = 1;
+			break;
+		}
+	} ENDFOREACH	
+}
+
 int device_get_count(void)
 {
 	int count = 0;
 	FOREACH(struct mux_device *dev, &device_list) {
-		if(dev->state == MUXDEV_ACTIVE)
+		if((dev->state == MUXDEV_ACTIVE) && dev->visible)
 			count++;
 	} ENDFOREACH
 	return count;
@@ -746,7 +759,7 @@ int device_get_list(struct device_info *p)
 {
 	int count = 0;
 	FOREACH(struct mux_device *dev, &device_list) {
-		if(dev->state == MUXDEV_ACTIVE) {
+		if((dev->state == MUXDEV_ACTIVE) && dev->visible) {
 			p->id = dev->id;
 			p->serial = usb_get_serial(dev->usbdev);
 			p->location = usb_get_location(dev->usbdev);
