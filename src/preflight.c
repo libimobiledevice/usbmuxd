@@ -216,12 +216,17 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	} else {
 		/* iOS 6.x and earlier */
 		lerr = lockdownd_pair(lockdown, NULL);
-		if (lerr == LOCKDOWN_E_PASSWORD_PROTECTED) {
-			usbmuxd_log(LL_INFO, "%s: Device %s is locked with a passcode. Cannot pair.", __func__, _dev->udid);
-			// TODO send notification to user's desktop
-			goto leave;
-		} else if (lerr != LOCKDOWN_E_SUCCESS) {
-			usbmuxd_log(LL_ERROR, "%s: ERROR: Pair failed for device %s, lockdown error %d", __func__, _dev->udid, lerr);
+		if (lerr != LOCKDOWN_E_SUCCESS) {
+			if (lerr == LOCKDOWN_E_PASSWORD_PROTECTED) {
+				usbmuxd_log(LL_INFO, "%s: Device %s is locked with a passcode. Cannot pair.", __func__, _dev->udid);
+				/* TODO send notification to user's desktop */
+			} else {
+				usbmuxd_log(LL_ERROR, "%s: ERROR: Pair failed for device %s, lockdown error %d", __func__, _dev->udid, lerr);
+			}
+
+			/* make device visible anyways */
+			client_device_add(info);
+
 			goto leave;
 		}
 
