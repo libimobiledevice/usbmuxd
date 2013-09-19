@@ -311,11 +311,11 @@ static int start_listen(struct mux_client *client)
 	int count, i;
 
 	client->state = CLIENT_LISTEN;
-	count = device_get_count();
+	count = device_get_count(0);
 	if(!count)
 		return 0;
 	devs = malloc(sizeof(struct device_info) * count);
-	count = device_get_list(devs);
+	count = device_get_list(0, devs);
 
 	// going to need a larger buffer for many devices
 	uint32_t needed_buffer = count * (sizeof(struct usbmuxd_device_record) + sizeof(struct usbmuxd_header)) + REPLY_BUF_SIZE;
