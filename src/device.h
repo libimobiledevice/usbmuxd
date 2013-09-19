@@ -40,6 +40,8 @@ int device_start_connect(int device_id, uint16_t port, struct mux_client *client
 void device_client_process(int device_id, struct mux_client *client, short events);
 void device_abort_connect(int device_id, struct mux_client *client);
 
+void device_set_visible(int device_id);
+
 int device_get_count(void);
 int device_get_list(struct device_info *p);
 

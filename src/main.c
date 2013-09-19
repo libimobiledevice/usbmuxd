@@ -49,6 +49,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
+static const char *userprefdir = "/var/lib/lockdown";
 
 int should_exit;
 int should_discover;
@@ -284,9 +285,6 @@ static int daemonize(void)
 	daemon_pipe = pfd[1];
 	close(pfd[0]);
 	report_to_parent = 1;
-
-	// Change the file mode mask
-	umask(0);
 
 	// Create a new SID for the child process
 	sid = setsid();
@@ -531,6 +529,13 @@ int main(int argc, char *argv[])
 	if(listenfd < 0)
 		goto terminate;
 
+	struct stat fst;
+	int userprefdir_created = 0;
+	if (stat(userprefdir, &fst) < 0) {
+		mkdir(userprefdir, 0775);
+		userprefdir_created = 1;
+	}
+
 	// drop elevated privileges
 	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
 		struct passwd *pw;
@@ -548,6 +553,15 @@ int main(int argc, char *argv[])
 		if (pw->pw_uid == 0) {
 			usbmuxd_log(LL_INFO, "Not dropping privileges to root");
 		} else {
+			if (userprefdir_created) {
+				if (chown(userprefdir, pw->pw_uid, pw->pw_gid) < 0) {
+					usbmuxd_log(LL_WARNING, "chown(%s, %d, %d) failed", userprefdir, pw->pw_uid, pw->pw_gid);
+				}
+				if (chmod(userprefdir, 02775) < 0) {
+					usbmuxd_log(LL_WARNING, "chmod %s failed", userprefdir);
+				}
+			}
+
 			if ((res = initgroups(drop_user, pw->pw_gid)) < 0) {
 				usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set supplementary groups)");
 				goto terminate;

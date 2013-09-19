@@ -584,6 +584,7 @@ void client_process(int fd, short events)
 void client_device_add(struct device_info *dev)
 {
 	usbmuxd_log(LL_DEBUG, "client_device_add: id %d, location 0x%x, serial %s", dev->id, dev->location, dev->serial);
+	device_set_visible(dev->id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			notify_device_add(client, dev);
