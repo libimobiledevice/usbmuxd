@@ -47,9 +47,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "device.h"
 #include "client.h"
 
+extern const char* userpref_get_config_dir();
+
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
-static const char *userprefdir = "/var/lib/lockdown";
 
 int should_exit;
 int should_discover;
@@ -528,6 +529,8 @@ int main(int argc, char *argv[])
 	res = listenfd = create_socket();
 	if(listenfd < 0)
 		goto terminate;
+
+	const char* userprefdir = userpref_get_config_dir();
 
 	struct stat fst;
 	int userprefdir_created = 0;
