@@ -114,7 +114,7 @@ static void handle_signal(int sig)
 		if(opt_udev) {
 			if (sig == SIGUSR1) {
 				usbmuxd_log(LL_INFO, "Caught SIGUSR1, checking if we can terminate (no more devices attached)...");
-				if (device_get_count() > 0) {
+				if (device_get_count(1) > 0) {
 					// we can't quit, there are still devices attached.
 					usbmuxd_log(LL_NOTICE, "Refusing to terminate, there are still devices attached. Kill me with signal 15 (TERM) to force quit.");
 				} else {

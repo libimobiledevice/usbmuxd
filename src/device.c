@@ -745,21 +745,21 @@ void device_set_visible(int device_id)
 	} ENDFOREACH	
 }
 
-int device_get_count(void)
+int device_get_count(int include_hidden)
 {
 	int count = 0;
 	FOREACH(struct mux_device *dev, &device_list) {
-		if((dev->state == MUXDEV_ACTIVE) && dev->visible)
+		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible))
 			count++;
 	} ENDFOREACH
 	return count;
 }
 
-int device_get_list(struct device_info *p)
+int device_get_list(int include_hidden, struct device_info *p)
 {
 	int count = 0;
 	FOREACH(struct mux_device *dev, &device_list) {
-		if((dev->state == MUXDEV_ACTIVE) && dev->visible) {
+		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible)) {
 			p->id = dev->id;
 			p->serial = usb_get_serial(dev->usbdev);
 			p->location = usb_get_location(dev->usbdev);

@@ -42,8 +42,8 @@ void device_abort_connect(int device_id, struct mux_client *client);
 
 void device_set_visible(int device_id);
 
-int device_get_count(void);
-int device_get_list(struct device_info *p);
+int device_get_count(int include_hidden);
+int device_get_list(int include_hidden, struct device_info *p);
 
 int device_get_timeout(void);
 void device_check_timeouts(void);
