@@ -49,8 +49,6 @@ struct idevice_private {
 	void *conn_data;
 };
 
-extern void userpref_get_system_buid(char **systembuid);
-
 struct np_cb_data {
 	idevice_t dev;
 	np_client_t np;
@@ -194,9 +192,9 @@ static void* preflight_worker_handle_device_add(void* userdata)
 		struct np_cb_data cbdata;
 		cbdata.dev = dev;
 		cbdata.np = np;
- 
+
 		np_set_notify_callback(np, np_callback, (void*)&cbdata);
- 
+
 		const char* spec[] = {
 			"com.apple.mobile.lockdown.request_pair",
 			"com.apple.mobile.lockdown.request_host_buid",
