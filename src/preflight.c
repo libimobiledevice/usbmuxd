@@ -170,7 +170,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 
 	int version_major = strtol(version_str, NULL, 10);
 	if (version_major >= 7) {
-		// ============== iOS 7.0 and beyond =============
+		/* iOS 7.0 and later */
 		usbmuxd_log(LL_INFO, "%s: Found ProductVersion %s device %s", __func__, version_str, _dev->udid);
 
 		set_untrusted_host_buid(lockdown);
@@ -205,7 +205,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 		np_observe_notifications(np, spec);
 
 		usbmuxd_log(LL_INFO, "%s: Waiting for user to trust this computer on device %s", __func__, _dev->udid);
-		// TODO send notification to user's desktop
+		/* TODO send notification to user's desktop */
 		while (cbdata.np) {
 			sleep(1);
 		}
@@ -214,7 +214,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 			np_client_free(cbdata.np);
 		}
 	} else {
-		// ============== iOS 6.x and below ==============
+		/* iOS 6.x and earlier */
 		lerr = lockdownd_pair(lockdown, NULL);
 		if (lerr == LOCKDOWN_E_PASSWORD_PROTECTED) {
 			usbmuxd_log(LL_INFO, "%s: Device %s is locked with a passcode. Cannot pair.", __func__, _dev->udid);
@@ -240,7 +240,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 			goto leave;
 		}
 
-		// make device visible
+		/* emit device added event and thus make device visible to clients */
 		client_device_add(info);
 	}
 
