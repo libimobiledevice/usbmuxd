@@ -47,7 +47,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "device.h"
 #include "client.h"
 
+#ifdef HAVE_LIBIMOBILEDEVICE
 extern const char* userpref_get_config_dir();
+#endif
 
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
@@ -530,6 +532,7 @@ int main(int argc, char *argv[])
 	if(listenfd < 0)
 		goto terminate;
 
+#ifdef HAVE_LIBIMOBILEDEVICE
 	const char* userprefdir = userpref_get_config_dir();
 
 	struct stat fst;
@@ -538,6 +541,7 @@ int main(int argc, char *argv[])
 		mkdir(userprefdir, 0775);
 		userprefdir_created = 1;
 	}
+#endif
 
 	// drop elevated privileges
 	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
@@ -556,6 +560,7 @@ int main(int argc, char *argv[])
 		if (pw->pw_uid == 0) {
 			usbmuxd_log(LL_INFO, "Not dropping privileges to root");
 		} else {
+#ifdef HAVE_LIBIMOBILEDEVICE
 			if (userprefdir_created) {
 				if (chown(userprefdir, pw->pw_uid, pw->pw_gid) < 0) {
 					usbmuxd_log(LL_WARNING, "chown(%s, %d, %d) failed", userprefdir, pw->pw_uid, pw->pw_gid);
@@ -564,6 +569,7 @@ int main(int argc, char *argv[])
 					usbmuxd_log(LL_WARNING, "chmod %s failed", userprefdir);
 				}
 			}
+#endif
 
 			if ((res = initgroups(drop_user, pw->pw_gid)) < 0) {
 				usbmuxd_log(LL_FATAL, "Failed to drop privileges (cannot set supplementary groups)");
