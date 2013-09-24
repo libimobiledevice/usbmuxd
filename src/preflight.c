@@ -192,7 +192,12 @@ retry:
 
 		/* if not paired, trigger the trust dialog to make sure it appears */
 		if (!is_device_paired) {
-			lockdownd_pair(lockdown, NULL);
+			if (lockdownd_pair(lockdown, NULL) == LOCKDOWN_E_SUCCESS) {
+				/* if device is still showing the setup screen it will pair even without trust dialog */
+				usbmuxd_log(LL_INFO, "%s: Pair success for device %s", __func__, _dev->udid);
+				client_device_add(info);
+				goto leave;
+			}
 		}
 
 		lockdownd_service_descriptor_t service = NULL;
