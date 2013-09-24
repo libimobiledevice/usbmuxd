@@ -115,9 +115,10 @@ static void* preflight_worker_handle_device_add(void* userdata)
 
 	idevice_t dev = (idevice_t)_dev;
 
-	lockdownd_client_t lockdown;
+	lockdownd_client_t lockdown = NULL;
 	lockdownd_error_t lerr;
 
+retry:
 	lerr = lockdownd_client_new(dev, &lockdown, "usbmuxd");
 	if (lerr != LOCKDOWN_E_SUCCESS) {
 		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not connect to lockdownd on device %s, lockdown error %d", __func__, _dev->udid, lerr);
@@ -149,10 +150,23 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	}
 
 	usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
-	if (lerr == LOCKDOWN_E_INVALID_HOST_ID) {
+	switch (lerr) {
+	case LOCKDOWN_E_INVALID_HOST_ID:
 		usbmuxd_log(LL_INFO, "%s: Device %s is not paired with this host.", __func__, _dev->udid);
-	} else {
+		break;
+	case LOCKDOWN_E_SSL_ERROR:
+		usbmuxd_log(LL_ERROR, "%s: The stored pair record for device %s is invalid. Removing.", __func__, _dev->udid);
+		if (userpref_remove_device_record(_dev->udid) == 0) {
+			lockdownd_client_free(lockdown);
+			lockdown = NULL;
+			goto retry;
+		} else {
+			usbmuxd_log(LL_ERROR, "%s: Could not remove pair record for device %s\n", __func__, _dev->udid);
+		}
+		break;
+	default:
 		is_device_paired = 1;
+		break;
 	}
 
 	plist_t value = NULL;
