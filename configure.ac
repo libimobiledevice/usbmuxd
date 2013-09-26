@@ -104,7 +104,7 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 AC_OUTPUT([
 Makefile
 src/Makefile
-udev/85-usbmuxd.rules
+udev/39-usbmuxd.rules
 ])
 
 echo "
