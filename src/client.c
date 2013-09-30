@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #ifdef HAVE_PLIST
 #include <plist/plist.h>
@@ -73,6 +74,7 @@ struct mux_client {
 };
 
 static struct collection client_list;
+pthread_mutex_t client_list_mutex;
 
 int client_read(struct mux_client *client, void *buffer, uint32_t len)
 {
@@ -131,7 +133,9 @@ int client_accept(int listenfd)
 	client->state = CLIENT_COMMAND;
 	client->events = POLLIN;
 
+	pthread_mutex_lock(&client_list_mutex);
 	collection_add(&client_list, client);
+	pthread_mutex_unlock(&client_list_mutex);
 
 	usbmuxd_log(LL_INFO, "New client on fd %d", client->fd);
 	return client->fd;
@@ -150,15 +154,19 @@ void client_close(struct mux_client *client)
 		free(client->ob_buf);
 	if(client->ib_buf)
 		free(client->ib_buf);
+	pthread_mutex_lock(&client_list_mutex);
 	collection_remove(&client_list, client);
+	pthread_mutex_unlock(&client_list_mutex);
 	free(client);
 }
 
 void client_get_fds(struct fdlist *list)
 {
+	pthread_mutex_lock(&client_list_mutex);
 	FOREACH(struct mux_client *client, &client_list) {
 		fdlist_add(list, FD_CLIENT, client->fd, client->events);
 	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
 }
 
 static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtype msg, void *payload, int payload_length)
@@ -556,12 +564,14 @@ static void process_recv(struct mux_client *client)
 void client_process(int fd, short events)
 {
 	struct mux_client *client = NULL;
+	pthread_mutex_lock(&client_list_mutex);
 	FOREACH(struct mux_client *lc, &client_list) {
 		if(lc->fd == fd) {
 			client = lc;
 			break;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
 
 	if(!client) {
 		usbmuxd_log(LL_INFO, "client_process: fd %d not found in client list", fd);
@@ -583,28 +593,33 @@ void client_process(int fd, short events)
 
 void client_device_add(struct device_info *dev)
 {
+	pthread_mutex_lock(&client_list_mutex);
 	usbmuxd_log(LL_DEBUG, "client_device_add: id %d, location 0x%x, serial %s", dev->id, dev->location, dev->serial);
 	device_set_visible(dev->id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			notify_device_add(client, dev);
 	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
 }
+
 void client_device_remove(int device_id)
 {
+	pthread_mutex_lock(&client_list_mutex);
 	uint32_t id = device_id;
 	usbmuxd_log(LL_DEBUG, "client_device_remove: id %d", device_id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			notify_device_remove(client, id);
 	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
 }
-
 
 void client_init(void)
 {
 	usbmuxd_log(LL_DEBUG, "client_init");
 	collection_init(&client_list);
+	pthread_mutex_init(&client_list_mutex, NULL);
 }
 
 void client_shutdown(void)
@@ -613,5 +628,6 @@ void client_shutdown(void)
 	FOREACH(struct mux_client *client, &client_list) {
 		client_close(client);
 	} ENDFOREACH
+	pthread_mutex_destroy(&client_list_mutex);
 	collection_free(&client_list);
 }
