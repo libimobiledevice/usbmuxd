@@ -386,7 +386,7 @@ void device_client_process(int device_id, struct mux_client *client, short event
 			return;
 		}
 		conn->tx_ack += size;
-		if(size == conn->ib_size) {
+		if(size == (int)conn->ib_size) {
 			conn->ib_size = 0;
 		} else {
 			conn->ib_size -= size;
@@ -721,7 +721,7 @@ int device_get_list(int include_hidden, struct device_info *p)
 
 int device_get_timeout(void)
 {
-	uint64_t oldest = (uint64_t)-1;
+	uint64_t oldest = (uint64_t)-1LL;
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->state == MUXDEV_ACTIVE) {
 			FOREACH(struct mux_connection *conn, &dev->connections) {
@@ -731,7 +731,7 @@ int device_get_timeout(void)
 		}
 	} ENDFOREACH
 	uint64_t ct = mstime64();
-	if(oldest == -1)
+	if((int64_t)oldest == -1LL)
 		return 100000; //meh
 	if((ct - oldest) > ACK_TIMEOUT)
 		return 0;
