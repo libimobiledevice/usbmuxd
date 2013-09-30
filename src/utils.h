@@ -54,12 +54,16 @@ void collection_remove(struct collection *col, void *element);
 int collection_count(struct collection *col);
 void collection_free(struct collection *col);
 
+#define MERGE_(a,b) a ## _ ## b
+#define LABEL_(a,b) MERGE_(a, b)
+#define UNIQUE_VAR(a) LABEL_(a, __LINE__)
+
 #define FOREACH(var, col) \
 	do { \
-		int _iter; \
-		for(_iter=0; _iter<(col)->capacity; _iter++) { \
-			if(!(col)->list[_iter]) continue; \
-			var = (col)->list[_iter];
+		int UNIQUE_VAR(_iter); \
+		for(UNIQUE_VAR(_iter)=0; UNIQUE_VAR(_iter)<(col)->capacity; UNIQUE_VAR(_iter)++) { \
+			if(!(col)->list[UNIQUE_VAR(_iter)]) continue; \
+			var = (col)->list[UNIQUE_VAR(_iter)];
 
 #define ENDFOREACH \
 		} \
