@@ -134,9 +134,11 @@ retry:
 
 	if (strcmp(type, "com.apple.mobile.lockdown") != 0) {
 		// make restore mode devices visible
+		free(type);
 		client_device_add(info);
 		goto leave;
 	}
+	free(type);
 
 	int is_device_paired = 0;
 	char *host_id = NULL;
