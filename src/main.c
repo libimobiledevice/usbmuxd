@@ -452,6 +452,7 @@ int main(int argc, char *argv[])
 	lock.l_whence = SEEK_SET;
 	lock.l_start = 0;
 	lock.l_len = 0;
+	lock.l_pid = 0;
 	fcntl(lfd, F_GETLK, &lock);
 	close(lfd);
 	if (lock.l_type != F_UNLCK) {
