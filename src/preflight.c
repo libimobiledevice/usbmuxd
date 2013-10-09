@@ -54,6 +54,8 @@ struct np_cb_data {
 	np_client_t np;
 };
 
+extern uint16_t userpref_remove_device_record(const char* udid);
+
 static void set_untrusted_host_buid(lockdownd_client_t lockdown)
 {
 	char* system_buid = NULL;
