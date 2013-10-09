@@ -118,6 +118,9 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	lockdownd_client_t lockdown = NULL;
 	lockdownd_error_t lerr;
 
+	plist_t value = NULL;
+	char* version_str = NULL;
+
 retry:
 	lerr = lockdownd_client_new(dev, &lockdown, "usbmuxd");
 	if (lerr != LOCKDOWN_E_SUCCESS) {
@@ -171,15 +174,16 @@ retry:
 		break;
 	}
 
-	plist_t value = NULL;
 	lerr = lockdownd_get_value(lockdown, NULL, "ProductVersion", &value);
 	if (lerr != LOCKDOWN_E_SUCCESS) {
 		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not get ProductVersion from device %s, lockdown error %d", __func__, _dev->udid, lerr);
 		goto leave;
 	}
 
-	char* version_str = NULL;
-	plist_get_string_val(value, &version_str);
+	if (value && plist_get_node_type(value) == PLIST_STRING) {
+		plist_get_string_val(value, &version_str);
+	}
+
 	if (!version_str) {
 		usbmuxd_log(LL_ERROR, "%s: Could not get ProductVersion string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
 		goto leave;
@@ -277,6 +281,10 @@ retry:
 	}
 
 leave:
+	if (value)
+		plist_free(value);
+	if (version_str)
+		free(version_str);
 	if (lockdown)
 		lockdownd_client_free(lockdown);
 	if (dev)
