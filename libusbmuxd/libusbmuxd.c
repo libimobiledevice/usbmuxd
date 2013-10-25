@@ -690,7 +690,10 @@ int usbmuxd_unsubscribe()
 	}
 #else
 	if (pthread_kill(devmon, 0) == 0) {
-		pthread_cancel(devmon);
+#ifdef ANDROID
+#else
+	pthread_cancel(devmon);	
+#endif
 		pthread_join(devmon, NULL);
 	}
 #endif

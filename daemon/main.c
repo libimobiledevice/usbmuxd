@@ -47,8 +47,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "device.h"
 #include "client.h"
 
-static const char *socket_path = "/var/run/usbmuxd";
-static const char *lockfile = "/var/run/usbmuxd.pid";
+#ifdef ANDROID
+	static const char *socket_path = "/data/local/tmp/usbmuxd";
+	static const char *lockfile = "/data/local/tmp/usbmuxd.pid";
+#else
+	static const char *socket_path = "/var/run/usbmuxd";
+	static const char *lockfile = "/var/run/usbmuxd.pid";
+#endif
 
 int should_exit;
 int should_discover;
@@ -147,7 +152,7 @@ void set_signal_handlers(void)
 	sigaction(SIGUSR2, &sa, NULL);
 }
 
-#if defined(__FreeBSD__) || defined(__APPLE__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(ANDROID)
 static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout, const sigset_t *sigmask)
 {
 	int ready;
