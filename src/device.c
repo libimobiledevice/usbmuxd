@@ -548,6 +548,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 #ifdef ANDROID
 		static void device_tcp_input(struct mux_device *dev, struct tcphdr_bsd *th, unsigned char *payload, uint32_t payload_length)
@@ -555,6 +556,9 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 		static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
 #endif
 =======
+=======
+<<<<<<< HEAD:src/device.c
+>>>>>>> Port to android, build succeed with android-ndk-r8e on mac osx 10.9.
 /**
  * Handle an incoming TCP packet from the device.
  *
@@ -564,7 +568,18 @@ static void device_version_input(struct mux_device *dev, struct version_header *
  * @param payload_length Number of bytes in payload.
  */
 static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
+<<<<<<< HEAD
 >>>>>>> client: add a bunch of comments and function docs
+=======
+=======
+
+#ifdef ANDROID
+		static void device_tcp_input(struct mux_device *dev, struct tcphdr_bsd *th, unsigned char *payload, uint32_t payload_length)
+#else
+		static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
+#endif
+>>>>>>> Port to android, build succeed with android-ndk-r8e on mac osx 10.9.:daemon/device.c
+>>>>>>> Port to android, build succeed with android-ndk-r8e on mac osx 10.9.
 {
 	uint16_t sport = ntohs(th->th_dport);
 	uint16_t dport = ntohs(th->th_sport);

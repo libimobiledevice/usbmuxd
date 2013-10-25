@@ -52,6 +52,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef ANDROID
 	static const char *socket_path = "/data/local/tmp/usbmuxd";
 	static const char *lockfile = "/data/local/tmp/usbmuxd.pid";
+<<<<<<< HEAD
 	static const char *userprefdir = "/data/local/tmp/lockdown";
 #else
 	static const char *socket_path = "/var/run/usbmuxd";
@@ -61,6 +62,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef HAVE_LIBIMOBILEDEVICE
 extern const char* userpref_get_config_dir();
+=======
+#else
+	static const char *socket_path = "/var/run/usbmuxd";
+	static const char *lockfile = "/var/run/usbmuxd.pid";
+>>>>>>> Port to android, build succeed with android-ndk-r8e on mac osx 10.9.
 #endif
 
 int should_exit;
