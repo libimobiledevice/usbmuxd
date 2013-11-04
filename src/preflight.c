@@ -135,6 +135,8 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	plist_t value = NULL;
 	char* version_str = NULL;
 
+	usbmuxd_log(LL_INFO, "%s: Starting preflight on device %s...", __func__, _dev->udid);
+
 retry:
 	lerr = lockdownd_client_new(dev, &lockdown, "usbmuxd");
 	if (lerr != LOCKDOWN_E_SUCCESS) {
@@ -152,6 +154,7 @@ retry:
 	if (strcmp(type, "com.apple.mobile.lockdown") != 0) {
 		// make restore mode devices visible
 		free(type);
+		usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
 		client_device_add(info);
 		goto leave;
 	}
@@ -164,6 +167,7 @@ retry:
 	free(host_id);
 	if (lerr == LOCKDOWN_E_SUCCESS) {
 		usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
+		usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
 		client_device_add(info);
 		goto leave;
 	}
@@ -215,6 +219,7 @@ retry:
 			if (lockdownd_pair(lockdown, NULL) == LOCKDOWN_E_SUCCESS) {
 				/* if device is still showing the setup screen it will pair even without trust dialog */
 				usbmuxd_log(LL_INFO, "%s: Pair success for device %s", __func__, _dev->udid);
+				usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
 				client_device_add(info);
 				goto leave;
 			}
@@ -279,6 +284,8 @@ retry:
 				usbmuxd_log(LL_ERROR, "%s: ERROR: Pair failed for device %s, lockdown error %d", __func__, _dev->udid, lerr);
 			}
 
+			usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
+
 			/* make device visible anyways */
 			client_device_add(info);
 
@@ -299,6 +306,8 @@ retry:
 			usbmuxd_log(LL_ERROR, "%s: ERROR: ValidatePair failed for device %s, lockdown error %d", __func__, _dev->udid, lerr);
 			goto leave;
 		}
+
+		usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
 
 		/* emit device added event and thus make device visible to clients */
 		client_device_add(info);
