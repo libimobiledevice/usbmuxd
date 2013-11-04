@@ -56,7 +56,7 @@ struct np_cb_data {
 
 extern uint16_t userpref_remove_device_record(const char* udid);
 
-static void set_untrusted_host_buid(lockdownd_client_t lockdown)
+static void lockdownd_set_untrusted_host_buid(lockdownd_client_t lockdown)
 {
 	char* system_buid = NULL;
 	userpref_get_system_buid(&system_buid);
@@ -101,7 +101,7 @@ static void np_callback(const char* notification, void* userdata)
 		if (lerr != LOCKDOWN_E_SUCCESS) {
 			usbmuxd_log(LL_ERROR, "%s: ERROR: Could not connect to lockdownd on device %s, lockdown error %d", __func__, _dev->udid, lerr);
 		} else {
-			set_untrusted_host_buid(lockdown);
+			lockdownd_set_untrusted_host_buid(lockdown);
 			lockdownd_client_free(lockdown);
 		}
 	}
@@ -196,7 +196,7 @@ retry:
 		/* iOS 7.0 and later */
 		usbmuxd_log(LL_INFO, "%s: Found ProductVersion %s device %s", __func__, version_str, _dev->udid);
 
-		set_untrusted_host_buid(lockdown);
+		lockdownd_set_untrusted_host_buid(lockdown);
 
 		/* if not paired, trigger the trust dialog to make sure it appears */
 		if (!is_device_paired) {
