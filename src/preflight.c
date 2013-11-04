@@ -49,9 +49,10 @@ struct idevice_private {
 	void *conn_data;
 };
 
-struct np_cb_data {
+struct cb_data {
 	idevice_t dev;
 	np_client_t np;
+	int is_device_connected;
 };
 
 extern uint16_t userpref_remove_device_record(const char* udid);
@@ -65,9 +66,20 @@ static void lockdownd_set_untrusted_host_buid(lockdownd_client_t lockdown)
 	free(system_buid);
 }
 
+static void idevice_callback(const idevice_event_t* event, void* userdata)
+{
+	struct cb_data *cbdata = (struct cb_data*)userdata;
+	idevice_t dev = cbdata->dev;
+	struct idevice_private *_dev = (struct idevice_private*)dev;
+
+	if (event->event == IDEVICE_DEVICE_REMOVE && !strcmp(_dev->udid, event->udid)) {
+		cbdata->is_device_connected = 0;
+	}
+}
+
 static void np_callback(const char* notification, void* userdata)
 {
-	struct np_cb_data *cbdata = (struct np_cb_data*)userdata;
+	struct cb_data *cbdata = (struct cb_data*)userdata;
 	idevice_t dev = cbdata->dev;
 	struct idevice_private *_dev = (struct idevice_private*)dev;
 
@@ -224,11 +236,13 @@ retry:
 		lockdownd_client_free(lockdown);
 		lockdown = NULL;
 
-		struct np_cb_data cbdata;
+		struct cb_data cbdata;
 		cbdata.dev = dev;
 		cbdata.np = np;
+		cbdata.is_device_connected = 1;
 
 		np_set_notify_callback(np, np_callback, (void*)&cbdata);
+		idevice_event_subscribe(idevice_callback, (void*)&cbdata);
 
 		const char* spec[] = {
 			"com.apple.mobile.lockdown.request_pair",
@@ -237,11 +251,19 @@ retry:
 		}; 
 		np_observe_notifications(np, spec);
 
-		usbmuxd_log(LL_INFO, "%s: Waiting for user to trust this computer on device %s", __func__, _dev->udid);
 		/* TODO send notification to user's desktop */
-		while (cbdata.np) {
+
+		usbmuxd_log(LL_INFO, "%s: Waiting for user to trust this computer on device %s", __func__, _dev->udid);
+
+		/* make device visible anyways */
+		client_device_add(info);
+
+		while (cbdata.np && cbdata.is_device_connected == 1) {
 			sleep(1);
 		}
+		usbmuxd_log(LL_INFO, "%s: Finished waiting for notification from device %s, is_device_connected %d", __func__, _dev->udid, cbdata.is_device_connected);
+
+		idevice_event_unsubscribe();
 
 		if (cbdata.np) {
 			np_client_free(cbdata.np);
