@@ -27,9 +27,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <stdio.h>
 #include <string.h>
 #ifdef WIN32
-#include <windows.h>
 #include <winsock2.h>
 #define sleep(x) Sleep(x*1000)
+#define strcasecmp stricmp
 #ifndef EPROTO
 #define EPROTO 134
 #endif
@@ -40,6 +40,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#endif
+
+#ifdef _WIN32
+#define __func__ __FUNCTION__
 #endif
 
 #ifdef HAVE_INOTIFY
@@ -97,7 +101,7 @@ static int proto_version = 0;
  */
 static usbmuxd_device_info_t *devices_find(int handle)
 {
-	FOREACH(usbmuxd_device_info_t *dev, &devices) {
+	FOREACH(usbmuxd_device_info_t *dev, &devices, usbmuxd_device_info_t *) {
 		if (dev && dev->handle == handle) {
 			return dev;
 		}
@@ -550,7 +554,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
-		FOREACH(usbmuxd_device_info_t *dev, &devices) {
+		FOREACH(usbmuxd_device_info_t *dev, &devices, usbmuxd_device_info_t *) {
 			generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 			collection_remove(&devices, dev);
 			free(dev);
@@ -564,7 +568,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 	}
 
 	if (hdr.message == MESSAGE_DEVICE_ADD) {
-		struct usbmuxd_device_record *dev = payload;
+		struct usbmuxd_device_record *dev = (struct usbmuxd_device_record *)payload;
 		usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 		if (!devinfo) {
 			DEBUG(1, "%s: Out of memory!\n", __func__);
@@ -608,7 +612,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 
 static void device_monitor_cleanup(void* data)
 {
-	FOREACH(usbmuxd_device_info_t *dev, &devices) {
+	FOREACH(usbmuxd_device_info_t *dev, &devices, usbmuxd_device_info_t *) {
 		collection_remove(&devices, dev);
 		free(dev);
 	} ENDFOREACH
@@ -754,7 +758,7 @@ retry:
 	while (1) {
 		if (receive_packet(sfd, &hdr, &payload, 1000) > 0) {
 			if (hdr.message == MESSAGE_DEVICE_ADD) {
-				dev = payload;
+				dev = (usbmuxd_device_record *)payload;
 				usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 				if (!devinfo) {
 					UNLOCK;
@@ -780,7 +784,7 @@ retry:
 
 				memcpy(&handle, payload, sizeof(uint32_t));
 
-				FOREACH(usbmuxd_device_info_t *di, &tmpdevs) {
+				FOREACH(usbmuxd_device_info_t *di, &tmpdevs, usbmuxd_device_info_t *) {
 					if (di && di->handle == handle) {
 						devinfo = di;
 						break;
@@ -809,7 +813,7 @@ retry:
 	// create copy of device info entries from collection
 	newlist = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t) * (collection_count(&tmpdevs) + 1));
 	dev_cnt = 0;
-	FOREACH(usbmuxd_device_info_t *di, &tmpdevs) {
+	FOREACH(usbmuxd_device_info_t *di, &tmpdevs, usbmuxd_device_info_t *) {
 		if (di) {
 			memcpy(&newlist[dev_cnt], di, sizeof(usbmuxd_device_info_t));
 			free(di);
@@ -928,7 +932,7 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 		return -EINVAL;
 	}
 	
-	num_sent = send(sfd, (void*)data, len, 0);
+	num_sent = send(sfd, (const char*)data, len, 0);
 	if (num_sent < 0) {
 		*sent_bytes = 0;
 		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(errno));
