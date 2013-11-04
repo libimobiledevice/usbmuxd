@@ -56,12 +56,12 @@ void collection_remove(struct collection *col, void *element);
 int collection_count(struct collection *col);
 void collection_free(struct collection *col);
 
-#define FOREACH(var, col) \
+#define FOREACH(var, col, item_type) \
 	do { \
 		int _iter; \
 		for(_iter=0; _iter<(col)->capacity; _iter++) { \
 			if(!(col)->list[_iter]) continue; \
-			var = (col)->list[_iter];
+			var = (item_type)(col)->list[_iter];
 
 #define ENDFOREACH \
 		} \
