@@ -251,6 +251,7 @@ static int notify_device_add(struct mux_client *client, struct device_info *dev)
 		uint32_t xmlsize = 0;
 		plist_t dict = plist_new_dict();
 		plist_dict_insert_item(dict, "MessageType", plist_new_string("Attached"));
+		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(dev->id));
 		plist_t props = plist_new_dict();
 		// TODO: get current usb speed
 		plist_dict_insert_item(props, "ConnectionSpeed", plist_new_uint(480000000));
