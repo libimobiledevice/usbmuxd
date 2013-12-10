@@ -535,12 +535,26 @@ int main(int argc, char *argv[])
 
 #ifdef HAVE_LIBIMOBILEDEVICE
 	const char* userprefdir = userpref_get_config_dir();
-
 	struct stat fst;
-	int userprefdir_created = 0;
+	memset(&fst, '\0', sizeof(struct stat));
 	if (stat(userprefdir, &fst) < 0) {
-		mkdir(userprefdir, 0775);
-		userprefdir_created = 1;
+		if (mkdir(userprefdir, 0775) < 0) {
+			usbmuxd_log(LL_FATAL, "Failed to create required directory '%s': %s\n", userprefdir, strerror(errno));
+			res = -1;
+			goto terminate;
+		}
+		if (stat(userprefdir, &fst) < 0) {
+			usbmuxd_log(LL_FATAL, "stat() failed after creating directory '%s': %s\n", userprefdir, strerror(errno));
+			res = -1;
+			goto terminate;
+		}
+	}
+
+	// make sure permission bits are set correctly
+	if (fst.st_mode != 02775) {
+		if (chmod(userprefdir, 02775) < 0) {
+			usbmuxd_log(LL_WARNING, "chmod(%s, 02775) failed: %s", userprefdir, strerror(errno));
+		}
 	}
 #endif
 
@@ -562,12 +576,10 @@ int main(int argc, char *argv[])
 			usbmuxd_log(LL_INFO, "Not dropping privileges to root");
 		} else {
 #ifdef HAVE_LIBIMOBILEDEVICE
-			if (userprefdir_created) {
+			/* make sure the non-privileged user has proper access to the config directory */
+			if ((fst.st_uid != pw->pw_uid) || (fst.st_gid != pw->pw_gid)) {
 				if (chown(userprefdir, pw->pw_uid, pw->pw_gid) < 0) {
-					usbmuxd_log(LL_WARNING, "chown(%s, %d, %d) failed", userprefdir, pw->pw_uid, pw->pw_gid);
-				}
-				if (chmod(userprefdir, 02775) < 0) {
-					usbmuxd_log(LL_WARNING, "chmod %s failed", userprefdir);
+					usbmuxd_log(LL_WARNING, "chown(%s, %d, %d) failed: %s", userprefdir, pw->pw_uid, pw->pw_gid, strerror(errno));
 				}
 			}
 #endif
