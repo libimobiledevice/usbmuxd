@@ -190,25 +190,32 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 	return hdr.length;
 }
 
+static int send_plist_pkt(struct mux_client *client, uint32_t tag, plist_t plist)
+{
+	int res = -1;
+	char *xml = NULL;
+	uint32_t xmlsize = 0;
+	plist_to_xml(plist, &xml, &xmlsize);
+	if (xml) {
+		res = send_pkt(client, tag, MESSAGE_PLIST, xml, xmlsize);
+		free(xml);
+	} else {
+		usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
+	}
+	return res;
+}
+
 static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 {
 	int res = -1;
 #ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
-		char *xml = NULL;
-		uint32_t xmlsize = 0;
 		plist_t dict = plist_new_dict();
 		plist_dict_insert_item(dict, "MessageType", plist_new_string("Result"));
 		plist_dict_insert_item(dict, "Number", plist_new_uint(result));
-		plist_to_xml(dict, &xml, &xmlsize);
-		plist_free(dict);
-		if (xml) {
-			res = send_pkt(client, tag, MESSAGE_PLIST, xml, xmlsize);
-			free(xml);
-		} else {
-			usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
-		}
+		res = send_plist_pkt(client, tag, dict);
+		free(dict);
 	} else
 #endif
 	{
@@ -247,8 +254,6 @@ static int notify_device_add(struct mux_client *client, struct device_info *dev)
 #ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
-		char *xml = NULL;
-		uint32_t xmlsize = 0;
 		plist_t dict = plist_new_dict();
 		plist_dict_insert_item(dict, "MessageType", plist_new_string("Attached"));
 		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(dev->id));
@@ -261,14 +266,8 @@ static int notify_device_add(struct mux_client *client, struct device_info *dev)
 		plist_dict_insert_item(props, "ProductID", plist_new_uint(dev->pid));
 		plist_dict_insert_item(props, "SerialNumber", plist_new_string(dev->serial));
 		plist_dict_insert_item(dict, "Properties", props);
-		plist_to_xml(dict, &xml, &xmlsize);
+		res = send_plist_pkt(client, 0, dict);
 		plist_free(dict);
-		if (xml) {
-			res = send_pkt(client, 0, MESSAGE_PLIST, xml, xmlsize);
-			free(xml);
-		} else {
-			usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
-		}
 	} else
 #endif
 	{
@@ -291,19 +290,11 @@ static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 #ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
-		char *xml = NULL;
-		uint32_t xmlsize = 0;
 		plist_t dict = plist_new_dict();
 		plist_dict_insert_item(dict, "MessageType", plist_new_string("Detached"));
 		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(device_id));
-		plist_to_xml(dict, &xml, &xmlsize);
+		res = send_plist_pkt(client, 0, dict);
 		plist_free(dict);
-		if (xml) {
-			res = send_pkt(client, 0, MESSAGE_PLIST, xml, xmlsize);
-			free(xml);
-		} else {
-			usbmuxd_log(LL_ERROR, "%s: Could not convert plist to xml", __func__);
-		}
 	} else
 #endif
 	{
