@@ -248,24 +248,61 @@ int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 	return 0;
 }
 
+#ifdef HAVE_PLIST
+static plist_t create_device_attached_plist(struct device_info *dev)
+{
+	plist_t dict = plist_new_dict();
+	plist_dict_insert_item(dict, "MessageType", plist_new_string("Attached"));
+	plist_dict_insert_item(dict, "DeviceID", plist_new_uint(dev->id));
+	plist_t props = plist_new_dict();
+	// TODO: get current usb speed
+	plist_dict_insert_item(props, "ConnectionSpeed", plist_new_uint(480000000));
+	plist_dict_insert_item(props, "ConnectionType", plist_new_string("USB"));
+	plist_dict_insert_item(props, "DeviceID", plist_new_uint(dev->id));
+	plist_dict_insert_item(props, "LocationID", plist_new_uint(dev->location));
+	plist_dict_insert_item(props, "ProductID", plist_new_uint(dev->pid));
+	plist_dict_insert_item(props, "SerialNumber", plist_new_string(dev->serial));
+	plist_dict_insert_item(dict, "Properties", props);
+	return dict;
+}
+
+static int send_device_list(struct mux_client *client, uint32_t tag)
+{
+	int res = -1;
+	plist_t dict = plist_new_dict();
+	plist_t devices = plist_new_array();
+
+	int count = device_get_count(0);
+	if (count > 0) {
+		struct device_info *devs;
+		struct device_info *dev;
+		int i;
+
+		devs = malloc(sizeof(struct device_info) * count);
+		count = device_get_list(0, devs);
+		dev = devs;
+		for (i = 0; i < count; i++) {
+			plist_t device = create_device_attached_plist(dev++);
+			if (device) {
+				plist_array_append_item(devices, device);
+			}
+		}
+		free(devs);
+	}
+	plist_dict_insert_item(dict, "DeviceList", devices);
+	res = send_plist_pkt(client, tag, dict);
+	plist_free(dict);
+	return res;
+}
+#endif
+
 static int notify_device_add(struct mux_client *client, struct device_info *dev)
 {
 	int res = -1;
 #ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
-		plist_t dict = plist_new_dict();
-		plist_dict_insert_item(dict, "MessageType", plist_new_string("Attached"));
-		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(dev->id));
-		plist_t props = plist_new_dict();
-		// TODO: get current usb speed
-		plist_dict_insert_item(props, "ConnectionSpeed", plist_new_uint(480000000));
-		plist_dict_insert_item(props, "ConnectionType", plist_new_string("USB"));
-		plist_dict_insert_item(props, "DeviceID", plist_new_uint(dev->id));
-		plist_dict_insert_item(props, "LocationID", plist_new_uint(dev->location));
-		plist_dict_insert_item(props, "ProductID", plist_new_uint(dev->pid));
-		plist_dict_insert_item(props, "SerialNumber", plist_new_string(dev->serial));
-		plist_dict_insert_item(dict, "Properties", props);
+		plist_t dict = create_device_attached_plist(dev);
 		res = send_plist_pkt(client, 0, dict);
 		plist_free(dict);
 	} else
@@ -423,6 +460,12 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 						client->state = CLIENT_CONNECTING1;
 					}
 					return 0;
+#ifdef HAVE_PLIST
+				} else if (!strcmp(message, "ListDevices")) {
+					if (send_device_list(client, hdr->tag) < 0)
+						return -1;
+					return 0;
+#endif
 				} else {
 					usbmuxd_log(LL_ERROR, "Unexpected command '%s' received!", message);
 					free(message);
