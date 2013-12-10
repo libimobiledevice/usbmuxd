@@ -190,6 +190,7 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 	return hdr.length;
 }
 
+#ifdef HAVE_PLIST
 static int send_plist_pkt(struct mux_client *client, uint32_t tag, plist_t plist)
 {
 	int res = -1;
@@ -204,6 +205,7 @@ static int send_plist_pkt(struct mux_client *client, uint32_t tag, plist_t plist
 	}
 	return res;
 }
+#endif
 
 static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 {
