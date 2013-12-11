@@ -42,11 +42,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "client.h"
 #include "device.h"
 
-#ifdef HAVE_PLIST
 #define CMD_BUF_SIZE	1024
-#else
-#define CMD_BUF_SIZE	256
-#endif
 #define REPLY_BUF_SIZE	1024
 
 enum client_state {
@@ -387,6 +383,17 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 		return -1;
 	}
 
+#ifdef HAVE_PLIST
+	if((hdr->version != 0) && (hdr->version != 1)) {
+		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected 0 or 1, got %d", client->fd, hdr->version);
+#else
+	if(hdr->version != USBMUXD_PROTOCOL_VERSION) {
+		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, USBMUXD_PROTOCOL_VERSION, hdr->version);
+#endif
+		send_result(client, hdr->tag, RESULT_BADVERSION);
+		return 0;
+	}
+
 	struct usbmuxd_connect_request *ch;
 #ifdef HAVE_PLIST
 	char *payload;
@@ -557,16 +564,6 @@ static void process_recv(struct mux_client *client)
 		did_read = 1;
 	}
 	struct usbmuxd_header *hdr = (void*)client->ib_buf;
-#ifdef HAVE_PLIST
-	if((hdr->version != 0) && (hdr->version != 1)) {
-		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected 0 or 1, got %d", client->fd, hdr->version);
-#else
-	if(hdr->version != USBMUXD_PROTOCOL_VERSION) {
-		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, USBMUXD_PROTOCOL_VERSION, hdr->version);
-#endif
-		client_close(client);
-		return;
-	}
 	if(hdr->length > client->ib_capacity) {
 		usbmuxd_log(LL_INFO, "Client %d message is too long (%d bytes)", client->fd, hdr->length);
 		client_close(client);
