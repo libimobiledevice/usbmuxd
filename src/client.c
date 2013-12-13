@@ -39,6 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "usb.h"
 #include "client.h"
 #include "device.h"
+#include "conf.h"
 
 #define CMD_BUF_SIZE	1024
 #define REPLY_BUF_SIZE	1024
@@ -285,6 +286,44 @@ static int send_device_list(struct mux_client *client, uint32_t tag)
 	return res;
 }
 
+static int send_system_buid(struct mux_client *client, uint32_t tag)
+{
+	int res = -1;
+	char* buid = NULL;
+
+	config_get_system_buid(&buid);
+
+	plist_t dict = plist_new_dict();
+	plist_dict_insert_item(dict, "BUID", plist_new_string(buid));
+	res = send_plist_pkt(client, tag, dict);
+	plist_free(dict);
+	return res;
+}
+
+static int send_pair_record(struct mux_client *client, uint32_t tag, const char* record_id)
+{
+	int res = -1;
+	char* record_data = NULL;
+	uint64_t record_size = 0;
+
+	if (!record_id) {
+		return send_result(client, tag, EINVAL);
+	}
+
+	config_get_device_record(record_id, &record_data, &record_size);
+	
+	if (record_data) {
+		plist_t dict = plist_new_dict();
+		plist_dict_insert_item(dict, "PairRecordData", plist_new_data(record_data, record_size));
+		free(record_data);
+		res = send_plist_pkt(client, tag, dict);
+		plist_free(dict);
+	} else {
+		res = send_result(client, tag, ENOENT);
+	}
+	return res;
+}
+
 static int notify_device_add(struct mux_client *client, struct device_info *dev)
 {
 	int res = -1;
@@ -353,6 +392,18 @@ static int start_listen(struct mux_client *client)
 	}
 	free(devs);
 	return count;
+}
+
+static char* plist_dict_get_string_val(plist_t dict, const char* key)
+{
+	if (!dict || plist_get_node_type(dict) != PLIST_DICT)
+		return NULL;
+	plist_t item = plist_dict_get_item(dict, key);
+	if (!item || plist_get_node_type(item) != PLIST_STRING)
+		return NULL;
+	char *str = NULL;
+	plist_get_string_val(item, &str);
+	return str;
 }
 
 static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
@@ -448,6 +499,62 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					return 0;
 				} else if (!strcmp(message, "ListDevices")) {
 					if (send_device_list(client, hdr->tag) < 0)
+						return -1;
+					return 0;
+				} else if (!strcmp(message, "ReadBUID")) {
+					if (send_system_buid(client, hdr->tag) < 0)
+						return -1;
+					return 0;
+				} else if (!strcmp(message, "ReadPairRecord")) {
+					free(message);
+					char* record_id = plist_dict_get_string_val(dict, "PairRecordID");
+					plist_free(dict);
+
+					res = send_pair_record(client, hdr->tag, record_id);
+					if (record_id)
+						free(record_id);
+					if (res < 0)
+						return -1;
+					return 0;
+				} else if (!strcmp(message, "SavePairRecord")) {
+					uint32_t rval = RESULT_OK;
+					free(message);
+					char* record_id = plist_dict_get_string_val(dict, "PairRecordID");
+					char* record_data = NULL;
+					uint64_t record_size = 0;
+					plist_t rdata = plist_dict_get_item(dict, "PairRecordData");
+					if (rdata && plist_get_node_type(rdata) == PLIST_DATA) {
+						plist_get_data_val(rdata, &record_data, &record_size);
+					}
+					plist_free(dict);
+
+					if (record_id && record_data) {
+						res = config_set_device_record(record_id, record_data, record_size);
+						if (res < 0) {
+							rval = -res;
+						}
+						free(record_id);
+					} else {
+						rval = EINVAL;
+					}
+					if (send_result(client, hdr->tag, rval) < 0)
+						return -1;
+					return 0;
+				} else if (!strcmp(message, "DeletePairRecord")) {
+					uint32_t rval = RESULT_OK;
+					free(message);
+					char* record_id = plist_dict_get_string_val(dict, "PairRecordID");
+					plist_free(dict);
+					if (record_id) {
+						res = config_remove_device_record(record_id);
+						if (res < 0) {
+							rval = -res;
+						}
+						free(record_id);
+					} else {
+						rval = EINVAL;
+					}
+					if (send_result(client, hdr->tag, rval) < 0)
 						return -1;
 					return 0;
 				} else {
