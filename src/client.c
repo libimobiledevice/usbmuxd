@@ -33,9 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#ifdef HAVE_PLIST
 #include <plist/plist.h>
-#endif
 
 #include "log.h"
 #include "usb.h"
@@ -186,7 +184,6 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 	return hdr.length;
 }
 
-#ifdef HAVE_PLIST
 static int send_plist_pkt(struct mux_client *client, uint32_t tag, plist_t plist)
 {
 	int res = -1;
@@ -201,12 +198,10 @@ static int send_plist_pkt(struct mux_client *client, uint32_t tag, plist_t plist
 	}
 	return res;
 }
-#endif
 
 static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 {
 	int res = -1;
-#ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
 		plist_t dict = plist_new_dict();
@@ -214,9 +209,7 @@ static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 		plist_dict_insert_item(dict, "Number", plist_new_uint(result));
 		res = send_plist_pkt(client, tag, dict);
 		free(dict);
-	} else
-#endif
-	{
+	} else {
 		/* binary packet */
 		res = send_pkt(client, tag, MESSAGE_RESULT, &result, sizeof(uint32_t));
 	}
@@ -246,7 +239,6 @@ int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 	return 0;
 }
 
-#ifdef HAVE_PLIST
 static plist_t create_device_attached_plist(struct device_info *dev)
 {
 	plist_t dict = plist_new_dict();
@@ -292,20 +284,16 @@ static int send_device_list(struct mux_client *client, uint32_t tag)
 	plist_free(dict);
 	return res;
 }
-#endif
 
 static int notify_device_add(struct mux_client *client, struct device_info *dev)
 {
 	int res = -1;
-#ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
 		plist_t dict = create_device_attached_plist(dev);
 		res = send_plist_pkt(client, 0, dict);
 		plist_free(dict);
-	} else
-#endif
-	{
+	} else {
 		/* binary packet */
 		struct usbmuxd_device_record dmsg;
 		memset(&dmsg, 0, sizeof(dmsg));
@@ -322,7 +310,6 @@ static int notify_device_add(struct mux_client *client, struct device_info *dev)
 static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 {
 	int res = -1;
-#ifdef HAVE_PLIST
 	if (client->proto_version == 1) {
 		/* XML plist packet */
 		plist_t dict = plist_new_dict();
@@ -330,9 +317,7 @@ static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(device_id));
 		res = send_plist_pkt(client, 0, dict);
 		plist_free(dict);
-	} else
-#endif
-	{
+	} else {
 		/* binary packet */
 		res = send_pkt(client, 0, MESSAGE_DEVICE_REMOVE, &device_id, sizeof(uint32_t));
 	}
@@ -383,25 +368,17 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 		return -1;
 	}
 
-#ifdef HAVE_PLIST
 	if((hdr->version != 0) && (hdr->version != 1)) {
 		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected 0 or 1, got %d", client->fd, hdr->version);
-#else
-	if(hdr->version != USBMUXD_PROTOCOL_VERSION) {
-		usbmuxd_log(LL_INFO, "Client %d version mismatch: expected %d, got %d", client->fd, USBMUXD_PROTOCOL_VERSION, hdr->version);
-#endif
 		send_result(client, hdr->tag, RESULT_BADVERSION);
 		return 0;
 	}
 
 	struct usbmuxd_connect_request *ch;
-#ifdef HAVE_PLIST
 	char *payload;
 	uint32_t payload_size;
-#endif
 
 	switch(hdr->message) {
-#ifdef HAVE_PLIST
 		case MESSAGE_PLIST:
 			client->proto_version = 1;
 			payload = (char*)(hdr) + sizeof(struct usbmuxd_header);
@@ -469,12 +446,10 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 						client->state = CLIENT_CONNECTING1;
 					}
 					return 0;
-#ifdef HAVE_PLIST
 				} else if (!strcmp(message, "ListDevices")) {
 					if (send_device_list(client, hdr->tag) < 0)
 						return -1;
 					return 0;
-#endif
 				} else {
 					usbmuxd_log(LL_ERROR, "Unexpected command '%s' received!", message);
 					free(message);
@@ -486,7 +461,6 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 			}
 			// should not be reached?!
 			return -1;
-#endif
 		case MESSAGE_LISTEN:
 			if(send_result(client, hdr->tag, 0) < 0)
 				return -1;
