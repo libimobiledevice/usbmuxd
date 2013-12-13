@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "usb.h"
 #include "device.h"
 #include "client.h"
+#include "conf.h"
 
 #ifdef ANDROID
 	static const char *socket_path = "/data/local/tmp/usbmuxd";
@@ -541,7 +542,7 @@ int main(int argc, char *argv[])
 		goto terminate;
 
 #ifdef HAVE_LIBIMOBILEDEVICE
-	const char* userprefdir = userpref_get_config_dir();
+	const char* userprefdir = config_get_config_dir();
 	struct stat fst;
 	memset(&fst, '\0', sizeof(struct stat));
 	if (stat(userprefdir, &fst) < 0) {

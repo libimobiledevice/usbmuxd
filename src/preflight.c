@@ -36,6 +36,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "preflight.h"
 #include "client.h"
+#include "conf.h"
 #include "log.h"
 
 #ifdef HAVE_LIBIMOBILEDEVICE
@@ -55,12 +56,10 @@ struct cb_data {
 	int is_device_connected;
 };
 
-extern uint16_t userpref_remove_device_record(const char* udid);
-
 static void lockdownd_set_untrusted_host_buid(lockdownd_client_t lockdown)
 {
 	char* system_buid = NULL;
-	userpref_get_system_buid(&system_buid);
+	config_get_system_buid(&system_buid);
 	usbmuxd_log(LL_DEBUG, "%s: Setting UntrustedHostBUID to %s", __func__, system_buid);
 	lockdownd_set_value(lockdown, NULL, "UntrustedHostBUID", plist_new_string(system_buid));
 	free(system_buid);
@@ -162,7 +161,7 @@ retry:
 
 	int is_device_paired = 0;
 	char *host_id = NULL;
-	userpref_device_record_get_host_id(dev->udid, &host_id);
+	config_device_record_get_host_id(dev->udid, &host_id);
 	lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
 	free(host_id);
 	if (lerr == LOCKDOWN_E_SUCCESS) {
@@ -179,7 +178,7 @@ retry:
 		break;
 	case LOCKDOWN_E_SSL_ERROR:
 		usbmuxd_log(LL_ERROR, "%s: The stored pair record for device %s is invalid. Removing.", __func__, _dev->udid);
-		if (userpref_remove_device_record(_dev->udid) == 0) {
+		if (config_remove_device_record(_dev->udid) == 0) {
 			lockdownd_client_free(lockdown);
 			lockdown = NULL;
 			goto retry;
@@ -293,7 +292,7 @@ retry:
 		}
 
 		host_id = NULL;
-		userpref_device_record_get_host_id(dev->udid, &host_id);
+		config_device_record_get_host_id(dev->udid, &host_id);
 		lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
 		free(host_id);
 		if (lerr != LOCKDOWN_E_SUCCESS) {
