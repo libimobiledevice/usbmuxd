@@ -46,10 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "usb.h"
 #include "device.h"
 #include "client.h"
-
-#ifdef HAVE_LIBIMOBILEDEVICE
-extern const char* userpref_get_config_dir();
-#endif
+#include "conf.h"
 
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
@@ -534,7 +531,7 @@ int main(int argc, char *argv[])
 		goto terminate;
 
 #ifdef HAVE_LIBIMOBILEDEVICE
-	const char* userprefdir = userpref_get_config_dir();
+	const char* userprefdir = config_get_config_dir();
 	struct stat fst;
 	memset(&fst, '\0', sizeof(struct stat));
 	if (stat(userprefdir, &fst) < 0) {

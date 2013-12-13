@@ -9,6 +9,7 @@ usbmuxd_SOURCES = client.c client.h \
 		log.c log.h \
 		usb-linux.c usb.h \
 		utils.c utils.h \
+		conf.c conf.h \
 		main.c
 usbmuxd_CFLAGS = $(AM_CFLAGS)
 usbmuxd_LDFLAGS = $(AM_LDFLAGS)

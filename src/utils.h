@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define __UTILS_H__
 
 #include <poll.h>
+#include <plist/plist.h>
 
 enum fdowner {
 	FD_LISTEN,
@@ -68,5 +69,21 @@ void collection_free(struct collection *col);
 #define ENDFOREACH \
 		} \
 	} while(0);
+
+#ifndef HAVE_STPCPY
+char *stpcpy(char * s1, const char * s2);
+#endif
+char *string_concat(const char *str, ...);
+
+void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length);
+void buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length);
+
+enum plist_format_t {
+	PLIST_FORMAT_XML,
+	PLIST_FORMAT_BINARY
+};
+
+int plist_read_from_filename(plist_t *plist, const char *filename);
+int plist_write_to_filename(plist_t plist, const char *filename, enum plist_format_t format);
 
 #endif
