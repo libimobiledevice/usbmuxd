@@ -41,8 +41,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "device.h"
 #include "conf.h"
 
-#define CMD_BUF_SIZE	1024
-#define REPLY_BUF_SIZE	1024
+#define CMD_BUF_SIZE	0x10000
+#define REPLY_BUF_SIZE	0x10000
 
 enum client_state {
 	CLIENT_COMMAND,		// waiting for command
@@ -172,10 +172,14 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 	hdr.message = msg;
 	hdr.tag = tag;
 	usbmuxd_log(LL_DEBUG, "send_pkt fd %d tag %d msg %d payload_length %d", client->fd, tag, msg, payload_length);
-	if((client->ob_capacity - client->ob_size) < hdr.length) {
-		usbmuxd_log(LL_ERROR, "Client %d output buffer full (%d bytes) while sending message %d (%d bytes)", client->fd, client->ob_capacity, hdr.message, hdr.length);
-		client_close(client);
-		return -1;
+
+	uint32_t available = client->ob_capacity - client->ob_size;
+	/* the output buffer _should_ be large enough, but just in case */
+	if(available < hdr.length) {
+		uint32_t needed_buffer = hdr.length;
+		usbmuxd_log(LL_DEBUG, "Enlarging client %d output buffer %d -> %d", client->fd, client->ob_capacity, needed_buffer);
+		client->ob_buf = realloc(client->ob_buf, needed_buffer);
+		client->ob_capacity = needed_buffer;
 	}
 	memcpy(client->ob_buf + client->ob_size, &hdr, sizeof(hdr));
 	if(payload && payload_length)
@@ -376,13 +380,6 @@ static int start_listen(struct mux_client *client)
 	devs = malloc(sizeof(struct device_info) * count);
 	count = device_get_list(0, devs);
 
-	// going to need a larger buffer for many devices
-	uint32_t needed_buffer = count * (sizeof(struct usbmuxd_device_record) + sizeof(struct usbmuxd_header)) + REPLY_BUF_SIZE;
-	if(client->ob_capacity < needed_buffer) {
-		usbmuxd_log(LL_DEBUG, "Enlarging client %d reply buffer %d -> %d to make space for device notifications", client->fd, client->ob_capacity, needed_buffer);
-		client->ob_buf = realloc(client->ob_buf, needed_buffer);
-		client->ob_capacity = needed_buffer;
-	}
 	dev = devs;
 	for(i=0; i<count; i++) {
 		if(notify_device_add(client, dev++) < 0) {
