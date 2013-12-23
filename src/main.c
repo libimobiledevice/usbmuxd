@@ -37,6 +37,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <pwd.h>
@@ -524,6 +525,12 @@ int main(int argc, char *argv[])
 			res = -2;
 		goto terminate;
 	}
+
+	// set number of file descriptors to higher value
+	struct rlimit rlim;
+	getrlimit(RLIMIT_NOFILE, &rlim);
+	rlim.rlim_max = 65536;
+	setrlimit(RLIMIT_NOFILE, (const struct rlimit*)&rlim);
 
 	usbmuxd_log(LL_INFO, "Creating socket");
 	res = listenfd = create_socket();
