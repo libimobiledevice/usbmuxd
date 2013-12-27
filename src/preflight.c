@@ -30,11 +30,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <sys/time.h>
 
+#ifdef HAVE_LIBIMOBILEDEVICE
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/lockdown.h>
 #include <libimobiledevice/notification_proxy.h>
+#endif
 
 #include "preflight.h"
+#include "device.h"
 #include "client.h"
 #include "conf.h"
 #include "log.h"
@@ -65,15 +68,12 @@ static void lockdownd_set_untrusted_host_buid(lockdownd_client_t lockdown)
 	free(system_buid);
 }
 
-static void idevice_callback(const idevice_event_t* event, void* userdata)
+void preflight_device_remove_cb(void *data)
 {
-	struct cb_data *cbdata = (struct cb_data*)userdata;
-	idevice_t dev = cbdata->dev;
-	struct idevice_private *_dev = (struct idevice_private*)dev;
-
-	if (event->event == IDEVICE_DEVICE_REMOVE && !strcmp(_dev->udid, event->udid)) {
-		cbdata->is_device_connected = 0;
-	}
+	if (!data)
+		return;
+	struct cb_data *cbdata = (struct cb_data*)data;
+	cbdata->is_device_connected = 0;
 }
 
 static void np_callback(const char* notification, void* userdata)
@@ -246,7 +246,7 @@ retry:
 		cbdata.is_device_connected = 1;
 
 		np_set_notify_callback(np, np_callback, (void*)&cbdata);
-		idevice_event_subscribe(idevice_callback, (void*)&cbdata);
+		device_set_preflight_cb_data(info->id, (void*)&cbdata);
 
 		const char* spec[] = {
 			"com.apple.mobile.lockdown.request_pair",
@@ -266,8 +266,6 @@ retry:
 			sleep(1);
 		}
 		usbmuxd_log(LL_INFO, "%s: Finished waiting for notification from device %s, is_device_connected %d", __func__, _dev->udid, cbdata.is_device_connected);
-
-		idevice_event_unsubscribe();
 
 		if (cbdata.np) {
 			np_client_free(cbdata.np);
@@ -325,6 +323,10 @@ leave:
 	free(info);
 
 	return NULL;
+}
+#else
+void preflight_device_remove_cb(void *data)
+{
 }
 #endif
 
