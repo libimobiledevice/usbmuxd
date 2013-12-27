@@ -112,6 +112,7 @@ struct mux_device
 	uint16_t next_sport;
 	unsigned char *pktbuf;
 	uint32_t pktlen;
+	void *preflight_cb_data;
 };
 
 static struct collection device_list;
@@ -648,6 +649,7 @@ int device_add(struct usb_device *usbdev)
 	dev->next_sport = 1;
 	dev->pktbuf = malloc(DEV_MRU);
 	dev->pktlen = 0;
+	dev->preflight_cb_data = NULL;
 	struct version_header vh;
 	vh.major = htonl(1);
 	vh.minor = htonl(0);
@@ -674,6 +676,9 @@ void device_remove(struct usb_device *usbdev)
 				client_device_remove(dev->id);
 				collection_free(&dev->connections);
 			}
+			if (dev->preflight_cb_data) {
+				preflight_device_remove_cb(dev->preflight_cb_data);
+			}
 			collection_remove(&device_list, dev);
 			free(dev->pktbuf);
 			free(dev);
@@ -690,7 +695,17 @@ void device_set_visible(int device_id)
 			dev->visible = 1;
 			break;
 		}
-	} ENDFOREACH	
+	} ENDFOREACH
+}
+
+void device_set_preflight_cb_data(int device_id, void* data)
+{
+	FOREACH(struct mux_device *dev, &device_list) {
+		if(dev->id == device_id) {
+			dev->preflight_cb_data = data;
+			break;
+		}
+	} ENDFOREACH
 }
 
 int device_get_count(int include_hidden)

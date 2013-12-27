@@ -41,6 +41,7 @@ void device_client_process(int device_id, struct mux_client *client, short event
 void device_abort_connect(int device_id, struct mux_client *client);
 
 void device_set_visible(int device_id);
+void device_set_preflight_cb_data(int device_id, void* data);
 
 int device_get_count(int include_hidden);
 int device_get_list(int include_hidden, struct device_info *p);
