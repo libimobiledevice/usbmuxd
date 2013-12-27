@@ -161,17 +161,22 @@ retry:
 
 	int is_device_paired = 0;
 	char *host_id = NULL;
-	config_device_record_get_host_id(dev->udid, &host_id);
-	lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
-	free(host_id);
-	if (lerr == LOCKDOWN_E_SUCCESS) {
-		usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
-		usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-		client_device_add(info);
-		goto leave;
-	}
+	if (config_has_device_record(dev->udid)) {
+		config_device_record_get_host_id(dev->udid, &host_id);
+		lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
+		if (host_id)
+			free(host_id);
+		if (lerr == LOCKDOWN_E_SUCCESS) {
+			usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
+			usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
+			client_device_add(info);
+			goto leave;
+		}
 
-	usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
+		usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
+	} else {
+		lerr = LOCKDOWN_E_INVALID_HOST_ID;
+	}
 	switch (lerr) {
 	case LOCKDOWN_E_INVALID_HOST_ID:
 		usbmuxd_log(LL_INFO, "%s: Device %s is not paired with this host.", __func__, _dev->udid);

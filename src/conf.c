@@ -326,6 +326,35 @@ static int config_set_system_buid(const char *system_buid)
 }
 
 /**
+ * Determines whether a pairing record is present for the given device.
+ *
+ * @param udid The device UDID as given by the device.
+ *
+ * @return 1 if there's a pairing record for the given udid or 0 otherwise.
+ */
+int config_has_device_record(const char *udid)
+{
+	int res = 0;
+	if (!udid) return 0;
+
+	/* ensure config directory exists */
+	config_create_config_dir();
+
+	/* build file path */
+	const char *config_path = config_get_config_dir();
+	char *device_record_file = string_concat(config_path, DIR_SEP_S, udid, CONFIG_EXT, NULL);
+
+	struct stat st;
+
+	if ((stat(device_record_file, &st) == 0) && S_ISREG(st.st_mode))
+		res = 1;
+
+	free(device_record_file);
+
+	return res;
+}
+
+/**
  * Reads the BUID from a previously generated configuration file.
  *
  * @param system_buid pointer to a variable that will be set to point to a
@@ -430,7 +459,8 @@ int config_get_device_record(const char *udid, char **record_data, uint64_t *rec
 	char *device_record_file = string_concat(config_path, DIR_SEP_S, udid, CONFIG_EXT, NULL);
 
 	/* read file */
-	buffer_read_from_filename(device_record_file, record_data, record_size);	if (!*record_data) {
+	buffer_read_from_filename(device_record_file, record_data, record_size);
+	if (!*record_data) {
 		usbmuxd_log(LL_ERROR, "%s: failed to read '%s': %s", __func__, device_record_file, strerror(errno));
 		res = -ENOENT;
 	}
