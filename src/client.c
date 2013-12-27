@@ -213,7 +213,7 @@ static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 		plist_dict_insert_item(dict, "MessageType", plist_new_string("Result"));
 		plist_dict_insert_item(dict, "Number", plist_new_uint(result));
 		res = send_plist_pkt(client, tag, dict);
-		free(dict);
+		plist_free(dict);
 	} else {
 		/* binary packet */
 		res = send_pkt(client, tag, MESSAGE_RESULT, &result, sizeof(uint32_t));
@@ -482,6 +482,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					val = 0;
 					plist_get_uint_val(node, &val);
 					portnum = (uint16_t)val;
+					plist_free(dict);
 
 					usbmuxd_log(LL_DEBUG, "Client %d connection request to device %d port %d", client->fd, device_id, ntohs(portnum));
 					res = device_start_connect(device_id, ntohs(portnum), client);
@@ -495,10 +496,14 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					}
 					return 0;
 				} else if (!strcmp(message, "ListDevices")) {
+					free(message);
+					plist_free(dict);
 					if (send_device_list(client, hdr->tag) < 0)
 						return -1;
 					return 0;
 				} else if (!strcmp(message, "ReadBUID")) {
+					free(message);
+					plist_free(dict);
 					if (send_system_buid(client, hdr->tag) < 0)
 						return -1;
 					return 0;
