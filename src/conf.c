@@ -399,7 +399,7 @@ int config_set_device_record(const char *udid, char* record_data, uint64_t recor
 {
 	int res = 0;
 
-	if (!udid || record_data || record_size < 8)
+	if (!udid || !record_data || record_size < 8)
 		return -EINVAL;
 
 	plist_t plist = NULL;
