@@ -798,10 +798,15 @@ int device_get_count(int include_hidden)
 	return count;
 }
 
-int device_get_list(int include_hidden, struct device_info *p)
+int device_get_list(int include_hidden, struct device_info **devices)
 {
 	int count = 0;
 	pthread_mutex_lock(&device_list_mutex);
+
+	int total_count = collection_count(&device_list);
+	*devices = malloc(sizeof(struct device_info) * total_count);
+	struct device_info *p = *devices;
+
 	FOREACH(struct mux_device *dev, &device_list) {
 		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible)) {
 			p->id = dev->id;

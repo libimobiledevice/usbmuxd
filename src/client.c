@@ -267,23 +267,21 @@ static int send_device_list(struct mux_client *client, uint32_t tag)
 	plist_t dict = plist_new_dict();
 	plist_t devices = plist_new_array();
 
-	int count = device_get_count(0);
-	if (count > 0) {
-		struct device_info *devs;
-		struct device_info *dev;
-		int i;
+	struct device_info *devs = NULL;
+	struct device_info *dev;
+	int i;
 
-		devs = malloc(sizeof(struct device_info) * count);
-		count = device_get_list(0, devs);
-		dev = devs;
-		for (i = 0; i < count; i++) {
-			plist_t device = create_device_attached_plist(dev++);
-			if (device) {
-				plist_array_append_item(devices, device);
-			}
+	int count = device_get_list(0, &devs);
+	dev = devs;
+	for (i = 0; devs && i < count; i++) {
+		plist_t device = create_device_attached_plist(dev++);
+		if (device) {
+			plist_array_append_item(devices, device);
 		}
-		free(devs);
 	}
+	if (devs)
+		free(devs);
+
 	plist_dict_insert_item(dict, "DeviceList", devices);
 	res = send_plist_pkt(client, tag, dict);
 	plist_free(dict);
@@ -369,25 +367,23 @@ static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 
 static int start_listen(struct mux_client *client)
 {
-	struct device_info *devs;
+	struct device_info *devs = NULL;
 	struct device_info *dev;
 	int count, i;
 
 	client->state = CLIENT_LISTEN;
-	count = device_get_count(0);
-	if(!count)
-		return 0;
-	devs = malloc(sizeof(struct device_info) * count);
-	count = device_get_list(0, devs);
 
+	count = device_get_list(0, &devs);
 	dev = devs;
-	for(i=0; i<count; i++) {
+	for(i=0; devs && i < count; i++) {
 		if(notify_device_add(client, dev++) < 0) {
 			free(devs);
 			return -1;
 		}
 	}
-	free(devs);
+	if (devs)
+		free(devs);
+
 	return count;
 }
 
