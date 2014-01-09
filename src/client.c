@@ -599,7 +599,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 
 static void process_send(struct mux_client *client)
 {
-	uint32_t res;
+	int res;
 	if(!client->ob_size) {
 		usbmuxd_log(LL_WARNING, "Client %d OUT process but nothing to send?", client->fd);
 		client->events &= ~POLLOUT;
@@ -611,7 +611,7 @@ static void process_send(struct mux_client *client)
 		client_close(client);
 		return;
 	}
-	if(res == client->ob_size) {
+	if((uint32_t)res == client->ob_size) {
 		client->ob_size = 0;
 		client->events &= ~POLLOUT;
 		if(client->state == CLIENT_CONNECTING2) {
