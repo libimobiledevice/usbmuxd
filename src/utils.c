@@ -71,11 +71,13 @@ void fdlist_reset(struct fdlist *list)
 	list->count = 0;
 }
 
+#define CAPACITY_STEP 8
+
 void collection_init(struct collection *col)
 {
-	col->list = malloc(sizeof(void *));
-	memset(col->list, 0, sizeof(void *));
-	col->capacity = 1;
+	col->list = malloc(sizeof(void *) * CAPACITY_STEP);
+	memset(col->list, 0, sizeof(void *) * CAPACITY_STEP);
+	col->capacity = CAPACITY_STEP;
 }
 
 void collection_free(struct collection *col)
@@ -94,10 +96,10 @@ void collection_add(struct collection *col, void *element)
 			return;
 		}
 	}
-	col->list = realloc(col->list, sizeof(void*) * col->capacity * 2);
-	memset(&col->list[col->capacity], 0, sizeof(void *) * col->capacity);
+	col->list = realloc(col->list, sizeof(void*) * (col->capacity + CAPACITY_STEP));
+	memset(&col->list[col->capacity], 0, sizeof(void *) * CAPACITY_STEP);
 	col->list[col->capacity] = element;
-	col->capacity *= 2;
+	col->capacity += CAPACITY_STEP;
 }
 
 void collection_remove(struct collection *col, void *element)
