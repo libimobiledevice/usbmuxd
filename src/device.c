@@ -503,8 +503,8 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 	} ENDFOREACH
 
 	if(!conn) {
-		usbmuxd_log(LL_INFO, "No connection for device %d incoming packet %d->%d", dev->id, dport, sport);
 		if(!(th->th_flags & TH_RST)) {
+			usbmuxd_log(LL_INFO, "No connection for device %d incoming packet %d->%d", dev->id, dport, sport);
 			if(send_anon_rst(dev, sport, dport, ntohl(th->th_seq)) < 0)
 				usbmuxd_log(LL_ERROR, "Error sending TCP RST to device %d (%d->%d)", conn->dev->id, sport, dport);
 		}
