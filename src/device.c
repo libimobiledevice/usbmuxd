@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <pthread.h>
 #include "device.h"
 #include "client.h"
 #include "preflight.h"
@@ -116,6 +117,7 @@ struct mux_device
 };
 
 static struct collection device_list;
+pthread_mutex_t device_list_mutex;
 
 static uint64_t mstime64(void)
 {
@@ -128,6 +130,7 @@ static int get_next_device_id(void)
 {
 	while(1) {
 		int ok = 1;
+		pthread_mutex_lock(&device_list_mutex);
 		FOREACH(struct mux_device *dev, &device_list) {
 			if(dev->id == next_device_id) {
 				next_device_id++;
@@ -135,6 +138,7 @@ static int get_next_device_id(void)
 				break;
 			}
 		} ENDFOREACH
+		pthread_mutex_unlock(&device_list_mutex);
 		if(ok)
 			return next_device_id++;
 	}
@@ -271,12 +275,14 @@ static void connection_teardown(struct mux_connection *conn)
 int device_start_connect(int device_id, uint16_t dport, struct mux_client *client)
 {
 	struct mux_device *dev = NULL;
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *cdev, &device_list) {
 		if(cdev->id == device_id) {
 			dev = cdev;
 			break;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 	if(!dev) {
 		usbmuxd_log(LL_WARNING, "Attempted to connect to nonexistent device %d", device_id);
 		return -RESULT_BADDEV;
@@ -359,6 +365,7 @@ static void update_connection(struct mux_connection *conn)
 void device_client_process(int device_id, struct mux_client *client, short events)
 {
 	struct mux_connection *conn = NULL;
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->id == device_id) {
 			FOREACH(struct mux_connection *lconn, &dev->connections) {
@@ -370,6 +377,7 @@ void device_client_process(int device_id, struct mux_client *client, short event
 			break;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 
 	if(!conn) {
 		usbmuxd_log(LL_WARNING, "Could not find connection for device %d client %p", device_id, client);
@@ -427,18 +435,22 @@ static void connection_device_input(struct mux_connection *conn, unsigned char *
 
 void device_abort_connect(int device_id, struct mux_client *client)
 {
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->id == device_id) {
 			FOREACH(struct mux_connection *conn, &dev->connections) {
 				if(conn->client == client) {
 					connection_teardown(conn);
+					pthread_mutex_unlock(&device_list_mutex);
 					return;
 				}
 			} ENDFOREACH
+			pthread_mutex_unlock(&device_list_mutex);
 			usbmuxd_log(LL_WARNING, "Attempted to abort for nonexistent connection for device %d", device_id);
 			return;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 	usbmuxd_log(LL_WARNING, "Attempted to abort connection for nonexistent device %d", device_id);
 }
 
@@ -452,7 +464,9 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	vh->minor = ntohl(vh->minor);
 	if(vh->major != 1 || vh->minor != 0) {
 		usbmuxd_log(LL_ERROR, "Device %d has unknown version %d.%d\n", dev->id, vh->major, vh->minor);
+		pthread_mutex_lock(&device_list_mutex);
 		collection_remove(&device_list, dev);
+		pthread_mutex_unlock(&device_list_mutex);
 		free(dev);
 		return;
 	}
@@ -548,12 +562,14 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_t length)
 {
 	struct mux_device *dev = NULL;
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *tdev, &device_list) {
 		if(tdev->usbdev == usbdev) {
 			dev = tdev;
 			break;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 	if(!dev) {
 		usbmuxd_log(LL_WARNING, "Cannot find device entry for RX input from USB device %p on location 0x%x", usbdev, usb_get_location(usbdev));
 		return;
@@ -659,12 +675,15 @@ int device_add(struct usb_device *usbdev)
 		free(dev);
 		return res;
 	}
+	pthread_mutex_lock(&device_list_mutex);
 	collection_add(&device_list, dev);
+	pthread_mutex_unlock(&device_list_mutex);
 	return 0;
 }
 
 void device_remove(struct usb_device *usbdev)
 {
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->usbdev == usbdev) {
 			usbmuxd_log(LL_NOTICE, "Removed device %d on location 0x%x", dev->id, usb_get_location(usbdev));
@@ -680,47 +699,57 @@ void device_remove(struct usb_device *usbdev)
 				preflight_device_remove_cb(dev->preflight_cb_data);
 			}
 			collection_remove(&device_list, dev);
+			pthread_mutex_unlock(&device_list_mutex);
 			free(dev->pktbuf);
 			free(dev);
 			return;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
+
 	usbmuxd_log(LL_WARNING, "Cannot find device entry while removing USB device %p on location 0x%x", usbdev, usb_get_location(usbdev));
 }
 
 void device_set_visible(int device_id)
 {
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->id == device_id) {
 			dev->visible = 1;
 			break;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 }
 
 void device_set_preflight_cb_data(int device_id, void* data)
 {
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->id == device_id) {
 			dev->preflight_cb_data = data;
 			break;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 }
 
 int device_get_count(int include_hidden)
 {
 	int count = 0;
+	pthread_mutex_unlock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible))
 			count++;
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 	return count;
 }
 
 int device_get_list(int include_hidden, struct device_info *p)
 {
 	int count = 0;
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible)) {
 			p->id = dev->id;
@@ -731,12 +760,14 @@ int device_get_list(int include_hidden, struct device_info *p)
 			p++;
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 	return count;
 }
 
 int device_get_timeout(void)
 {
 	uint64_t oldest = (uint64_t)-1LL;
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->state == MUXDEV_ACTIVE) {
 			FOREACH(struct mux_connection *conn, &dev->connections) {
@@ -745,6 +776,7 @@ int device_get_timeout(void)
 			} ENDFOREACH
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 	uint64_t ct = mstime64();
 	if((int64_t)oldest == -1LL)
 		return 100000; //meh
@@ -756,6 +788,7 @@ int device_get_timeout(void)
 void device_check_timeouts(void)
 {
 	uint64_t ct = mstime64();
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->state == MUXDEV_ACTIVE) {
 			FOREACH(struct mux_connection *conn, &dev->connections) {
@@ -771,12 +804,14 @@ void device_check_timeouts(void)
 			} ENDFOREACH
 		}
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
 }
 
 void device_init(void)
 {
 	usbmuxd_log(LL_DEBUG, "device_init");
 	collection_init(&device_list);
+	pthread_mutex_init(&device_list_mutex, NULL);
 	next_device_id = 1;
 }
 
@@ -797,6 +832,7 @@ void device_kill_connections(void)
 void device_shutdown(void)
 {
 	usbmuxd_log(LL_DEBUG, "device_shutdown");
+	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		FOREACH(struct mux_connection *conn, &dev->connections) {
 			connection_teardown(conn);
@@ -805,5 +841,7 @@ void device_shutdown(void)
 		collection_remove(&device_list, dev);
 		free(dev);
 	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
+	pthread_mutex_destroy(&device_list_mutex);
 	collection_free(&device_list);
 }
