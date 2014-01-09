@@ -44,7 +44,7 @@ void device_set_visible(int device_id);
 void device_set_preflight_cb_data(int device_id, void* data);
 
 int device_get_count(int include_hidden);
-int device_get_list(int include_hidden, struct device_info *p);
+int device_get_list(int include_hidden, struct device_info **devices);
 
 int device_get_timeout(void);
 void device_check_timeouts(void);
