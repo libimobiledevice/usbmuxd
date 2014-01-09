@@ -737,22 +737,29 @@ void device_set_preflight_cb_data(int device_id, void* data)
 int device_get_count(int include_hidden)
 {
 	int count = 0;
+	struct collection dev_list = {NULL, 0};
+	pthread_mutex_lock(&device_list_mutex);
+	collection_copy(&dev_list, &device_list);
 	pthread_mutex_unlock(&device_list_mutex);
-	FOREACH(struct mux_device *dev, &device_list) {
+
+	FOREACH(struct mux_device *dev, &dev_list) {
 		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible))
 			count++;
 	} ENDFOREACH
-	pthread_mutex_unlock(&device_list_mutex);
+
+	collection_free(&dev_list);
 	return count;
 }
 
 int device_get_list(int include_hidden, struct device_info **devices)
 {
 	int count = 0;
+	struct collection dev_list = {NULL, 0};
 	pthread_mutex_lock(&device_list_mutex);
+	collection_copy(&dev_list, &device_list);
+	pthread_mutex_unlock(&device_list_mutex);
 
-	int total_count = collection_count(&device_list);
-	*devices = malloc(sizeof(struct device_info) * total_count);
+	*devices = malloc(sizeof(struct device_info) * dev_list.capacity);
 	struct device_info *p = *devices;
 
 	FOREACH(struct mux_device *dev, &device_list) {
@@ -765,7 +772,9 @@ int device_get_list(int include_hidden, struct device_info **devices)
 			p++;
 		}
 	} ENDFOREACH
-	pthread_mutex_unlock(&device_list_mutex);
+
+	collection_free(&dev_list);
+
 	return count;
 }
 
