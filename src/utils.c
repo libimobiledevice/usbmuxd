@@ -124,6 +124,14 @@ int collection_count(struct collection *col)
 	return cnt;
 }
 
+void collection_copy(struct collection *dest, struct collection *src)
+{
+	if (!dest || !src) return;
+	dest->capacity = src->capacity;
+	dest->list = malloc(sizeof(void*) * src->capacity);
+	memcpy(dest->list, src->list, sizeof(void*) * src->capacity);
+}
+
 #ifndef HAVE_STPCPY
 /**
  * Copy characters from one string into another
