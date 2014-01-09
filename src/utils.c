@@ -225,7 +225,7 @@ void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *le
 
 	*buffer = (char*)malloc(sizeof(char)*(size+1));
 	if (fread(*buffer, sizeof(char), size, f) != size) {
-		usbmuxd_log(LL_ERROR, "%s: ERROR: couldn't read %d bytes from %s\n", __func__, (int)size, filename);
+		usbmuxd_log(LL_ERROR, "%s: ERROR: couldn't read %d bytes from %s", __func__, (int)size, filename);
 	}
 	fclose(f);
 

@@ -234,7 +234,7 @@ int usb_discover(void)
 		devlist_failures++;
 		// sometimes libusb fails getting the device list if you've just removed something
 		if(devlist_failures > 5) {
-			usbmuxd_log(LL_FATAL, "Too many errors getting device list\n");
+			usbmuxd_log(LL_FATAL, "Too many errors getting device list");
 			return cnt;
 		} else {
 			gettimeofday(&next_dev_poll_time, NULL);

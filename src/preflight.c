@@ -188,7 +188,7 @@ retry:
 			lockdown = NULL;
 			goto retry;
 		} else {
-			usbmuxd_log(LL_ERROR, "%s: Could not remove pair record for device %s\n", __func__, _dev->udid);
+			usbmuxd_log(LL_ERROR, "%s: Could not remove pair record for device %s", __func__, _dev->udid);
 		}
 		break;
 	default:
