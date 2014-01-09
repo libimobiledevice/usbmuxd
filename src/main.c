@@ -554,12 +554,12 @@ int main(int argc, char *argv[])
 	memset(&fst, '\0', sizeof(struct stat));
 	if (stat(userprefdir, &fst) < 0) {
 		if (mkdir(userprefdir, 0775) < 0) {
-			usbmuxd_log(LL_FATAL, "Failed to create required directory '%s': %s\n", userprefdir, strerror(errno));
+			usbmuxd_log(LL_FATAL, "Failed to create required directory '%s': %s", userprefdir, strerror(errno));
 			res = -1;
 			goto terminate;
 		}
 		if (stat(userprefdir, &fst) < 0) {
-			usbmuxd_log(LL_FATAL, "stat() failed after creating directory '%s': %s\n", userprefdir, strerror(errno));
+			usbmuxd_log(LL_FATAL, "stat() failed after creating directory '%s': %s", userprefdir, strerror(errno));
 			res = -1;
 			goto terminate;
 		}

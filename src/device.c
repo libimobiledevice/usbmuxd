@@ -480,7 +480,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	vh->major = ntohl(vh->major);
 	vh->minor = ntohl(vh->minor);
 	if(vh->major != 1 || vh->minor != 0) {
-		usbmuxd_log(LL_ERROR, "Device %d has unknown version %d.%d\n", dev->id, vh->major, vh->minor);
+		usbmuxd_log(LL_ERROR, "Device %d has unknown version %d.%d", dev->id, vh->major, vh->minor);
 		pthread_mutex_lock(&device_list_mutex);
 		collection_remove(&device_list, dev);
 		pthread_mutex_unlock(&device_list_mutex);
@@ -513,7 +513,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 		dev->id, dport, sport, ntohl(th->th_seq), ntohl(th->th_ack), th->th_flags, ntohs(th->th_win) << 8, ntohs(th->th_win), payload_length);
 
 	if(dev->state != MUXDEV_ACTIVE) {
-		usbmuxd_log(LL_ERROR, "Received TCP packet from device %d but the device isn't active yet, discarding\n", dev->id);
+		usbmuxd_log(LL_ERROR, "Received TCP packet from device %d but the device isn't active yet, discarding", dev->id);
 		return;
 	}
 

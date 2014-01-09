@@ -524,6 +524,6 @@ void config_device_record_get_host_id(const char *udid, char **host_id)
 		plist_free(value);
 
 	if (!*host_id) {
-		usbmuxd_log(LL_ERROR, "%s: ERROR couldn't get HostID from pairing record for udid %s\n", __func__, udid);
+		usbmuxd_log(LL_ERROR, "%s: ERROR couldn't get HostID from pairing record for udid %s", __func__, udid);
 	}
 }
