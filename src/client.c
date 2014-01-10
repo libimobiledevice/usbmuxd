@@ -176,10 +176,16 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 	uint32_t available = client->ob_capacity - client->ob_size;
 	/* the output buffer _should_ be large enough, but just in case */
 	if(available < hdr.length) {
-		uint32_t needed_buffer = hdr.length;
-		usbmuxd_log(LL_DEBUG, "Enlarging client %d output buffer %d -> %d", client->fd, client->ob_capacity, needed_buffer);
-		client->ob_buf = realloc(client->ob_buf, needed_buffer);
-		client->ob_capacity = needed_buffer;
+		unsigned char* new_buf;
+		uint32_t new_size = ((client->ob_capacity + hdr.length + 4096) / 4096) * 4096;
+		usbmuxd_log(LL_DEBUG, "%s: Enlarging client %d output buffer %d -> %d", __func__, client->fd, client->ob_capacity, new_size);
+		new_buf = realloc(client->ob_buf, new_size);
+		if (!new_buf) {
+			usbmuxd_log(LL_FATAL, "%s: Failed to realloc.\n", __func__);
+			return -1;
+		}
+		client->ob_buf = new_buf;
+		client->ob_capacity = new_size;
 	}
 	memcpy(client->ob_buf + client->ob_size, &hdr, sizeof(hdr));
 	if(payload && payload_length)
