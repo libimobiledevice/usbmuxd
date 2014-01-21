@@ -29,7 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define USBMUXD_PROTOCOL_VERSION 0
 
 #if defined(WIN32) || defined(__CYGWIN__)
-#define USBMUXD_SOCKET_PORT 27015
+#define USBMUXD_SOCKET_PORT 37015//27015
 #else
 #define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
 #endif
