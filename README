@@ -33,9 +33,7 @@ U.S. and other countries.
 Building
 ========
 
-  mkdir build
-  cd build
-  cmake ..
+  ./autogen.sh
   make
   sudo make install
 
@@ -65,7 +63,7 @@ If 'udev' is _not_ automatically running on your machine and picking up the new
 and that there is only one copy with 'ps aux | grep
 usbmuxd'.
 
-  sudo usbmuxd -U -v -v &
+  sudo usbmuxd -U usbmux -v -v &
   ./iproxy 2222 22 &
   ssh -p 2222 root@localhost
 
