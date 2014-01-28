@@ -95,6 +95,8 @@ static int listenfd = -1;
 static int use_tag = 0;
 static int proto_version = 0;
 
+static int usbmuxd_port = DEFAULT_USBMUXD_SOCKET_PORT;
+
 /**
  * Finds a device info record by its handle.
  * if the record is not found, NULL is returned.
@@ -117,7 +119,7 @@ static usbmuxd_device_info_t *devices_find(int handle)
 static int connect_usbmuxd_socket()
 {
 #if defined(WIN32) || defined(__CYGWIN__)
-	return connect_socket("127.0.0.1", USBMUXD_SOCKET_PORT);
+	return connect_socket("127.0.0.1", usbmuxd_port);
 #else
 	return connect_unix_socket(USBMUXD_SOCKET_FILE);
 #endif
@@ -976,4 +978,14 @@ void libusbmuxd_set_debug_level(int level)
 {
 	libusbmuxd_debug = level;
 	sock_stuff_set_verbose(level);
+}
+
+void libusbmuxd_set_socket_port(uint16_t port)
+{
+	usbmuxd_port = port;
+}
+
+uint16_t libusbmuxd_get_socket_port()
+{
+	return usbmuxd_port;
 }

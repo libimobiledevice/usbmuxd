@@ -3,3 +3,5 @@ build
 
 usbmuxd-Debug/
 usbmuxd-Release/
+Debug/
+*.sdf

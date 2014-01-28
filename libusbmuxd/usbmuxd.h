@@ -184,6 +184,9 @@ void libusbmuxd_set_use_inotify(int set);
 
 void libusbmuxd_set_debug_level(int level);
 
+void libusbmuxd_set_socket_port(uint16_t port);
+uint16_t libusbmuxd_get_socket_port();
+
 #ifdef __cplusplus
 }
 #endif
