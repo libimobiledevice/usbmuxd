@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <pthread.h>
 
@@ -343,7 +344,17 @@ void preflight_worker_device_add(struct device_info* info)
 	memcpy(infocopy, info, sizeof(struct device_info));
 
 	pthread_t th;
-	pthread_create(&th, NULL, preflight_worker_handle_device_add, infocopy);
+	pthread_attr_t attr;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+	int perr = pthread_create(&th, &attr, preflight_worker_handle_device_add, infocopy);
+	if (perr != 0) {
+		free(infocopy);
+		usbmuxd_log(LL_ERROR, "ERROR: failed to start preflight worker thread for device %s: %s (%d). Invoking client_device_add() directly but things might not work as expected.", info->serial, strerror(perr), perr);
+		client_device_add(info);
+	}
 #else
 	client_device_add(info);
 #endif
