@@ -934,7 +934,7 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 		return -EINVAL;
 	}
 	
-	num_sent = send(sfd, (const char*)data, len, 0);
+	num_sent = send_all(sfd, (const char*)data, len);
 	if (num_sent < 0) {
 		*sent_bytes = 0;
 		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(errno));

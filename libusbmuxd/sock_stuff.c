@@ -376,3 +376,23 @@ int send_buf(int fd, void *data, size_t length)
 {
 	return send(fd, (const char *)data, length, 0);
 }
+
+int send_all(int fd, const char *data, size_t length)
+{
+	int bytes_sent = 0;
+	int bytes_left = length;
+	int result = 0;
+
+	while (bytes_sent < length) {
+		result = send(fd, data + bytes_sent, bytes_left, 0);
+		if (SOCKET_ERROR == result) {
+			fprintf(stderr, "%s: send failed: %s\n", __func__, strerror(errno));
+			return SOCKET_ERROR;
+		}
+
+		bytes_sent += result;
+		bytes_left -= result;
+	}
+
+	return TRUE;
+}
