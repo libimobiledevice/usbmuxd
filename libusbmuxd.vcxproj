@@ -81,12 +81,12 @@
     <ClInclude Include="include\usbmuxd-proto.h" />
     <ClInclude Include="include\usbmuxd.h" />
     <ClInclude Include="src\collection.h" />
-    <ClInclude Include="src\sock_stuff.h" />
+    <ClInclude Include="src\socket.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\collection.c" />
     <ClCompile Include="src\libusbmuxd.c" />
-    <ClCompile Include="src\sock_stuff.c" />
+    <ClCompile Include="src\socket.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

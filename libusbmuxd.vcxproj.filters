@@ -24,14 +24,14 @@
     <ClInclude Include="src\collection.h">
       <Filter>Header Files\src</Filter>
     </ClInclude>
-    <ClInclude Include="src\sock_stuff.h">
-      <Filter>Header Files\src</Filter>
-    </ClInclude>
     <ClInclude Include="include\usbmuxd.h">
       <Filter>Header Files\include</Filter>
     </ClInclude>
     <ClInclude Include="include\usbmuxd-proto.h">
       <Filter>Header Files\include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\socket.h">
+      <Filter>Header Files\src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -41,7 +41,7 @@
     <ClCompile Include="src\libusbmuxd.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\sock_stuff.c">
+    <ClCompile Include="src\socket.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -70,7 +70,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <signal.h>
 
 #include <plist/plist.h>
-#define PLIST_BUNDLE_ID "com.marcansoft.usbmuxd"
+#define PLIST_BUNDLE_ID "org.libimobiledevice.usbmuxd"
 #define PLIST_CLIENT_VERSION_STRING "usbmuxd built for freedom"
 #define PLIST_PROGNAME "libusbmuxd"
 #define PLIST_LIBUSBMUX_VERSION 3
@@ -80,7 +80,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 // usbmuxd protocol
 #include "usbmuxd-proto.h"
 // socket utility functions
-#include "sock_stuff.h"
+#include "socket.h"
 // misc utility functions
 #include "collection.h"
 
@@ -124,9 +124,9 @@ static usbmuxd_device_info_t *devices_find(uint32_t handle)
 static int connect_usbmuxd_socket()
 {
 #if defined(WIN32) || defined(__CYGWIN__)
-	return connect_socket("127.0.0.1", usbmuxd_port);
+	return socket_connect("127.0.0.1", usbmuxd_port);
 #else
-	return connect_unix_socket(USBMUXD_SOCKET_FILE);
+	return socket_connect_unix(USBMUXD_SOCKET_FILE);
 #endif
 }
 
@@ -159,7 +159,7 @@ static struct usbmuxd_device_record* device_record_from_plist(plist_t props)
 		plist_get_string_val(n, &strval);
 		if (strval) {
 			strncpy(dev->serial_number, strval, 255);
-			free(strval);
+			plist_free_memory(strval);
 		}
 	}
 	n = plist_dict_get_item(props, "LocationID");
@@ -182,7 +182,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 	header->message = 0;
 	header->tag = 0;
 
-	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, timeout);
+	recv_len = socket_receive_timeout(sfd, &hdr, sizeof(hdr), 0, timeout);
 	if (recv_len < 0) {
 		return recv_len;
 	} else if ((size_t)recv_len < sizeof(hdr)) {
@@ -192,7 +192,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 	uint32_t payload_size = hdr.length - sizeof(hdr);
 	if (payload_size > 0) {
 		payload_loc = (char*)malloc(payload_size);
-		if (recv_buf_timeout(sfd, payload_loc, payload_size, 0, 5000) != (int)payload_size) {
+		if (socket_receive_timeout(sfd, payload_loc, payload_size, 0, 5000) != (int)payload_size) {
 			DEBUG(1, "%s: Error receiving payload of size %d\n", __func__, payload_size);
 			free(payload_loc);
 			return -EBADMSG;
@@ -217,7 +217,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 			memcpy(header, &hdr, sizeof(hdr));
 			return hdr.length;
 		}
-		
+
 		plist_get_string_val(node, &message);
 		if (message) {
 			uint64_t val = 0;
@@ -237,7 +237,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				plist_t props = plist_dict_get_item(plist, "Properties");
 				if (!props) {
 					DEBUG(1, "%s: Could not get properties for message '%s' from plist!\n", __func__, message);
-					free(message);
+					plist_free_memory(message);
 					plist_free(plist);
 					return -EBADMSG;
 				}
@@ -245,7 +245,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				dev = device_record_from_plist(props);
 				if (!dev) {
 					DEBUG(1, "%s: Could not create device record object from properties!\n", __func__);
-					free(message);
+					plist_free_memory(message);
 					plist_free(plist);
 					return -EBADMSG;
 				}
@@ -266,11 +266,11 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 				}
 			} else {
 				DEBUG(1, "%s: Unexpected message '%s' in plist!\n", __func__, message);
-				free(message);
+				plist_free_memory(message);
 				plist_free(plist);
 				return -EBADMSG;
 			}
-			free(message);
+			plist_free_memory(message);
 		}
 		plist_free(plist);
 	} else {
@@ -351,17 +351,17 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 	if (payload && (payload_size > 0)) {
 		header.length += payload_size;
 	}
-	int sent = send_buf(sfd, &header, sizeof(header));
+	int sent = socket_send(sfd, &header, sizeof(header));
 	if (sent != sizeof(header)) {
 		DEBUG(1, "%s: ERROR: could not send packet header\n", __func__);
 		return -1;
 	}
 	if (payload && (payload_size > 0)) {
-		sent += send_buf(sfd, payload, payload_size);
+		sent += socket_send(sfd, payload, payload_size);
 	}
 	if (sent != (int)header.length) {
 		DEBUG(1, "%s: ERROR: could not send whole packet\n", __func__);
-		close_socket(sfd);
+		socket_close(sfd);
 		return -1;
 	}
 	return sent;
@@ -375,7 +375,7 @@ static int send_plist_packet(int sfd, uint32_t tag, plist_t message)
 
 	plist_to_xml(message, &payload, &payload_size);
 	res = send_packet(sfd, MESSAGE_PLIST, tag, payload, payload_size);
-	free(payload);
+	plist_free_memory(payload);
 
 	return res;
 }
@@ -604,11 +604,11 @@ retry:
 	tag = ++use_tag;
 	if (send_listen_packet(sfd, tag) <= 0) {
 		DEBUG(1, "%s: ERROR: could not send listen packet\n", __func__);
-		close_socket(sfd);
+		socket_close(sfd);
 		return -1;
 	}
 	if (usbmuxd_get_result(sfd, tag, &res, NULL) && (res != 0)) {
-		close_socket(sfd);
+		socket_close(sfd);
 		if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
 			proto_version = 0;
 			goto retry;
@@ -698,7 +698,7 @@ static void device_monitor_cleanup(void* data)
 	} ENDFOREACH
 	collection_free(&devices);
 
-	close_socket(listenfd);
+	socket_close(listenfd);
 	listenfd = -1;
 }
 
@@ -766,7 +766,7 @@ int usbmuxd_unsubscribe()
 {
 	event_cb = NULL;
 
-	shutdown_socket(listenfd, SHUT_RDWR);
+	socket_shutdown(listenfd, SHUT_RDWR);
 
 #ifdef WIN32
 	if (devmon != NULL) {
@@ -842,23 +842,27 @@ retry:
 						plist_t props = plist_dict_get_item(pdev, "Properties");
 						dev = device_record_from_plist(props);
 						usbmuxd_device_info_t *devinfo = device_info_from_device_record(dev);
+						free(dev);
 						if (!devinfo) {
 							DEBUG(1, "%s: can't create device info object\n", __func__);
-							free(payload);
+							plist_free(list);
 							return -1;
 						}
 						collection_add(&tmpdevs, devinfo);
 					}
+					plist_free(list);
 					goto got_device_list;
 				}
 			} else {
 				if (res == RESULT_BADVERSION) {
 					proto_version = 0;
 				}
-				close_socket(sfd);
+				socket_close(sfd);
 				try_list_devices = 0;
+				plist_free(list);
 				goto retry;
 			}
+			plist_free(list);
 		}
 	}
 
@@ -869,7 +873,7 @@ retry:
 		if (usbmuxd_get_result(sfd, tag, &res, NULL) && (res == 0)) {
 			listen_success = 1;
 		} else {
-			close_socket(sfd);
+			socket_close(sfd);
 			if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
 				proto_version = 0;
 				goto retry;
@@ -931,7 +935,7 @@ retry:
 got_device_list:
 
 	// explicitly close connection
-	close_socket(sfd);
+	socket_close(sfd);
 
 	// create copy of device info entries from collection
 	newlist = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t) * (collection_count(&tmpdevs) + 1));
@@ -1022,7 +1026,7 @@ retry:
 			} else {
 				if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
 					proto_version = 0;
-					close_socket(sfd);
+					socket_close(sfd);
 					goto retry;
 				}
 				DEBUG(1, "%s: Connect failed, Error code=%d\n", __func__, res);
@@ -1034,14 +1038,14 @@ retry:
 		return sfd;
 	}
 
-	close_socket(sfd);
+	socket_close(sfd);
 
 	return -1;
 }
 
 int usbmuxd_disconnect(int sfd)
 {
-	return close_socket(sfd);
+	return socket_close(sfd);
 }
 
 int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
@@ -1052,7 +1056,7 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 		return -EINVAL;
 	}
 	
-	num_sent = send_all(sfd, (void*)data, len);
+	num_sent = socket_send_all(sfd, (void*)data, len);
 	if (num_sent < 0) {
 		*sent_bytes = 0;
 		num_sent = errno;
@@ -1069,7 +1073,7 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 
 int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes, unsigned int timeout)
 {
-	int num_recv = recv_buf_timeout(sfd, (void*)data, len, 0, timeout);
+	int num_recv = socket_receive_timeout(sfd, (void*)data, len, 0, timeout);
 	if (num_recv < 0) {
 		*recv_bytes = 0;
 		return num_recv;
@@ -1112,13 +1116,15 @@ int usbmuxd_read_buid(char **buid)
 		if (usbmuxd_get_result(sfd, tag, &rc, &pl) && (rc == 0)) {
 			plist_t node = plist_dict_get_item(pl, "BUID");
 			if (node && plist_get_node_type(node) == PLIST_STRING) {
-				plist_get_string_val(node, buid);
+				char * buid_str_val = NULL;
+				plist_get_string_val(node, &buid_str_val);
+				*buid = strdup(buid_str_val);
+				plist_free_memory(buid_str_val);
 			}
 		} else {
 			ret = -(int)rc;
 		}
-		if (pl)
-			plist_free(pl);
+		plist_free(pl);
 	}
 
 	return ret;
@@ -1164,8 +1170,7 @@ int usbmuxd_read_pair_record(const char* record_id, char **record_data, uint32_t
 		} else {
 			ret = -(int)rc;
 		}
-		if (pl)
-			plist_free(pl);
+		plist_free(pl);
 	}
 
 	return ret;
@@ -1254,7 +1259,7 @@ void libusbmuxd_set_use_inotify(int set)
 void libusbmuxd_set_debug_level(int level)
 {
 	libusbmuxd_debug = level;
-	sock_stuff_set_verbose(level);
+	socket_set_verbose(level);
 }
 
 void libusbmuxd_set_socket_port(uint16_t port)
