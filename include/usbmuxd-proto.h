@@ -59,9 +59,9 @@ enum usbmuxd_msgtype {
 	MESSAGE_PLIST = 8,
 };
 
-#ifdef WIN32
-#define __attribute__(A)
-#pragma pack(push, 1)
+#ifdef _MSC_VER
+	#define __attribute__(A)
+	#pragma pack(push, 1)
 #endif
 
 struct usbmuxd_header {
@@ -94,8 +94,9 @@ struct usbmuxd_device_record {
 	uint16_t padding;
 	uint32_t location;
 } __attribute__((__packed__));
-#ifdef WIN32
-#pragma pack(pop)
+
+#ifdef _MSC_VER
+	#pragma pack(pop)
 #endif
 
 #ifdef __cplusplus

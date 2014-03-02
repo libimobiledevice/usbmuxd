@@ -56,7 +56,7 @@ struct client_data {
     volatile int stop_stoc;
 };
 
-void *run_stoc_loop(void *arg)
+static void *run_stoc_loop(void *arg)
 {
     struct client_data *cdata = (struct client_data*)arg;
     int recv_len;
@@ -99,7 +99,7 @@ void *run_stoc_loop(void *arg)
     return NULL;
 }
 
-void *run_ctos_loop(void *arg)
+static void *run_ctos_loop(void *arg)
 {
     struct client_data *cdata = (struct client_data*)arg;
     int recv_len;
@@ -160,7 +160,7 @@ void *run_ctos_loop(void *arg)
     return NULL;
 }
 
-void *acceptor_thread(void *arg)
+static void *acceptor_thread(void *arg)
 {
     struct client_data *cdata;
     usbmuxd_device_info_t *dev_list = NULL;

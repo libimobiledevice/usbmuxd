@@ -1,7 +1,9 @@
 *~
 build
 
-usbmuxd-Debug/
-usbmuxd-Release/
+libusbmuxd-Debug/
+libusbmuxd-Release/
 Debug/
 *.sdf
+Release/
+libusbmuxd.sln

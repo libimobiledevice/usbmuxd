@@ -1,11 +1,11 @@
-prefix=${CMAKE_INSTALL_PREFIX}
-exec_prefix=${CMAKE_INSTALL_PREFIX}
-libdir=${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}
-includedir=${CMAKE_INSTALL_PREFIX}/include
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
 
 Name: libusbmuxd
 Description: A library to communicate with the usbmux daemon
-Version: ${USBMUXD_VERSION}
-Libs: -L${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX} -lusbmuxd
-Cflags: -I${CMAKE_INSTALL_PREFIX}/include
+Version: @VERSION@
+Libs: -L${libdir} -lusbmuxd
+Cflags: -I${includedir}
 

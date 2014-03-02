@@ -1,5 +1,5 @@
 /*
-	usbmuxd - iPhone/iPod Touch USB multiplex server daemon
+	libusbmuxd - client library to talk to usbmuxd
 
 Copyright (C) 2009	Hector Martin "marcan" <hector@marcansoft.com>
 Copyright (C) 2009	Nikias Bassen <nikias@gmx.li>
@@ -27,56 +27,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "utils.h"
+#include "collection.h"
 
-#ifdef USBMUXD_DAEMON
-# include "log.h"
-# define util_error(...) usbmuxd_log(LL_ERROR, __VA_ARGS__)
-#else
-# define util_error(...) fprintf(stderr, __VA_ARGS__)
-#endif
-
-#ifdef USBMUXD_DAEMON
-void fdlist_create(struct fdlist *list)
-{
-	list->count = 0;
-	list->capacity = 4;
-	list->owners = malloc(sizeof(*list->owners) * list->capacity);
-	list->fds = malloc(sizeof(*list->fds) * list->capacity);
-}
-void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events)
-{
-	if(list->count == list->capacity) {
-		list->capacity *= 2;
-		list->owners = realloc(list->owners, sizeof(*list->owners) * list->capacity);
-		list->fds = realloc(list->fds, sizeof(*list->fds) * list->capacity);
-	}
-	list->owners[list->count] = owner;
-	list->fds[list->count].fd = fd;
-	list->fds[list->count].events = events;
-	list->fds[list->count].revents = 0;
-	list->count++;
-}
-
-void fdlist_free(struct fdlist *list)
-{
-	list->count = 0;
-	list->capacity = 0;
-	free(list->owners);
-	list->owners = NULL;
-	free(list->fds);
-	list->fds = NULL;
-}
-
-void fdlist_reset(struct fdlist *list)
-{
-	list->count = 0;
-}
+#ifdef _MSC_VER
+	#define __func__ __FUNCTION__
 #endif
 
 void collection_init(struct collection *col)
 {
-	col->list = (void **)malloc(sizeof(void *));
+	col->list = malloc(sizeof(void *));
 	memset(col->list, 0, sizeof(void *));
 	col->capacity = 1;
 }
@@ -97,7 +56,7 @@ void collection_add(struct collection *col, void *element)
 			return;
 		}
 	}
-	col->list = (void **)realloc(col->list, sizeof(void*)* col->capacity * 2);
+	col->list = realloc(col->list, sizeof(void*) * col->capacity * 2);
 	memset(&col->list[col->capacity], 0, sizeof(void *) * col->capacity);
 	col->list[col->capacity] = element;
 	col->capacity *= 2;
@@ -112,7 +71,7 @@ void collection_remove(struct collection *col, void *element)
 			return;
 		}
 	}
-	util_error("collection_remove: element %p not present in collection %p (cap %d)", element, col, col->capacity);
+	fprintf(stderr, "%s: WARNING: element %p not present in collection %p (cap %d)", __func__, element, col, col->capacity);
 }
 
 int collection_count(struct collection *col)

@@ -26,24 +26,33 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #ifdef WIN32
-#include <winsock2.h>
-#define sleep(x) Sleep(x*1000)
-#define strcasecmp stricmp
-#ifndef EPROTO
-#define EPROTO 134
-#endif
-#ifndef EBADMSG
-#define EBADMSG 104
-#endif
+	#include <winsock2.h>
+	
+	#define WIN32_LEAN_AND_MEAN
+	#include <windows.h>
+	
+	#define strcasecmp _stricmp
+	#define sleep(x) Sleep(x*1000)
+	#ifndef EPROTO
+		#define EPROTO 134
+	#endif
+	#ifndef EBADMSG
+		#define EBADMSG 104
+	#endif
+
+	#ifdef _MSC_VER
+		#define __func__ __FUNCTION__
+	#endif
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#endif
-
-#ifdef _WIN32
-#define __func__ __FUNCTION__
 #endif
 
 #ifdef HAVE_INOTIFY
@@ -54,46 +63,42 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define USBMUXD_SOCKET_NAME "usbmuxd"
 #endif /* HAVE_INOTIFY */
 
-#include <unistd.h>
+#ifndef _MSC_VER
+	#include <unistd.h>
+#endif
+
 #include <signal.h>
 
-#ifdef HAVE_PLIST
 #include <plist/plist.h>
 #define PLIST_BUNDLE_ID "com.marcansoft.usbmuxd"
 #define PLIST_CLIENT_VERSION_STRING "usbmuxd built for freedom"
 #define PLIST_PROGNAME "libusbmuxd"
-#endif
+#define PLIST_LIBUSBMUX_VERSION 3
 
 // usbmuxd public interface
 #include "usbmuxd.h"
-// usbmuxd protocol 
+// usbmuxd protocol
 #include "usbmuxd-proto.h"
 // socket utility functions
 #include "sock_stuff.h"
 // misc utility functions
-#include "utils.h"
+#include "collection.h"
 
 static int libusbmuxd_debug = 0;
-#define DEBUG(x, y, ...) if (x <= libusbmuxd_debug) fprintf(stderr, (y), __VA_ARGS__);
+#define DEBUG(x, y, ...) if (x <= libusbmuxd_debug) fprintf(stderr, (y), __VA_ARGS__); fflush(stderr);
 
 static struct collection devices;
 static usbmuxd_event_cb_t event_cb = NULL;
 #ifdef WIN32
 HANDLE devmon = NULL;
-CRITICAL_SECTION mutex;
-static int mutex_initialized = 0;
-#define LOCK if (!mutex_initialized) { InitializeCriticalSection(&mutex); mutex_initialized = 1; } EnterCriticalSection(&mutex);
-#define UNLOCK LeaveCriticalSection(&mutex);
 #else
 pthread_t devmon;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-#define LOCK pthread_mutex_lock(&mutex)
-#define UNLOCK pthread_mutex_unlock(&mutex)	
 #endif
 static int listenfd = -1;
 
-static int use_tag = 0;
-static int proto_version = 0;
+static volatile int use_tag = 0;
+static volatile int proto_version = 1;
+static volatile int try_list_devices = 1;
 
 static int usbmuxd_port = DEFAULT_USBMUXD_SOCKET_PORT;
 
@@ -101,9 +106,9 @@ static int usbmuxd_port = DEFAULT_USBMUXD_SOCKET_PORT;
  * Finds a device info record by its handle.
  * if the record is not found, NULL is returned.
  */
-static usbmuxd_device_info_t *devices_find(int handle)
+static usbmuxd_device_info_t *devices_find(uint32_t handle)
 {
-	FOREACH(usbmuxd_device_info_t *dev, &devices, usbmuxd_device_info_t *) {
+	FOREACH(usbmuxd_device_info_t *dev, &devices) {
 		if (dev && dev->handle == handle) {
 			return dev;
 		}
@@ -125,6 +130,47 @@ static int connect_usbmuxd_socket()
 #endif
 }
 
+static struct usbmuxd_device_record* device_record_from_plist(plist_t props)
+{
+	struct usbmuxd_device_record* dev = NULL;
+	plist_t n = NULL;
+	uint64_t val = 0;
+	char *strval = NULL;
+
+	dev = (struct usbmuxd_device_record*)malloc(sizeof(struct usbmuxd_device_record));
+	if (!dev)
+		return NULL;
+	memset(dev, 0, sizeof(struct usbmuxd_device_record));
+
+	n = plist_dict_get_item(props, "DeviceID");
+	if (n && plist_get_node_type(n) == PLIST_UINT) {
+		plist_get_uint_val(n, &val);
+		dev->device_id = (uint32_t)val;
+	}
+
+	n = plist_dict_get_item(props, "ProductID");
+	if (n && plist_get_node_type(n) == PLIST_UINT) {
+		plist_get_uint_val(n, &val);
+		dev->product_id = (uint32_t)val;
+	}
+
+	n = plist_dict_get_item(props, "SerialNumber");
+	if (n && plist_get_node_type(n) == PLIST_STRING) {
+		plist_get_string_val(n, &strval);
+		if (strval) {
+			strncpy(dev->serial_number, strval, 255);
+			free(strval);
+		}
+	}
+	n = plist_dict_get_item(props, "LocationID");
+	if (n && plist_get_node_type(n) == PLIST_UINT) {
+		plist_get_uint_val(n, &val);
+		dev->location = (uint32_t)val;
+	}
+
+	return dev;
+}
+
 static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload, int timeout)
 {
 	int recv_len;
@@ -139,21 +185,20 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 	recv_len = recv_buf_timeout(sfd, &hdr, sizeof(hdr), 0, timeout);
 	if (recv_len < 0) {
 		return recv_len;
-	} else if (recv_len < sizeof(hdr)) {
+	} else if ((size_t)recv_len < sizeof(hdr)) {
 		return recv_len;
 	}
 
 	uint32_t payload_size = hdr.length - sizeof(hdr);
 	if (payload_size > 0) {
 		payload_loc = (char*)malloc(payload_size);
-		if (recv_buf_timeout(sfd, payload_loc, payload_size, 0, 5000) != payload_size) {
+		if (recv_buf_timeout(sfd, payload_loc, payload_size, 0, 5000) != (int)payload_size) {
 			DEBUG(1, "%s: Error receiving payload of size %d\n", __func__, payload_size);
 			free(payload_loc);
 			return -EBADMSG;
 		}
 	}
 
-#ifdef HAVE_PLIST
 	if (hdr.message == MESSAGE_PLIST) {
 		char *message = NULL;
 		plist_t plist = NULL;
@@ -166,10 +211,11 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 		}
 
 		plist_t node = plist_dict_get_item(plist, "MessageType");
-		if (plist_get_node_type(node) != PLIST_STRING) {
-			DEBUG(1, "%s: Error getting message type from plist!\n", __func__);
-			free(plist);
-			return -EBADMSG;
+		if (!node || plist_get_node_type(node) != PLIST_STRING) {
+			*payload = plist;
+			hdr.length = sizeof(hdr);
+			memcpy(header, &hdr, sizeof(hdr));
+			return hdr.length;
 		}
 		
 		plist_get_string_val(node, &message);
@@ -195,27 +241,14 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 					plist_free(plist);
 					return -EBADMSG;
 				}
-				dev = (struct usbmuxd_device_record*)malloc(sizeof(struct usbmuxd_device_record));
-				memset(dev, 0, sizeof(struct usbmuxd_device_record));
 
-				plist_t n = plist_dict_get_item(props, "DeviceID");
-				plist_get_uint_val(n, &val);
-				dev->device_id = (uint32_t)val;
-
-				n = plist_dict_get_item(props, "ProductID");
-				plist_get_uint_val(n, &val);
-				dev->product_id = (uint32_t)val;
-
-				n = plist_dict_get_item(props, "SerialNumber");
-				char *strval = NULL;
-				plist_get_string_val(n, &strval);
-				if (strval) {
-					strncpy(dev->serial_number, strval, 255);
-					free(strval);
+				dev = device_record_from_plist(props);
+				if (!dev) {
+					DEBUG(1, "%s: Could not create device record object from properties!\n", __func__);
+					free(message);
+					plist_free(plist);
+					return -EBADMSG;
 				}
-				n = plist_dict_get_item(props, "LocationID");
-				plist_get_uint_val(n, &val);
-				dev->location = (uint32_t)val;
 				*payload = (void*)dev;
 				hdr.length = sizeof(hdr) + sizeof(struct usbmuxd_device_record);
 				hdr.message = MESSAGE_DEVICE_ADD;
@@ -240,9 +273,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 			free(message);
 		}
 		plist_free(plist);
-	} else
-#endif
-	{
+	} else {
 		*payload = payload_loc;
 	}
 
@@ -254,7 +285,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 /**
  * Retrieves the result code to a previously sent request.
  */
-static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
+static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result, void **result_plist)
 {
 	struct usbmuxd_header hdr;
 	int recv_len;
@@ -264,6 +295,9 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 		return -EINVAL;
 	}
 	*result = -1;
+	if (result_plist) {
+		*result_plist = NULL;
+	}
 
 	if ((recv_len = receive_packet(sfd, &hdr, (void**)&res, 5000)) < 0) {
 		DEBUG(1, "%s: Error receiving packet: %d\n", __func__, errno);
@@ -271,7 +305,7 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 			free(res);
 		return -errno;
 	}
-	if (recv_len < sizeof(hdr)) {
+	if ((size_t)recv_len < sizeof(hdr)) {
 		DEBUG(1, "%s: Received packet is too small!\n", __func__);
 		if (res)
 			free(res);
@@ -280,14 +314,26 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t * result)
 
 	if (hdr.message == MESSAGE_RESULT) {
 		int ret = 0;
-		if (res && (hdr.tag == tag)) {
+		if (hdr.tag != tag) {
+			DEBUG(1, "%s: WARNING: tag mismatch (%d != %d). Proceeding anyway.\n", __func__, hdr.tag, tag);
+		}
+		if (res) {
 			memcpy(result, res, sizeof(uint32_t));
 			ret = 1;
 		}
 		if (res)
 			free(res);
 		return ret;
+	} else if (hdr.message == MESSAGE_PLIST) {
+		if (!result_plist) {
+			DEBUG(1, "%s: MESSAGE_PLIST result but result_plist pointer is NULL!\n", __func__);
+			return -1;
+		}
+		*result_plist = (plist_t)res;
+		*result = RESULT_OK;
+		return 1;
 	}
+
 	DEBUG(1, "%s: Unexpected message of type %d received!\n", __func__, hdr.message);
 	if (res)
 		free(res);
@@ -321,30 +367,40 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 	return sent;
 }
 
+static int send_plist_packet(int sfd, uint32_t tag, plist_t message)
+{
+	int res;
+	char *payload = NULL;
+	uint32_t payload_size = 0;
+
+	plist_to_xml(message, &payload, &payload_size);
+	res = send_packet(sfd, MESSAGE_PLIST, tag, payload, payload_size);
+	free(payload);
+
+	return res;
+}
+
+static plist_t create_plist_message(const char* message_type)
+{
+	plist_t plist = plist_new_dict();
+	plist_dict_insert_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
+	plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
+	plist_dict_insert_item(plist, "MessageType", plist_new_string(message_type));
+	plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));	
+	plist_dict_insert_item(plist, "kLibUSBMuxVersion", plist_new_uint(PLIST_LIBUSBMUX_VERSION));
+	return plist;
+}
+
 static int send_listen_packet(int sfd, uint32_t tag)
 {
 	int res = 0;
-#ifdef HAVE_PLIST
 	if (proto_version == 1) {
-		/* plist packet */
-		char *payload = NULL;
-		uint32_t payload_size = 0;
-		plist_t plist;
-
 		/* construct message plist */
-		plist = plist_new_dict();
-		plist_dict_insert_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
-		plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
-		plist_dict_insert_item(plist, "MessageType", plist_new_string("Listen"));
-		plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));
-		plist_to_xml(plist, &payload, &payload_size);
-		plist_free(plist);
+		plist_t plist = create_plist_message("Listen");
 
-		res = send_packet(sfd, MESSAGE_PLIST, tag, payload, payload_size);
-		free(payload);
-	} else
-#endif
-	{
+		res = send_plist_packet(sfd, tag, plist);
+		plist_free(plist);
+	} else {
 		/* binary packet */
 		res = send_packet(sfd, MESSAGE_LISTEN, tag, NULL, 0);
 	}
@@ -354,29 +410,15 @@ static int send_listen_packet(int sfd, uint32_t tag)
 static int send_connect_packet(int sfd, uint32_t tag, uint32_t device_id, uint16_t port)
 {
 	int res = 0;
-#ifdef HAVE_PLIST
 	if (proto_version == 1) {
-		/* plist packet */
-		char *payload = NULL;
-		uint32_t payload_size = 0;
-		plist_t plist;
-
 		/* construct message plist */
-		plist = plist_new_dict();
-		plist_dict_insert_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
-		plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
-		plist_dict_insert_item(plist, "MessageType", plist_new_string("Connect"));
+		plist_t plist = create_plist_message("Connect");
 		plist_dict_insert_item(plist, "DeviceID", plist_new_uint(device_id));
 		plist_dict_insert_item(plist, "PortNumber", plist_new_uint(htons(port)));
-		plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));
-		plist_to_xml(plist, &payload, &payload_size);
-		plist_free(plist);
 
-		res = send_packet(sfd, MESSAGE_PLIST, tag, (void*)payload, payload_size);
-		free(payload);
-	} else
-#endif
-	{
+		res = send_plist_packet(sfd, tag, plist);
+		plist_free(plist);
+	} else {
 		/* binary packet */
 		struct {
 			uint32_t device_id;
@@ -390,6 +432,49 @@ static int send_connect_packet(int sfd, uint32_t tag, uint32_t device_id, uint16
 
 		res = send_packet(sfd, MESSAGE_CONNECT, tag, &conninfo, sizeof(conninfo));
 	}
+	return res;
+}
+
+static int send_list_devices_packet(int sfd, uint32_t tag)
+{
+	int res = -1;
+
+	/* construct message plist */
+	plist_t plist = create_plist_message("ListDevices");
+
+	res = send_plist_packet(sfd, tag, plist);
+	plist_free(plist);
+
+	return res;
+}
+
+static int send_read_buid_packet(int sfd, uint32_t tag)
+{
+	int res = -1;
+
+	/* construct message plist */
+	plist_t plist = create_plist_message("ReadBUID");
+
+	res = send_plist_packet(sfd, tag, plist);
+	plist_free(plist);
+
+	return res;
+}
+
+static int send_pair_record_packet(int sfd, uint32_t tag, const char* msgtype, const char* pair_record_id, plist_t data)
+{
+	int res = -1;
+
+	/* construct message plist */
+	plist_t plist = create_plist_message(msgtype);
+	plist_dict_insert_item(plist, "PairRecordID", plist_new_string(pair_record_id));
+	if (data) {
+		plist_dict_insert_item(plist, "PairRecordData", plist_copy(data));
+	}
+	
+	res = send_plist_packet(sfd, tag, plist);
+	plist_free(plist);
+
 	return res;
 }
 
@@ -499,10 +584,9 @@ static int usbmuxd_listen()
 {
 	int sfd;
 	uint32_t res = -1;
+	int tag;
 
-#ifdef HAVE_PLIST
 retry:
-#endif
 
 #ifdef HAVE_INOTIFY
 	sfd = usbmuxd_listen_inotify();
@@ -517,27 +601,21 @@ retry:
 		return sfd;
 	}
 
-	use_tag++;
-	LOCK;
-	if (send_listen_packet(sfd, use_tag) <= 0) {
-		UNLOCK;
+	tag = ++use_tag;
+	if (send_listen_packet(sfd, tag) <= 0) {
 		DEBUG(1, "%s: ERROR: could not send listen packet\n", __func__);
 		close_socket(sfd);
 		return -1;
 	}
-	if (usbmuxd_get_result(sfd, use_tag, &res) && (res != 0)) {
-		UNLOCK;
+	if (usbmuxd_get_result(sfd, tag, &res, NULL) && (res != 0)) {
 		close_socket(sfd);
-#ifdef HAVE_PLIST
-		if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
-			proto_version = 1;
+		if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
+			proto_version = 0;
 			goto retry;
 		}
-#endif
 		DEBUG(1, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
 	}
-	UNLOCK;
 
 	return sfd;
 }
@@ -546,7 +624,7 @@ retry:
  * Waits for an event to occur, i.e. a packet coming from usbmuxd.
  * Calls generate_event to pass the event via callback to the client program.
  */
-int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
+static int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 {
 	struct usbmuxd_header hdr;
 	void *payload = NULL;
@@ -556,7 +634,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		// when then usbmuxd connection fails,
 		// generate remove events for every device that
 		// is still present so applications know about it
-		FOREACH(usbmuxd_device_info_t *dev, &devices, usbmuxd_device_info_t *) {
+		FOREACH(usbmuxd_device_info_t *dev, &devices) {
 			generate_event(callback, dev, UE_DEVICE_REMOVE, user_data);
 			collection_remove(&devices, dev);
 			free(dev);
@@ -570,7 +648,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 	}
 
 	if (hdr.message == MESSAGE_DEVICE_ADD) {
-		struct usbmuxd_device_record *dev = (struct usbmuxd_device_record *)payload;
+		struct usbmuxd_device_record *dev = payload;
 		usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 		if (!devinfo) {
 			DEBUG(1, "%s: Out of memory!\n", __func__);
@@ -614,7 +692,7 @@ int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 
 static void device_monitor_cleanup(void* data)
 {
-	FOREACH(usbmuxd_device_info_t *dev, &devices, usbmuxd_device_info_t *) {
+	FOREACH(usbmuxd_device_info_t *dev, &devices) {
 		collection_remove(&devices, dev);
 		free(dev);
 	} ENDFOREACH
@@ -704,9 +782,33 @@ int usbmuxd_unsubscribe()
 	return 0;
 }
 
+static usbmuxd_device_info_t *device_info_from_device_record(struct usbmuxd_device_record *dev)
+{
+	if (!dev) {
+		return NULL;
+	}
+	usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
+	if (!devinfo) {
+		DEBUG(1, "%s: Out of memory!\n", __func__);
+		return NULL;
+	}
+
+	devinfo->handle = dev->device_id;
+	devinfo->product_id = dev->product_id;
+	memset(devinfo->udid, '\0', sizeof(devinfo->udid));
+	memcpy(devinfo->udid, dev->serial_number, sizeof(devinfo->udid));
+
+	if (strcasecmp(devinfo->udid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
+		sprintf(devinfo->udid + 32, "%08x", devinfo->handle);
+	}
+
+	return devinfo;
+}
+
 int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 {
 	int sfd;
+	int tag;
 	int listen_success = 0;
 	uint32_t res;
 	struct collection tmpdevs;
@@ -718,38 +820,66 @@ int usbmuxd_get_device_list(usbmuxd_device_info_t **device_list)
 
 	*device_list = NULL;
 
-#ifdef HAVE_PLIST
 retry:
-#endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
 		DEBUG(1, "%s: error opening socket!\n", __func__);
 		return sfd;
 	}
 
-	use_tag++;
-	LOCK;
-	if (send_listen_packet(sfd, use_tag) > 0) {
-		res = -1;
-		// get response
-		if (usbmuxd_get_result(sfd, use_tag, &res) && (res == 0)) {
-			listen_success = 1;
-		} else {
-			UNLOCK;
-			close_socket(sfd);
-#ifdef HAVE_PLIST
-			if ((res == RESULT_BADVERSION) && (proto_version != 1)) {
-				proto_version = 1;
+	tag = ++use_tag;
+	if ((proto_version == 1) && (try_list_devices)) {
+		if (send_list_devices_packet(sfd, tag) > 0) {
+			plist_t list = NULL;
+			if (usbmuxd_get_result(sfd, tag, &res, &list) && (res == 0)) {
+				plist_t devlist = plist_dict_get_item(list, "DeviceList");
+				if (devlist && plist_get_node_type(devlist) == PLIST_ARRAY) {
+					collection_init(&tmpdevs);
+					uint32_t numdevs = plist_array_get_size(devlist);
+					uint32_t i;
+					for (i = 0; i < numdevs; i++) {
+						plist_t pdev = plist_array_get_item(devlist, i);
+						plist_t props = plist_dict_get_item(pdev, "Properties");
+						dev = device_record_from_plist(props);
+						usbmuxd_device_info_t *devinfo = device_info_from_device_record(dev);
+						if (!devinfo) {
+							DEBUG(1, "%s: can't create device info object\n", __func__);
+							free(payload);
+							return -1;
+						}
+						collection_add(&tmpdevs, devinfo);
+					}
+					goto got_device_list;
+				}
+			} else {
+				if (res == RESULT_BADVERSION) {
+					proto_version = 0;
+				}
+				close_socket(sfd);
+				try_list_devices = 0;
 				goto retry;
 			}
-#endif
+		}
+	}
+
+	tag = ++use_tag;
+	if (send_listen_packet(sfd, tag) > 0) {
+		res = -1;
+		// get response
+		if (usbmuxd_get_result(sfd, tag, &res, NULL) && (res == 0)) {
+			listen_success = 1;
+		} else {
+			close_socket(sfd);
+			if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
+				proto_version = 0;
+				goto retry;
+			}
 			DEBUG(1, "%s: Did not get response to scan request (with result=0)...\n", __func__);
 			return res;
 		}
 	}
 
 	if (!listen_success) {
-		UNLOCK;
 		DEBUG(1, "%s: Could not send listen request!\n", __func__);
 		return -1;
 	}
@@ -758,26 +888,16 @@ retry:
 
 	// receive device list
 	while (1) {
-		if (receive_packet(sfd, &hdr, &payload, 1000) > 0) {
+		if (receive_packet(sfd, &hdr, &payload, 100) > 0) {
 			if (hdr.message == MESSAGE_DEVICE_ADD) {
-				dev = (usbmuxd_device_record *)payload;
-				usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
+				dev = payload;
+
+				usbmuxd_device_info_t *devinfo = device_info_from_device_record(dev);
 				if (!devinfo) {
-					UNLOCK;
-					DEBUG(1, "%s: Out of memory!\n", __func__);
+					DEBUG(1, "%s: can't create device info object\n", __func__);
 					free(payload);
 					return -1;
 				}
-
-				devinfo->handle = dev->device_id;
-				devinfo->product_id = dev->product_id;
-				memset(devinfo->udid, '\0', sizeof(devinfo->udid));
-				memcpy(devinfo->udid, dev->serial_number, sizeof(devinfo->udid));
-
-				if (strcasecmp(devinfo->udid, "ffffffffffffffffffffffffffffffffffffffff") == 0) {
-					sprintf(devinfo->udid + 32, "%08x", devinfo->handle);
-				}
-
 				collection_add(&tmpdevs, devinfo);
 
 			} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
@@ -786,7 +906,7 @@ retry:
 
 				memcpy(&handle, payload, sizeof(uint32_t));
 
-				FOREACH(usbmuxd_device_info_t *di, &tmpdevs, usbmuxd_device_info_t *) {
+				FOREACH(usbmuxd_device_info_t *di, &tmpdevs) {
 					if (di && di->handle == handle) {
 						devinfo = di;
 						break;
@@ -807,7 +927,8 @@ retry:
 			break;
 		}
 	}
-	UNLOCK;
+
+got_device_list:
 
 	// explicitly close connection
 	close_socket(sfd);
@@ -815,7 +936,7 @@ retry:
 	// create copy of device info entries from collection
 	newlist = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t) * (collection_count(&tmpdevs) + 1));
 	dev_cnt = 0;
-	FOREACH(usbmuxd_device_info_t *di, &tmpdevs, usbmuxd_device_info_t *) {
+	FOREACH(usbmuxd_device_info_t *di, &tmpdevs) {
 		if (di) {
 			memcpy(&newlist[dev_cnt], di, sizeof(usbmuxd_device_info_t));
 			free(di);
@@ -876,12 +997,11 @@ int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device)
 int usbmuxd_connect(const int handle, const unsigned short port)
 {
 	int sfd;
+	int tag;
 	int connected = 0;
 	uint32_t res = -1;
 
-#ifdef HAVE_PLIST
 retry:
-#endif
 	sfd = connect_usbmuxd_socket();
 	if (sfd < 0) {
 		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n",
@@ -889,24 +1009,22 @@ retry:
 		return sfd;
 	}
 
-	use_tag++;
-	if (send_connect_packet(sfd, use_tag, (uint32_t)handle, (uint16_t)port) <= 0) {
+	tag = ++use_tag;
+	if (send_connect_packet(sfd, tag, (uint32_t)handle, (uint16_t)port) <= 0) {
 		DEBUG(1, "%s: Error sending connect message!\n", __func__);
 	} else {
 		// read ACK
 		DEBUG(2, "%s: Reading connect result...\n", __func__);
-		if (usbmuxd_get_result(sfd, use_tag, &res)) {
+		if (usbmuxd_get_result(sfd, tag, &res, NULL)) {
 			if (res == 0) {
 				DEBUG(2, "%s: Connect success!\n", __func__);
 				connected = 1;
 			} else {
-#ifdef HAVE_PLIST
-				if ((res == RESULT_BADVERSION) && (proto_version == 0)) {
-					proto_version = 1;
+				if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
+					proto_version = 0;
 					close_socket(sfd);
 					goto retry;
 				}
-#endif
 				DEBUG(1, "%s: Connect failed, Error code=%d\n", __func__, res);
 			}
 		}
@@ -934,10 +1052,11 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 		return -EINVAL;
 	}
 	
-	num_sent = send_all(sfd, (const char*)data, len);
+	num_sent = send_all(sfd, (void*)data, len);
 	if (num_sent < 0) {
 		*sent_bytes = 0;
-		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(errno));
+		num_sent = errno;
+		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(num_sent));
 		return num_sent;
 	} else if ((uint32_t)num_sent < len) {
 		DEBUG(1, "%s: Warning: Did not send enough (only %d of %d)\n", __func__, num_sent, len);
@@ -964,6 +1083,164 @@ int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes
 int usbmuxd_recv(int sfd, char *data, uint32_t len, uint32_t *recv_bytes)
 {
 	return usbmuxd_recv_timeout(sfd, data, len, recv_bytes, 5000);
+}
+
+int usbmuxd_read_buid(char **buid)
+{
+	int sfd;
+	int tag;
+	int ret = 0;
+
+	if (!buid) {
+		return -EINVAL;
+	}
+	*buid = NULL;
+
+	sfd = connect_usbmuxd_socket();
+	if (sfd < 0) {
+		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n", __func__, strerror(errno));
+		return sfd;
+	}
+
+	proto_version = 1;
+	tag = ++use_tag;
+	if (send_read_buid_packet(sfd, tag) <= 0) {
+		DEBUG(1, "%s: Error sending ReadBUID message!\n", __func__);
+	} else {
+		uint32_t rc = 0;
+		plist_t pl = NULL;
+		if (usbmuxd_get_result(sfd, tag, &rc, &pl) && (rc == 0)) {
+			plist_t node = plist_dict_get_item(pl, "BUID");
+			if (node && plist_get_node_type(node) == PLIST_STRING) {
+				plist_get_string_val(node, buid);
+			}
+		} else {
+			ret = -(int)rc;
+		}
+		if (pl)
+			plist_free(pl);
+	}
+
+	return ret;
+}
+
+int usbmuxd_read_pair_record(const char* record_id, char **record_data, uint32_t *record_size)
+{
+	int sfd;
+	int tag;
+	int ret = -1;
+
+	if (!record_id || !record_data || !record_size) {
+		return -EINVAL;
+	}
+	*record_data = NULL;
+	*record_size = 0;
+
+	sfd = connect_usbmuxd_socket();
+	if (sfd < 0) {
+		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n",
+				__func__, strerror(errno));
+		return sfd;
+	}
+
+	proto_version = 1;
+	tag = ++use_tag;
+
+	if (send_pair_record_packet(sfd, tag, "ReadPairRecord", record_id, NULL) <= 0) {
+		DEBUG(1, "%s: Error sending ReadPairRecord message!\n", __func__);
+	} else {
+		uint32_t rc = 0;
+		plist_t pl = NULL;
+		if (usbmuxd_get_result(sfd, tag, &rc, &pl) && (rc == 0)) {
+			plist_t node = plist_dict_get_item(pl, "PairRecordData");
+			if (node && plist_get_node_type(node) == PLIST_DATA) {
+				uint64_t int64val = 0;
+				plist_get_data_val(node, record_data, &int64val);
+				if (record_data && int64val > 0) {
+					*record_size = (uint32_t)int64val;
+					ret = 0;
+				}
+			}
+		} else {
+			ret = -(int)rc;
+		}
+		if (pl)
+			plist_free(pl);
+	}
+
+	return ret;
+}
+
+int usbmuxd_save_pair_record(const char* record_id, const char *record_data, uint32_t record_size)
+{
+	int sfd;
+	int tag;
+	int ret = -1;
+
+	if (!record_id || !record_data || !record_size) {
+		return -EINVAL;
+	}
+
+	sfd = connect_usbmuxd_socket();
+	if (sfd < 0) {
+		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n",
+				__func__, strerror(errno));
+		return sfd;
+	}
+
+	proto_version = 1;
+	tag = ++use_tag;
+
+	plist_t data = plist_new_data(record_data, record_size);
+	if (send_pair_record_packet(sfd, tag, "SavePairRecord", record_id, data) <= 0) {
+		DEBUG(1, "%s: Error sending SavePairRecord message!\n", __func__);
+	} else {
+		uint32_t rc = 0;
+		if (usbmuxd_get_result(sfd, tag, &rc, NULL) && (rc == 0)) {
+			ret = 0;
+		} else {
+			ret = -(int)rc;
+			DEBUG(1, "%s: Error: saving pair record failed: %d\n", __func__, ret);
+		}
+	}
+	plist_free(data);
+
+	return ret;
+}
+
+int usbmuxd_delete_pair_record(const char* record_id)
+{
+	int sfd;
+	int tag;
+	int ret = -1;
+
+	if (!record_id) {
+		return -EINVAL;
+	}
+
+	sfd = connect_usbmuxd_socket();
+	if (sfd < 0) {
+		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n",
+				__func__, strerror(errno));
+		return sfd;
+	}
+
+	proto_version = 1;
+	tag = ++use_tag;
+
+	if (send_pair_record_packet(sfd, tag, "DeletePairRecord", record_id, NULL) <= 0) {
+		DEBUG(1, "%s: Error sending DeletePairRecord message!\n", __func__);
+	} else {
+		uint32_t rc = 0;
+		if (usbmuxd_get_result(sfd, tag, &rc, NULL) && (rc == 0)) {
+			ret = 0;
+		} else {
+			ret = -(int)rc;
+			DEBUG(1, "%s: Error: deleting pair record failed: %d\n", __func__, ret);
+		}
+	}
+
+	return ret;
 }
 
 void libusbmuxd_set_use_inotify(int set)

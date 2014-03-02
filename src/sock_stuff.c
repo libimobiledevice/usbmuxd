@@ -27,12 +27,19 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
-#ifdef WIN32
-#include <winsock2.h>
-static int wsa_init = 0;
+
+#ifndef _MSC_VER
+	#include <unistd.h>
+	#include <sys/time.h>
+#endif
+#ifdef WIN32	
+	#include <winsock2.h>
+	static int wsa_init = 0;
+
+	#ifdef _MSC_VER
+		#define __func__ __FUNCTION__
+	#endif
 #else
-#include <unistd.h>
-#include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -40,10 +47,6 @@ static int wsa_init = 0;
 #include <arpa/inet.h>
 #endif
 #include "sock_stuff.h"
-
-#ifdef WIN32
-#define __func__ __FUNCTION__
-#endif
 
 #define RECV_TIMEOUT 20000
 
@@ -169,7 +172,7 @@ int create_socket(uint16_t port)
 		return -1;
 	}
 
-	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&yes, sizeof(int)) == -1) {
+	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
 		perror("setsockopt()");
 		close_socket(sfd);
 		return -1;
@@ -236,7 +239,7 @@ int connect_socket(const char *addr, uint16_t port)
 		return -1;
 	}
 
-	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&yes, sizeof(int)) == -1) {
+	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
 		perror("setsockopt()");
 		close_socket(sfd);
 		return -1;
@@ -359,7 +362,7 @@ int recv_buf_timeout(int fd, void *data, size_t length, int flags,
 		return res;
 	}
 	// if we get here, there _is_ data available
-	result = recv(fd, (char *)data, length, flags);
+	result = recv(fd, data, length, flags);
 	if (res > 0 && result == 0) {
 		// but this is an error condition
 		if (verbose >= 3)
@@ -374,18 +377,20 @@ int recv_buf_timeout(int fd, void *data, size_t length, int flags,
 
 int send_buf(int fd, void *data, size_t length)
 {
-	return send(fd, (const char *)data, length, 0);
+	return send_all(fd, data, length);
 }
 
 int send_all(int fd, const char *data, size_t length)
 {
-	int bytes_sent = 0;
-	int bytes_left = length;
+	size_t bytes_sent = 0;
+	size_t bytes_left = length;
 	int result = 0;
 
-	while (bytes_sent < length) {
+	while (bytes_sent < length)
+	{
 		result = send(fd, data + bytes_sent, bytes_left, 0);
-		if (SOCKET_ERROR == result) {
+		if (SOCKET_ERROR == result)
+		{
 			fprintf(stderr, "%s: send failed: %s\n", __func__, strerror(errno));
 			return SOCKET_ERROR;
 		}
