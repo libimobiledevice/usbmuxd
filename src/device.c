@@ -405,7 +405,9 @@ void device_client_process(int device_id, struct mux_client *client, short event
 	if(events & POLLIN) {
 		size = client_read(conn->client, conn->ob_buf, conn->sendable);
 		if(size <= 0) {
-			usbmuxd_log(LL_DEBUG, "error reading from client (%d)", size);
+			if (size < 0) {
+				usbmuxd_log(LL_DEBUG, "error reading from client (%d)", size);
+			}
 			connection_teardown(conn);
 			return;
 		}
