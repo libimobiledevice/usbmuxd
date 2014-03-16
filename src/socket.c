@@ -429,5 +429,5 @@ int socket_send_all(int fd, const char *data, size_t length)
 		bytes_left -= result;
 	}
 
-	return TRUE;
+	return bytes_sent;
 }
