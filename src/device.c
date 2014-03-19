@@ -2,6 +2,7 @@
 	usbmuxd - iPhone/iPod Touch USB multiplex server daemon
 
 Copyright (C) 2009	Hector Martin "marcan" <hector@marcansoft.com>
+Copyright (C) 2014  Mikkel Kamstrup Erlandsen <mikkel.kamstrup@xamarin.com>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -124,6 +125,41 @@ static uint64_t mstime64(void)
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+static struct mux_device* get_mux_device_for_id(int device_id)
+{
+  struct mux_device *dev = NULL;
+	pthread_mutex_lock(&device_list_mutex);
+	FOREACH(struct mux_device *cdev, &device_list) {
+		if(cdev->id == device_id) {
+			dev = cdev;
+			break;
+		}
+	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
+
+	return dev;
+}
+
+static struct mux_connection* get_mux_connection(int device_id, struct mux_client *client)
+{
+	struct mux_connection *conn = NULL;
+	pthread_mutex_lock(&device_list_mutex);
+	FOREACH(struct mux_device *dev, &device_list) {
+		if(dev->id == device_id) {
+			FOREACH(struct mux_connection *lconn, &dev->connections) {
+				if(lconn->client == client) {
+					conn = lconn;
+					break;
+				}
+			} ENDFOREACH
+			break;
+		}
+	} ENDFOREACH
+	pthread_mutex_unlock(&device_list_mutex);
+
+	return conn;
 }
 
 static int get_next_device_id(void)
@@ -274,15 +310,7 @@ static void connection_teardown(struct mux_connection *conn)
 
 int device_start_connect(int device_id, uint16_t dport, struct mux_client *client)
 {
-	struct mux_device *dev = NULL;
-	pthread_mutex_lock(&device_list_mutex);
-	FOREACH(struct mux_device *cdev, &device_list) {
-		if(cdev->id == device_id) {
-			dev = cdev;
-			break;
-		}
-	} ENDFOREACH
-	pthread_mutex_unlock(&device_list_mutex);
+	struct mux_device *dev = get_mux_device_for_id(device_id);
 	if(!dev) {
 		usbmuxd_log(LL_WARNING, "Attempted to connect to nonexistent device %d", device_id);
 		return -RESULT_BADDEV;
@@ -369,6 +397,19 @@ static void update_connection(struct mux_connection *conn)
 	client_set_events(conn->client, conn->events);
 }
 
+static int send_tcp_ack(struct mux_connection *conn)
+{
+	if(send_tcp(conn, TH_ACK, NULL, 0) < 0) {
+		usbmuxd_log(LL_ERROR, "Error sending TCP ACK (%d->%d)", conn->sport, conn->dport);
+		connection_teardown(conn);
+    return -1;
+	}
+
+  update_connection(conn);
+
+  return 0;
+}
+
 /**
  * Flush input and output buffers for a client connection.
  *
@@ -380,21 +421,7 @@ static void update_connection(struct mux_connection *conn)
  */
 void device_client_process(int device_id, struct mux_client *client, short events)
 {
-    // Find the connection for the given device_id
-	struct mux_connection *conn = NULL;
-	pthread_mutex_lock(&device_list_mutex);
-	FOREACH(struct mux_device *dev, &device_list) {
-		if(dev->id == device_id) {
-			FOREACH(struct mux_connection *lconn, &dev->connections) {
-				if(lconn->client == client) {
-					conn = lconn;
-					break;
-				}
-			} ENDFOREACH
-			break;
-		}
-	} ENDFOREACH
-	pthread_mutex_unlock(&device_list_mutex);
+	struct mux_connection *conn = get_mux_connection(device_id, client);
 
 	if(!conn) {
 		usbmuxd_log(LL_WARNING, "Could not find connection for device %d client %p", device_id, client);
@@ -405,8 +432,8 @@ void device_client_process(int device_id, struct mux_client *client, short event
 	int res;
 	int size;
 	if(events & POLLOUT) {
-        // Client is ready to receive data, send what we have
-        // in the client's connection buffer
+		// Client is ready to receive data, send what we have
+		// in the client's connection buffer
 		size = client_write(conn->client, conn->ib_buf, conn->ib_size);
 		if(size <= 0) {
 			usbmuxd_log(LL_DEBUG, "error writing to client (%d)", size);
@@ -422,8 +449,8 @@ void device_client_process(int device_id, struct mux_client *client, short event
 		}
 	}
 	if(events & POLLIN) {
-        // There is inbound trafic on the client socket,
-        // convert it to tcp and send to the device
+		// There is inbound trafic on the client socket,
+		// convert it to tcp and send to the device
 		size = client_read(conn->client, conn->ob_buf, conn->sendable);
 		if(size <= 0) {
 			if (size < 0) {
@@ -475,23 +502,12 @@ static void connection_device_input(struct mux_connection *conn, unsigned char *
 
 void device_abort_connect(int device_id, struct mux_client *client)
 {
-	pthread_mutex_lock(&device_list_mutex);
-	FOREACH(struct mux_device *dev, &device_list) {
-		if(dev->id == device_id) {
-			FOREACH(struct mux_connection *conn, &dev->connections) {
-				if(conn->client == client) {
-					connection_teardown(conn);
-					pthread_mutex_unlock(&device_list_mutex);
-					return;
-				}
-			} ENDFOREACH
-			pthread_mutex_unlock(&device_list_mutex);
-			usbmuxd_log(LL_WARNING, "Attempted to abort for nonexistent connection for device %d", device_id);
-			return;
-		}
-	} ENDFOREACH
-	pthread_mutex_unlock(&device_list_mutex);
-	usbmuxd_log(LL_WARNING, "Attempted to abort connection for nonexistent device %d", device_id);
+  struct mux_connection *conn = get_mux_connection(device_id, client);
+	if (conn) {
+		connection_teardown(conn);
+	} else {
+		usbmuxd_log(LL_WARNING, "Attempted to abort for nonexistent connection for device %d", device_id);
+	}
 }
 
 static void device_version_input(struct mux_device *dev, struct version_header *vh)
@@ -543,6 +559,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 		return;
 	}
 
+	// Find the connection on this device that has the right sport and dport
 	FOREACH(struct mux_connection *lconn, &dev->connections) {
 		if(lconn->sport == sport && lconn->dport == dport) {
 			conn = lconn;
@@ -603,6 +620,9 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 			connection_teardown(conn);
 		} else {
 			connection_device_input(conn, payload, payload_length);
+
+			// Device likes it best when we are prompty ACKing data
+			send_tcp_ack(conn);
 		}
 	}
 }
@@ -866,10 +886,7 @@ void device_check_timeouts(void)
 						(conn->flags & CONN_ACK_PENDING) && 
 						(ct - conn->last_ack_time) > ACK_TIMEOUT) {
 					usbmuxd_log(LL_DEBUG, "Sending ACK due to expired timeout (%" PRIu64 " -> %" PRIu64 ")", conn->last_ack_time, ct);
-					if(send_tcp(conn, TH_ACK, NULL, 0) < 0) {
-						usbmuxd_log(LL_ERROR, "Error sending TCP ACK to device %d (%d->%d)", dev->id, conn->sport, conn->dport);
-						connection_teardown(conn);
-					}
+					send_tcp_ack(conn);
 				}
 			} ENDFOREACH
 		}
