@@ -346,6 +346,13 @@ int device_start_connect(int device_id, uint16_t dport, struct mux_client *clien
 	return 0;
 }
 
+/**
+ * Examine the state of a connection's buffers and
+ * update all connection flags and masks accordingly.
+ * Does not do I/O.
+ *
+ * @param conn The connection to update.
+ */
 static void update_connection(struct mux_connection *conn)
 {
 	uint32_t sent = conn->tx_seq - conn->rx_ack;
@@ -379,8 +386,18 @@ static void update_connection(struct mux_connection *conn)
 	client_set_events(conn->client, conn->events);
 }
 
+/**
+ * Flush input and output buffers for a client connection.
+ *
+ * @param device_id Numeric id for the device.
+ * @param client The client to flush buffers for.
+ * @param events event mask for the client. POLLOUT means that
+ *   the client is ready to receive data, POLLIN that it has
+ *   data to be read (and send along to the device).
+ */
 void device_client_process(int device_id, struct mux_client *client, short events)
 {
+    // Find the connection for the given device_id
 	struct mux_connection *conn = NULL;
 	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
@@ -405,6 +422,8 @@ void device_client_process(int device_id, struct mux_client *client, short event
 	int res;
 	int size;
 	if(events & POLLOUT) {
+        // Client is ready to receive data, send what we have
+        // in the client's connection buffer
 		size = client_write(conn->client, conn->ib_buf, conn->ib_size);
 		if(size <= 0) {
 			usbmuxd_log(LL_DEBUG, "error writing to client (%d)", size);
@@ -420,6 +439,8 @@ void device_client_process(int device_id, struct mux_client *client, short event
 		}
 	}
 	if(events & POLLIN) {
+        // There is inbound trafic on the client socket,
+        // convert it to tcp and send to the device
 		size = client_read(conn->client, conn->ob_buf, conn->sendable);
 		if(size <= 0) {
 			if (size < 0) {
@@ -439,6 +460,23 @@ void device_client_process(int device_id, struct mux_client *client, short event
 	update_connection(conn);
 }
 
+/**
+ * Copy a payload to a connection's in-buffer and
+ * set the POLLOUT event mask on the connection so
+ * the next main_loop iteration will dispatch the
+ * buffer if the connection socket is writable.
+ *
+ * Connection buffers are flushed in the
+ * device_client_process() function.
+ *
+ * @param conn The connection to add incoming data to.
+ * @param payload Payload to prepare for writing.
+ *   The payload will be copied immediately so you are
+ *   free to alter or free the payload buffer when this
+ *   function returns.
+ * @param payload_length number of bytes to copy from from
+ *   the payload.
+ */
 static void connection_device_input(struct mux_connection *conn, unsigned char *payload, uint32_t payload_length)
 {
 	if((conn->ib_size + payload_length) > conn->ib_capacity) {
@@ -500,12 +538,24 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	preflight_worker_device_add(&info);
 }
 
+<<<<<<< HEAD
 
 #ifdef ANDROID
 		static void device_tcp_input(struct mux_device *dev, struct tcphdr_bsd *th, unsigned char *payload, uint32_t payload_length)
 #else
 		static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
 #endif
+=======
+/**
+ * Handle an incoming TCP packet from the device.
+ *
+ * @param dev The device handle TCP input on.
+ * @param th Pointer to the TCP header struct.
+ * @param payload Payload data.
+ * @param payload_length Number of bytes in payload.
+ */
+static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
+>>>>>>> client: add a bunch of comments and function docs
 {
 	uint16_t sport = ntohs(th->th_dport);
 	uint16_t dport = ntohs(th->th_sport);
@@ -583,6 +633,14 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	}
 }
 
+/**
+ * Take input data from the device that has been read into a buffer
+ * and dispatch it to the right protocol backend (eg. TCP).
+ *
+ * @param usbdev
+ * @param buffer
+ * @param length
+ */
 void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_t length)
 {
 	struct mux_device *dev = NULL;
@@ -617,7 +675,7 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_
 			dev->pktlen = 0;
 			return;
 		}
-		memcpy(dev->pktbuf + dev->pktlen, buffer, length);
+        memcpy(dev->pktbuf + dev->pktlen, buffer, length);
 		struct mux_header *mhdr = (struct mux_header *)dev->pktbuf;
 		if((length < USB_MRU) || (ntohl(mhdr->length) == (length + dev->pktlen))) {
 			buffer = dev->pktbuf;
