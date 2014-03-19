@@ -93,6 +93,7 @@ static void usb_disconnect(struct usb_device *dev)
 	free(dev);
 }
 
+// Callback from write operation
 static void tx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
@@ -162,6 +163,9 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 	return 0;
 }
 
+// Callback from read operation
+// Under normal operation this issues a new read transfer request immediately,
+// doing a kind of read-callback loop
 static void rx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
@@ -206,6 +210,7 @@ static void rx_callback(struct libusb_transfer *xfer)
 	}
 }
 
+// Start a read-callback loop for this device
 static int start_rx(struct usb_device *dev)
 {
 	int res;
