@@ -124,7 +124,10 @@ static uint64_t mstime64(void)
 {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
-	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+
+    // Careful, avoid overflow on 32 bit systems
+    // time_t could be 4 bytes
+	return ((long long)tv.tv_sec) * 1000LL + ((long long)tv.tv_usec) / 1000LL;
 }
 
 static struct mux_device* get_mux_device_for_id(int device_id)
