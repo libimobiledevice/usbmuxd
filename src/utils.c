@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <sys/time.h>
 
 #include "utils.h"
 
@@ -271,4 +272,17 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 	free(buffer);
 
 	return 1;
+}
+
+/**
+ * Get number of milliseconds since the epoch.
+ */
+uint64_t mstime64(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+  // Careful, avoid overflow on 32 bit systems
+  // time_t could be 4 bytes
+	return ((long long)tv.tv_sec) * 1000LL + ((long long)tv.tv_usec) / 1000LL;
 }
