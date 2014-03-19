@@ -71,6 +71,14 @@ struct mux_client {
 static struct collection client_list;
 pthread_mutex_t client_list_mutex;
 
+/**
+ * Receive raw data from the client socket.
+ *
+ * @param client Client to read from.
+ * @param buffer Buffer to store incoming data.
+ * @param len Max number of bytes to read.
+ * @return Same as recv() system call. Number of bytes read; when < 0 errno will be set.
+ */
 int client_read(struct mux_client *client, void *buffer, uint32_t len)
 {
 	usbmuxd_log(LL_SPEW, "client_read fd %d buf %p len %d", client->fd, buffer, len);
@@ -81,6 +89,14 @@ int client_read(struct mux_client *client, void *buffer, uint32_t len)
 	return recv(client->fd, buffer, len, 0);
 }
 
+/**
+ * Send raw data to the client socket.
+ *
+ * @param client Client to send to.
+ * @param buffer The data to send.
+ * @param len Number of bytes to write.
+ * @return Same as system call send(). Number of bytes written; when < 0 errno will be set.
+ */
 int client_write(struct mux_client *client, void *buffer, uint32_t len)
 {
 	usbmuxd_log(LL_SPEW, "client_write fd %d buf %p len %d", client->fd, buffer, len);
@@ -91,6 +107,16 @@ int client_write(struct mux_client *client, void *buffer, uint32_t len)
 	return send(client->fd, buffer, len, 0);
 }
 
+/**
+ * Set event mask to use for ppoll()ing the client socket.
+ * Typically POLLOUT and/or POLLIN. Note that this overrides
+ * the current mask, that is, it is not ORing the argument
+ * into the current mask.
+ *
+ * @param client The client to set the event mask on.
+ * @param events The event mask to sert.
+ * @return 0 on success, -1 on error.
+ */
 int client_set_events(struct mux_client *client, short events)
 {
 	if((client->state != CLIENT_CONNECTED) && (client->state != CLIENT_CONNECTING2)) {
@@ -103,6 +129,15 @@ int client_set_events(struct mux_client *client, short events)
 	return 0;
 }
 
+/**
+ * Wait for an inbound connection on the usbmuxd socket
+ * and create a new mux_client instance for it, and store
+ * the client in the client list.
+ *
+ * @param listenfd the socket fd to accept() on.
+ * @return The connection fd for the client, or < 0 for error
+ *   in which case errno will be set.
+ */
 int client_accept(int listenfd)
 {
 	struct sockaddr_un addr;
