@@ -4,6 +4,7 @@
 Copyright (C) 2009	Hector Martin "marcan" <hector@marcansoft.com>
 Copyright (C) 2009	Nikias Bassen <nikias@gmx.li>
 Copyright (C) 2009	Martin Szulecki <opensuse@sukimashita.com>
+Copyright (C) 2014  Mikkel Kamstrup Erlandsen <mikkel.kamstrup@xamarin.com>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,6 +40,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 // we need this because there is currently no asynchronous device discovery mechanism in libusb
 #define DEVICE_POLL_TIME 1000
 
+// Number of parallel bulk transfers we have running for reading data from the device.
+// Older versions of usbmuxd kept only 1, which leads to a mostly dormant USB port.
+// 3 seems to be an all round sensible number - giving better read perf than
+// Apples usbmuxd, at least.
+#define NUM_RX_LOOPS 3
+
 struct usb_device {
 	libusb_device_handle *dev;
 	uint8_t bus, address;
@@ -46,7 +53,7 @@ struct usb_device {
 	char serial[256];
 	int alive;
 	uint8_t interface, ep_in, ep_out;
-	struct libusb_transfer *rx_xfer;
+	struct collection rx_xfers;
 	struct collection tx_xfers;
 	int wMaxPacketSize;
 };
@@ -64,17 +71,20 @@ static void usb_disconnect(struct usb_device *dev)
 		return;
 	}
 
-	// kill the rx xfer and tx xfers and try to make sure the callbacks get called before we free the device
-	if(dev->rx_xfer) {
-		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling RX xfer");
-		libusb_cancel_transfer(dev->rx_xfer);
-	}
+	// kill the rx xfer and tx xfers and try to make sure the callbacks
+	// get called before we free the device
+	FOREACH(struct libusb_transfer *xfer, &dev->rx_xfers) {
+		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling RX xfer %p", xfer);
+		libusb_cancel_transfer(xfer);
+	} ENDFOREACH
+
 	FOREACH(struct libusb_transfer *xfer, &dev->tx_xfers) {
 		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling TX xfer %p", xfer);
 		libusb_cancel_transfer(xfer);
 	} ENDFOREACH
 
-	while(dev->rx_xfer || collection_count(&dev->tx_xfers)) {
+	// Busy-wait until all xfers are closed
+	while(collection_count(&dev->rx_xfers) || collection_count(&dev->tx_xfers)) {
 		struct timeval tv;
 		int res;
 
@@ -85,12 +95,23 @@ static void usb_disconnect(struct usb_device *dev)
 			break;
 		}
 	}
+
 	collection_free(&dev->tx_xfers);
+	collection_free(&dev->rx_xfers);
 	libusb_release_interface(dev->dev, dev->interface);
 	libusb_close(dev->dev);
 	dev->dev = NULL;
 	collection_remove(&device_list, dev);
 	free(dev);
+}
+
+static void reap_dead_devices(void) {
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		if(!usbdev->alive) {
+			device_remove(usbdev);
+			usb_disconnect(usbdev);
+		}
+	} ENDFOREACH
 }
 
 // Callback from write operation
@@ -201,9 +222,11 @@ static void rx_callback(struct libusb_transfer *xfer)
 				// this should never be reached.
 				break;
 		}
+
 		free(xfer->buffer);
-		dev->rx_xfer = NULL;
+		collection_remove(&dev->rx_xfers, xfer);
 		libusb_free_transfer(xfer);
+
 		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
 		// we'll do device_remove there too
 		dev->alive = 0;
@@ -211,19 +234,21 @@ static void rx_callback(struct libusb_transfer *xfer)
 }
 
 // Start a read-callback loop for this device
-static int start_rx(struct usb_device *dev)
+static int start_rx_loop(struct usb_device *dev)
 {
 	int res;
 	void *buf;
-	dev->rx_xfer = libusb_alloc_transfer(0);
+	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	buf = malloc(USB_MRU);
-	libusb_fill_bulk_transfer(dev->rx_xfer, dev->dev, dev->ep_in, buf, USB_MRU, rx_callback, dev, 0);
-	if((res = libusb_submit_transfer(dev->rx_xfer)) != 0) {
+	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_in, buf, USB_MRU, rx_callback, dev, 0);
+	if((res = libusb_submit_transfer(xfer)) != 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device %d-%d: %d", dev->bus, dev->address, res);
-		libusb_free_transfer(dev->rx_xfer);
-		dev->rx_xfer = NULL;
+		libusb_free_transfer(xfer);
 		return res;
 	}
+
+	collection_add(&dev->rx_xfers, xfer);
+
 	return 0;
 }
 
@@ -253,10 +278,14 @@ int usb_discover(void)
 
 	usbmuxd_log(LL_SPEW, "usb_discover: scanning %d devices", cnt);
 
+	// Mark all devices as dead, and do a mark-sweep like
+	// collection of dead devices
 	FOREACH(struct usb_device *usbdev, &device_list) {
 		usbdev->alive = 0;
 	} ENDFOREACH
 
+	// Enumerate all USB devices and mark the ones we already know
+	// about as live, again
 	for(i=0; i<cnt; i++) {
 		// the following are non-blocking operations on the device list
 		libusb_device *dev = devs[i];
@@ -407,6 +436,7 @@ int usb_discover(void)
 		}
 
 		collection_init(&usbdev->tx_xfers);
+		collection_init(&usbdev->rx_xfers);
 
 		collection_add(&device_list, usbdev);
 
@@ -414,19 +444,37 @@ int usb_discover(void)
 			usb_disconnect(usbdev);
 			continue;
 		}
-		if(start_rx(usbdev) < 0) {
+
+		// Spin up NUM_RX_LOOPS parallel usb data retrieval loops
+		// Old usbmuxds used only 1 rx loop, but that leaves the
+		// USB port sleeping most of the time
+		int rx_loops = NUM_RX_LOOPS;
+		for (rx_loops = NUM_RX_LOOPS; rx_loops > 0; rx_loops--) {
+			if(start_rx_loop(usbdev) < 0) {
+				usbmuxd_log(LL_WARNING, "Failed to start RX loop number %d", NUM_RX_LOOPS - rx_loops);
+			}
+		}
+
+		// Ensure we have at least 1 RX loop going
+		if (rx_loops == NUM_RX_LOOPS) {
+			usbmuxd_log(LL_FATAL, "Failed to start any RX loop for device %d-%d",
+						usbdev->bus, usbdev->address);
 			device_remove(usbdev);
 			usb_disconnect(usbdev);
 			continue;
+		} else if (rx_loops > 0) {
+			usbmuxd_log(LL_WARNING, "Failed to start all %d RX loops. Going on with %d loops. "
+						"This may have negative impact on device read speed.",
+						NUM_RX_LOOPS, NUM_RX_LOOPS - rx_loops);
+		} else {
+			usbmuxd_log(LL_DEBUG, "All %d RX loops started successfully", NUM_RX_LOOPS);
 		}
+
 		valid_count++;
 	}
-	FOREACH(struct usb_device *usbdev, &device_list) {
-		if(!usbdev->alive) {
-			device_remove(usbdev);
-			usb_disconnect(usbdev);
-		}
-	} ENDFOREACH
+
+	// Clean out any device we didn't mark back as live
+	reap_dead_devices();
 
 	libusb_free_device_list(devs, 1);
 
@@ -530,13 +578,9 @@ int usb_process(void)
 		usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %d", res);
 		return res;
 	}
+
 	// reap devices marked dead due to an RX error
-	FOREACH(struct usb_device *usbdev, &device_list) {
-		if(!usbdev->alive) {
-			device_remove(usbdev);
-			usb_disconnect(usbdev);
-		}
-	} ENDFOREACH
+	reap_dead_devices();
 
 	if(dev_poll_remain_ms() <= 0) {
 		res = usb_discover();
@@ -570,13 +614,8 @@ int usb_process_timeout(int msec)
 			return res;
 		}
 		// reap devices marked dead due to an RX error
-		FOREACH(struct usb_device *usbdev, &device_list) {
-			if(!usbdev->alive) {
-				device_remove(usbdev);
-				usb_disconnect(usbdev);
-			}
-		} ENDFOREACH
-	gettimeofday(&tcur, NULL);
+		reap_dead_devices();
+		gettimeofday(&tcur, NULL);
 	}
 	return 0;
 }
