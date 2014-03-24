@@ -216,8 +216,8 @@ static int send_result(struct mux_client *client, uint32_t tag, uint32_t result)
 	if (client->proto_version == 1) {
 		/* XML plist packet */
 		plist_t dict = plist_new_dict();
-		plist_dict_insert_item(dict, "MessageType", plist_new_string("Result"));
-		plist_dict_insert_item(dict, "Number", plist_new_uint(result));
+		plist_dict_set_item(dict, "MessageType", plist_new_string("Result"));
+		plist_dict_set_item(dict, "Number", plist_new_uint(result));
 		res = send_plist_pkt(client, tag, dict);
 		plist_free(dict);
 	} else {
@@ -253,17 +253,17 @@ int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 static plist_t create_device_attached_plist(struct device_info *dev)
 {
 	plist_t dict = plist_new_dict();
-	plist_dict_insert_item(dict, "MessageType", plist_new_string("Attached"));
-	plist_dict_insert_item(dict, "DeviceID", plist_new_uint(dev->id));
+	plist_dict_set_item(dict, "MessageType", plist_new_string("Attached"));
+	plist_dict_set_item(dict, "DeviceID", plist_new_uint(dev->id));
 	plist_t props = plist_new_dict();
 	// TODO: get current usb speed
-	plist_dict_insert_item(props, "ConnectionSpeed", plist_new_uint(480000000));
-	plist_dict_insert_item(props, "ConnectionType", plist_new_string("USB"));
-	plist_dict_insert_item(props, "DeviceID", plist_new_uint(dev->id));
-	plist_dict_insert_item(props, "LocationID", plist_new_uint(dev->location));
-	plist_dict_insert_item(props, "ProductID", plist_new_uint(dev->pid));
-	plist_dict_insert_item(props, "SerialNumber", plist_new_string(dev->serial));
-	plist_dict_insert_item(dict, "Properties", props);
+	plist_dict_set_item(props, "ConnectionSpeed", plist_new_uint(480000000));
+	plist_dict_set_item(props, "ConnectionType", plist_new_string("USB"));
+	plist_dict_set_item(props, "DeviceID", plist_new_uint(dev->id));
+	plist_dict_set_item(props, "LocationID", plist_new_uint(dev->location));
+	plist_dict_set_item(props, "ProductID", plist_new_uint(dev->pid));
+	plist_dict_set_item(props, "SerialNumber", plist_new_string(dev->serial));
+	plist_dict_set_item(dict, "Properties", props);
 	return dict;
 }
 
@@ -288,7 +288,7 @@ static int send_device_list(struct mux_client *client, uint32_t tag)
 	if (devs)
 		free(devs);
 
-	plist_dict_insert_item(dict, "DeviceList", devices);
+	plist_dict_set_item(dict, "DeviceList", devices);
 	res = send_plist_pkt(client, tag, dict);
 	plist_free(dict);
 	return res;
@@ -302,7 +302,7 @@ static int send_system_buid(struct mux_client *client, uint32_t tag)
 	config_get_system_buid(&buid);
 
 	plist_t dict = plist_new_dict();
-	plist_dict_insert_item(dict, "BUID", plist_new_string(buid));
+	plist_dict_set_item(dict, "BUID", plist_new_string(buid));
 	res = send_plist_pkt(client, tag, dict);
 	plist_free(dict);
 	return res;
@@ -322,7 +322,7 @@ static int send_pair_record(struct mux_client *client, uint32_t tag, const char*
 	
 	if (record_data) {
 		plist_t dict = plist_new_dict();
-		plist_dict_insert_item(dict, "PairRecordData", plist_new_data(record_data, record_size));
+		plist_dict_set_item(dict, "PairRecordData", plist_new_data(record_data, record_size));
 		free(record_data);
 		res = send_plist_pkt(client, tag, dict);
 		plist_free(dict);
@@ -360,8 +360,8 @@ static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 	if (client->proto_version == 1) {
 		/* XML plist packet */
 		plist_t dict = plist_new_dict();
-		plist_dict_insert_item(dict, "MessageType", plist_new_string("Detached"));
-		plist_dict_insert_item(dict, "DeviceID", plist_new_uint(device_id));
+		plist_dict_set_item(dict, "MessageType", plist_new_string("Detached"));
+		plist_dict_set_item(dict, "DeviceID", plist_new_uint(device_id));
 		res = send_plist_pkt(client, 0, dict);
 		plist_free(dict);
 	} else {
