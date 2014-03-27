@@ -368,6 +368,7 @@ static void usage()
 	printf("            \t\tconnected (must be in udev mode).\n");
 	printf("  -X, --force-exit\tTell a running instance to exit, even if there are still\n");
 	printf("                  \tdevices connected (always works).\n");
+	printf("  -V, --version\t\tPrint version information and exit.\n");
 	printf("\n");
 }
 
@@ -381,6 +382,7 @@ static void parse_opts(int argc, char **argv)
 		{"udev", 0, NULL, 'u'},
 		{"exit", 0, NULL, 'x'},
 		{"force-exit", 0, NULL, 'X'},
+		{"version", 0, NULL, 'V'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
@@ -401,6 +403,9 @@ static void parse_opts(int argc, char **argv)
 		case 'v':
 			++verbose;
 			break;
+		case 'V':
+			printf("%s\n", PACKAGE_STRING);
+			exit(0);
 		case 'U':
 			drop_privileges = 1;
 			drop_user = optarg;
