@@ -346,16 +346,17 @@ static int notify_parent(int status)
 
 static void usage()
 {
-	printf("usage: usbmuxd [options]\n");
-	printf("\t-h|--help                 Print this message.\n");
-	printf("\t-v|--verbose              Be verbose (use twice or more to increase).\n");
-	printf("\t-f|--foreground           Do not daemonize (implies one -v).\n");
-	printf("\t-U|--user USER            Change to this user after startup (needs usb privileges).\n");
-	printf("\t-u|--udev                 Run in udev operation mode.\n");
-	printf("\t-x|--exit                 Tell a running instance to exit if there are no devices\n");
-	printf("\t                          connected (must be in udev mode).\n");
-	printf("\t-X|--force-exit           Tell a running instance to exit, even if there are still\n");
-	printf("\t                          devices connected (always works).\n");
+	printf("Usage: %s [OPTIONS]\n", PACKAGE_NAME);
+	printf("Expose a socket to multiplex connections from and to iOS devices.\n\n");
+	printf("  -h, --help\t\tPrint this message.\n");
+	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
+	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
+	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
+	printf("  -u, --udev\t\tRun in udev operation mode.\n");
+	printf("  -x, --exit\t\tTell a running instance to exit if there are no devices\n");
+	printf("            \t\tconnected (must be in udev mode).\n");
+	printf("  -X, --force-exit\tTell a running instance to exit, even if there are still\n");
+	printf("                  \tdevices connected (always works).\n");
 	printf("\n");
 }
 
