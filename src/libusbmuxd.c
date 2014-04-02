@@ -192,8 +192,16 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 	uint32_t payload_size = hdr.length - sizeof(hdr);
 	if (payload_size > 0) {
 		payload_loc = (char*)malloc(payload_size);
-		if (socket_receive_timeout(sfd, payload_loc, payload_size, 0, 5000) != (int)payload_size) {
-			DEBUG(1, "%s: Error receiving payload of size %d\n", __func__, payload_size);
+		uint32_t rsize = 0;
+		do {
+			int res = socket_receive_timeout(sfd, payload_loc + rsize, payload_size - rsize, 0, 5000);
+			if (res < 0) {
+				break;
+			}
+			rsize += res;
+		} while (rsize < payload_size);
+		if (rsize != payload_size) {
+			DEBUG(1, "%s: Error receiving payload of size %d (bytes received: %d)\n", __func__, payload_size, rsize);
 			free(payload_loc);
 			return -EBADMSG;
 		}
@@ -300,10 +308,10 @@ static int usbmuxd_get_result(int sfd, uint32_t tag, uint32_t *result, void **re
 	}
 
 	if ((recv_len = receive_packet(sfd, &hdr, (void**)&res, 5000)) < 0) {
-		DEBUG(1, "%s: Error receiving packet: %d\n", __func__, errno);
+		DEBUG(1, "%s: Error receiving packet: %d\n", __func__, recv_len);
 		if (res)
 			free(res);
-		return -errno;
+		return recv_len;
 	}
 	if ((size_t)recv_len < sizeof(hdr)) {
 		DEBUG(1, "%s: Received packet is too small!\n", __func__);
@@ -357,10 +365,18 @@ static int send_packet(int sfd, uint32_t message, uint32_t tag, void *payload, u
 		return -1;
 	}
 	if (payload && (payload_size > 0)) {
-		sent += socket_send(sfd, payload, payload_size);
+		uint32_t ssize = 0;
+		do {
+			int res = socket_send(sfd, (char*)payload + ssize, payload_size - ssize);
+			if (res < 0) {
+				break;
+			}
+			ssize += res;
+		} while (ssize < payload_size);
+		sent += ssize;
 	}
 	if (sent != (int)header.length) {
-		DEBUG(1, "%s: ERROR: could not send whole packet\n", __func__);
+		DEBUG(1, "%s: ERROR: could not send whole packet (sent %d of %d)\n", __func__, sent, header.length);
 		socket_close(sfd);
 		return -1;
 	}
@@ -383,11 +399,11 @@ static int send_plist_packet(int sfd, uint32_t tag, plist_t message)
 static plist_t create_plist_message(const char* message_type)
 {
 	plist_t plist = plist_new_dict();
-	plist_dict_insert_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
-	plist_dict_insert_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
-	plist_dict_insert_item(plist, "MessageType", plist_new_string(message_type));
-	plist_dict_insert_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));	
-	plist_dict_insert_item(plist, "kLibUSBMuxVersion", plist_new_uint(PLIST_LIBUSBMUX_VERSION));
+	plist_dict_set_item(plist, "BundleID", plist_new_string(PLIST_BUNDLE_ID));
+	plist_dict_set_item(plist, "ClientVersionString", plist_new_string(PLIST_CLIENT_VERSION_STRING));
+	plist_dict_set_item(plist, "MessageType", plist_new_string(message_type));
+	plist_dict_set_item(plist, "ProgName", plist_new_string(PLIST_PROGNAME));	
+	plist_dict_set_item(plist, "kLibUSBMuxVersion", plist_new_uint(PLIST_LIBUSBMUX_VERSION));
 	return plist;
 }
 
@@ -413,8 +429,8 @@ static int send_connect_packet(int sfd, uint32_t tag, uint32_t device_id, uint16
 	if (proto_version == 1) {
 		/* construct message plist */
 		plist_t plist = create_plist_message("Connect");
-		plist_dict_insert_item(plist, "DeviceID", plist_new_uint(device_id));
-		plist_dict_insert_item(plist, "PortNumber", plist_new_uint(htons(port)));
+		plist_dict_set_item(plist, "DeviceID", plist_new_uint(device_id));
+		plist_dict_set_item(plist, "PortNumber", plist_new_uint(htons(port)));
 
 		res = send_plist_packet(sfd, tag, plist);
 		plist_free(plist);
@@ -467,9 +483,9 @@ static int send_pair_record_packet(int sfd, uint32_t tag, const char* msgtype, c
 
 	/* construct message plist */
 	plist_t plist = create_plist_message(msgtype);
-	plist_dict_insert_item(plist, "PairRecordID", plist_new_string(pair_record_id));
+	plist_dict_set_item(plist, "PairRecordID", plist_new_string(pair_record_id));
 	if (data) {
-		plist_dict_insert_item(plist, "PairRecordData", plist_copy(data));
+		plist_dict_set_item(plist, "PairRecordData", plist_copy(data));
 	}
 	
 	res = send_plist_packet(sfd, tag, plist);
@@ -607,7 +623,7 @@ retry:
 		socket_close(sfd);
 		return -1;
 	}
-	if (usbmuxd_get_result(sfd, tag, &res, NULL) && (res != 0)) {
+	if ((usbmuxd_get_result(sfd, tag, &res, NULL) == 1) && (res != 0)) {
 		socket_close(sfd);
 		if ((res == RESULT_BADVERSION) && (proto_version == 1)) {
 			proto_version = 0;
@@ -616,7 +632,6 @@ retry:
 		DEBUG(1, "%s: ERROR: did not get OK but %d\n", __func__, res);
 		return -1;
 	}
-
 	return sfd;
 }
 
@@ -831,7 +846,7 @@ retry:
 	if ((proto_version == 1) && (try_list_devices)) {
 		if (send_list_devices_packet(sfd, tag) > 0) {
 			plist_t list = NULL;
-			if (usbmuxd_get_result(sfd, tag, &res, &list) && (res == 0)) {
+			if ((usbmuxd_get_result(sfd, tag, &res, &list) == 1) && (res == 0)) {
 				plist_t devlist = plist_dict_get_item(list, "DeviceList");
 				if (devlist && plist_get_node_type(devlist) == PLIST_ARRAY) {
 					collection_init(&tmpdevs);
@@ -870,7 +885,7 @@ retry:
 	if (send_listen_packet(sfd, tag) > 0) {
 		res = -1;
 		// get response
-		if (usbmuxd_get_result(sfd, tag, &res, NULL) && (res == 0)) {
+		if ((usbmuxd_get_result(sfd, tag, &res, NULL) == 1) && (res == 0)) {
 			listen_success = 1;
 		} else {
 			socket_close(sfd);
@@ -1019,7 +1034,7 @@ retry:
 	} else {
 		// read ACK
 		DEBUG(2, "%s: Reading connect result...\n", __func__);
-		if (usbmuxd_get_result(sfd, tag, &res, NULL)) {
+		if (usbmuxd_get_result(sfd, tag, &res, NULL) == 1) {
 			if (res == 0) {
 				DEBUG(2, "%s: Connect success!\n", __func__);
 				connected = 1;
@@ -1061,7 +1076,7 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 		*sent_bytes = 0;
 		num_sent = errno;
 		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(num_sent));
-		return num_sent;
+		return -num_sent;
 	} else if ((uint32_t)num_sent < len) {
 		DEBUG(1, "%s: Warning: Did not send enough (only %d of %d)\n", __func__, num_sent, len);
 	}
@@ -1113,7 +1128,8 @@ int usbmuxd_read_buid(char **buid)
 	} else {
 		uint32_t rc = 0;
 		plist_t pl = NULL;
-		if (usbmuxd_get_result(sfd, tag, &rc, &pl) && (rc == 0)) {
+		ret = usbmuxd_get_result(sfd, tag, &rc, &pl);
+		if ((ret == 1) && (rc == 0)) {
 			plist_t node = plist_dict_get_item(pl, "BUID");
 			if (node && plist_get_node_type(node) == PLIST_STRING) {
 				char * buid_str_val = NULL;
@@ -1121,7 +1137,7 @@ int usbmuxd_read_buid(char **buid)
 				*buid = strdup(buid_str_val);
 				plist_free_memory(buid_str_val);
 			}
-		} else {
+		} else if (ret == 1) {
 			ret = -(int)rc;
 		}
 		plist_free(pl);
@@ -1157,7 +1173,8 @@ int usbmuxd_read_pair_record(const char* record_id, char **record_data, uint32_t
 	} else {
 		uint32_t rc = 0;
 		plist_t pl = NULL;
-		if (usbmuxd_get_result(sfd, tag, &rc, &pl) && (rc == 0)) {
+		ret = usbmuxd_get_result(sfd, tag, &rc, &pl);
+		if ((ret == 1) && (rc == 0)) {
 			plist_t node = plist_dict_get_item(pl, "PairRecordData");
 			if (node && plist_get_node_type(node) == PLIST_DATA) {
 				uint64_t int64val = 0;
@@ -1167,7 +1184,7 @@ int usbmuxd_read_pair_record(const char* record_id, char **record_data, uint32_t
 					ret = 0;
 				}
 			}
-		} else {
+		} else if (ret == 1) {
 			ret = -(int)rc;
 		}
 		plist_free(pl);
@@ -1201,9 +1218,10 @@ int usbmuxd_save_pair_record(const char* record_id, const char *record_data, uin
 		DEBUG(1, "%s: Error sending SavePairRecord message!\n", __func__);
 	} else {
 		uint32_t rc = 0;
-		if (usbmuxd_get_result(sfd, tag, &rc, NULL) && (rc == 0)) {
+		ret = usbmuxd_get_result(sfd, tag, &rc, NULL);
+		if ((ret == 1) && (rc == 0)) {
 			ret = 0;
-		} else {
+		} else if (ret == 1) {
 			ret = -(int)rc;
 			DEBUG(1, "%s: Error: saving pair record failed: %d\n", __func__, ret);
 		}
@@ -1237,9 +1255,10 @@ int usbmuxd_delete_pair_record(const char* record_id)
 		DEBUG(1, "%s: Error sending DeletePairRecord message!\n", __func__);
 	} else {
 		uint32_t rc = 0;
-		if (usbmuxd_get_result(sfd, tag, &rc, NULL) && (rc == 0)) {
+		ret = usbmuxd_get_result(sfd, tag, &rc, NULL);
+		if ((ret == 1) && (rc == 0)) {
 			ret = 0;
-		} else {
+		} else if (ret == 1) {
 			ret = -(int)rc;
 			DEBUG(1, "%s: Error: deleting pair record failed: %d\n", __func__, ret);
 		}

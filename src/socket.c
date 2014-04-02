@@ -64,6 +64,9 @@ int socket_create_unix(const char *filename)
 	struct sockaddr_un name;
 	int sock;
 	size_t size;
+#ifdef SO_NOSIGPIPE
+	int yes = 1;
+#endif
 
 	// remove if still present
 	unlink(filename);
@@ -74,6 +77,14 @@ int socket_create_unix(const char *filename)
 		perror("socket");
 		return -1;
 	}
+
+#ifdef SO_NOSIGPIPE
+	if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, (void*)&yes, sizeof(int)) == -1) {
+		perror("setsockopt()");
+		socket_close(sock);
+		return -1;
+	}
+#endif
 
 	/* Bind a name to the socket. */
 	name.sun_family = AF_LOCAL;
@@ -111,6 +122,9 @@ int socket_connect_unix(const char *filename)
 	int sfd = -1;
 	size_t size;
 	struct stat fst;
+#ifdef SO_NOSIGPIPE
+	int yes = 1;
+#endif
 
 	// check if socket file exists...
 	if (stat(filename, &fst) != 0) {
@@ -132,6 +146,15 @@ int socket_connect_unix(const char *filename)
 			fprintf(stderr, "%s: socket: %s\n", __func__, strerror(errno));
 		return -1;
 	}
+
+#ifdef SO_NOSIGPIPE
+	if (setsockopt(sfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&yes, sizeof(int)) == -1) {
+		perror("setsockopt()");
+		socket_close(sfd);
+		return -1;
+	}
+#endif
+
 	// and connect to 'filename'
 	name.sun_family = AF_LOCAL;
 	strncpy(name.sun_path, filename, sizeof(name.sun_path));
@@ -178,6 +201,14 @@ int socket_create(uint16_t port)
 		socket_close(sfd);
 		return -1;
 	}
+
+#ifdef SO_NOSIGPIPE
+	if (setsockopt(sfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&yes, sizeof(int)) == -1) {
+		perror("setsockopt()");
+		socket_close(sfd);
+		return -1;
+	}
+#endif
 
 	memset((void *) &saddr, 0, sizeof(saddr));
 	saddr.sin_family = AF_INET;
@@ -244,6 +275,14 @@ int socket_connect(const char *addr, uint16_t port)
 		socket_close(sfd);
 		return -1;
 	}
+	
+#ifdef SO_NOSIGPIPE
+	if (setsockopt(sfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&yes, sizeof(int)) == -1) {
+		perror("setsockopt()");
+		socket_close(sfd);
+		return -1;
+	}
+#endif
 
 	/* Set the new socket's buffer sizes */
 	int socket_buf_size = SOCKET_BUFFERS_SIZE;
@@ -277,7 +316,7 @@ int socket_check_fd(int fd, fd_mode fdm, unsigned int timeout)
 	struct timeval to;
 	struct timeval *pto;
 
-	if (fd <= 0) {
+	if (fd < 0) {
 		if (verbose >= 2)
 			fprintf(stderr, "ERROR: invalid fd in check_fd %d\n", fd);
 		return -1;
@@ -407,7 +446,12 @@ int socket_receive_timeout(int fd, void *data, size_t length, int flags,
 
 int socket_send(int fd, void *data, size_t length)
 {
-	return send(fd, data, length, 0);
+	int flags = 0;
+#ifdef MSG_NOSIGNAL
+	flags |= MSG_NOSIGNAL;
+#endif
+	
+	return send(fd, data, length, flags);
 }
 
 int socket_send_all(int fd, const char *data, size_t length)
@@ -415,10 +459,14 @@ int socket_send_all(int fd, const char *data, size_t length)
 	size_t bytes_sent = 0;
 	size_t bytes_left = length;
 	int result = 0;
+	int flags = 0;
+#ifdef MSG_NOSIGNAL
+	flags |= MSG_NOSIGNAL;
+#endif
 
 	while (bytes_sent < length)
 	{
-		result = send(fd, data + bytes_sent, bytes_left, 0);
+		result = send(fd, data + bytes_sent, bytes_left, flags);
 		if (SOCKET_ERROR == result)
 		{
 			fprintf(stderr, "%s: send failed: %s\n", __func__, strerror(errno));

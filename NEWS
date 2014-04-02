@@ -1,0 +1,18 @@
+Version 1.0.9
+~~~~~~~~~~~~~
+
+- Changes:
+  * Avoid SIGPIPE where possible
+  * Plugged several memory leaks and invalid frees
+  * Fixed concurrency issues caused by tag mismatch
+  * Added new interface functions for pair record management via usbmuxd:
+    - usbmuxd_read_pair_record()
+    - usbmuxd_save_pair_record()
+    - usbmuxd_delete_pair_record()
+    - usbmuxd_read_buid()
+  * Made libplist dependency (and thus protocol v1 support) mandatory
+  * Improved usbmuxd_get_device_list() with new ListDevices usbmuxd command
+  * Fixed WIN32 (MinGW) build
+
+This is the first release after the usbmuxd/libusbmuxd project split.
+

@@ -8,7 +8,7 @@ libusbmuxd_la_LDFLAGS = $(AM_LDFLAGS) -version-info $(LIBUSBMUXD_SO_VERSION) -no
 libusbmuxd_la_LIBADD =
 libusbmuxd_la_SOURCES = \
 		collection.c collection.h \
-		sock_stuff.c sock_stuff.h \
+		socket.c socket.h \
 		libusbmuxd.c
 
 if WIN32
