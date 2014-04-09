@@ -159,7 +159,11 @@ static void set_signal_handlers(void)
 	sigaction(SIGUSR2, &sa, NULL);
 }
 
+<<<<<<< HEAD
 #ifndef HAVE_PPOLL
+=======
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__ANDROID__)
+>>>>>>> Android supported
 static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout, const sigset_t *sigmask)
 {
 	int ready;
