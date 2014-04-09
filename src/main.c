@@ -160,7 +160,11 @@ static void set_signal_handlers(void)
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #ifndef HAVE_PPOLL
+=======
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__ANDROID__)
+>>>>>>> Android supported
 =======
 #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__ANDROID__)
 >>>>>>> Android supported
