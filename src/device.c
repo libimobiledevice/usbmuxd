@@ -27,7 +27,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <sys/time.h>
 #include <netinet/in.h>
+#ifndef __ANDROID__
 #include <netinet/tcp.h>
+#else
+#include "tcp.h"
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
