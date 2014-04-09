@@ -39,11 +39,17 @@
 #endif
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Android supported
 #ifdef __ANDROID__
 #include <android/log.h>
 #define DEBUG(...) __android_log_print(ANDROID_LOG_DEBUG, "usbmuxd", __VA_ARGS__)
 #endif
 
+<<<<<<< HEAD
+=======
+>>>>>>> Android supported
 =======
 >>>>>>> Android supported
 unsigned int log_level = LL_WARNING;
