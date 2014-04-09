@@ -31,6 +31,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/time.h>
 #include <syslog.h>
 
+#ifdef ANDROID
+#include <android/log.h>
+#define DEBUG(...) __android_log_print(ANDROID_LOG_DEBUG, "usbmuxd", __VA_ARGS__)
+#endif
+
 #include "log.h"
 
 unsigned int log_level = LL_WARNING;
@@ -63,6 +68,7 @@ static int level_to_syslog_level(int level)
 
 void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 {
+
 	va_list ap;
 	char *fs;
 	struct timeval ts;
@@ -89,6 +95,7 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 	} else {
 		vfprintf(stderr, fs, ap);
 	}
+	DEBUG(fs, ap);
 	va_end(ap);
 
 	free(fs);

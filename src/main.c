@@ -49,13 +49,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "client.h"
 #include "conf.h"
 
-#ifdef ANDROID
-	static const char *socket_path = "/data/local/tmp/usbmuxd";
-	static const char *lockfile = "/data/local/tmp/usbmuxd.pid";
-#else
-	static const char *socket_path = "/var/run/usbmuxd";
-	static const char *lockfile = "/var/run/usbmuxd.pid";
-#endif
+static const char *socket_path = "/var/run/usbmuxd";
+static const char *lockfile = "/var/run/usbmuxd.pid";
 
 int should_exit;
 int should_discover;

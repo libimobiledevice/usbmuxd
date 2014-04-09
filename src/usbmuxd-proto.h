@@ -30,11 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #if defined(WIN32) || defined(__CYGWIN__)
 #define USBMUXD_SOCKET_PORT 27015
 #else
-	#ifdef ANDROID
-		#define USBMUXD_SOCKET_FILE "/data/local/tmp/usbmuxd"
-	#else
-		#define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
-	#endif
+#define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
 #endif
 
 #ifdef __cplusplus
