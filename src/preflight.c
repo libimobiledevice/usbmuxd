@@ -271,6 +271,8 @@ retry:
 		while (cbdata.np && cbdata.is_device_connected == 1) {
 			sleep(1);
 		}
+		device_set_preflight_cb_data(info->id, NULL);
+
 		usbmuxd_log(LL_INFO, "%s: Finished waiting for notification from device %s, is_device_connected %d", __func__, _dev->udid, cbdata.is_device_connected);
 
 		if (cbdata.np) {
