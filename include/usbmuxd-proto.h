@@ -57,6 +57,11 @@ enum usbmuxd_msgtype {
 	//???
 	//???
 	MESSAGE_PLIST = 8,
+
+	/* These are custom messages we've added */
+	MESSAGE_DEVICE_TRUST_PENDING = 1024,
+	MESSAGE_DEVICE_PASSWORD_PROTECTED = 1025,
+	MESSAGE_DEVICE_USER_DENIED_PAIRING = 1026
 };
 
 #ifdef _MSC_VER

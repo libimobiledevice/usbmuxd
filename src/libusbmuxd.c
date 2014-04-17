@@ -171,6 +171,61 @@ static struct usbmuxd_device_record* device_record_from_plist(plist_t props)
 	return dev;
 }
 
+static int parse_packet_with_dev_info(plist_t plist, uint32_t message, struct usbmuxd_header * hdr, void **payload)
+{
+	/* device add\trust message */
+	struct usbmuxd_device_record *dev = NULL;
+	plist_t props = plist_dict_get_item(plist, "Properties");
+	if (!props) {
+		DEBUG(1, "%s: Could not get properties for message '%d' from plist!\n", __func__, message);
+		return -EBADMSG;
+	}
+
+	dev = device_record_from_plist(props);
+	if (!dev) {
+		DEBUG(1, "%s: Could not create device record object from properties!\n", __func__);
+		return -EBADMSG;
+	}
+
+	*payload = (void*)dev;
+	hdr->length = sizeof(hdr) + sizeof(struct usbmuxd_device_record);
+	hdr->message = message;
+
+	return 0;
+}
+
+static int parse_result_packet(plist_t plist, struct usbmuxd_header * hdr, void **payload)
+{
+	uint64_t val = 0;
+	uint32_t dwval = 0;
+	plist_t n = plist_dict_get_item(plist, "Number");
+	plist_get_uint_val(n, &val);
+	*payload = malloc(sizeof(uint32_t));
+	dwval = val;
+	memcpy(*payload, &dwval, sizeof(dwval));
+	hdr->length = sizeof(hdr)+sizeof(dwval);
+	hdr->message = MESSAGE_RESULT;
+
+	return 0;
+}
+
+static int parse_device_remove_packet(plist_t plist, struct usbmuxd_header * hdr, void **payload)
+{
+	uint64_t val = 0;
+	uint32_t dwval = 0;
+	plist_t n = plist_dict_get_item(plist, "DeviceID");
+	if (n) {
+		plist_get_uint_val(n, &val);
+		*payload = malloc(sizeof(uint32_t));
+		dwval = val;
+		memcpy(*payload, &dwval, sizeof(dwval));
+		hdr->length = sizeof(hdr) + sizeof(dwval);
+		hdr->message = MESSAGE_DEVICE_REMOVE;
+	}
+
+	return 0;
+}
+
 static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload, int timeout)
 {
 	int recv_len;
@@ -228,57 +283,37 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 
 		plist_get_string_val(node, &message);
 		if (message) {
-			uint64_t val = 0;
-			if (strcmp(message, "Result") == 0) {
-				/* result message */
-				uint32_t dwval = 0;
-				plist_t n = plist_dict_get_item(plist, "Number");
-				plist_get_uint_val(n, &val);
-				*payload = malloc(sizeof(uint32_t));
-				dwval = val;
-				memcpy(*payload, &dwval, sizeof(dwval));
-				hdr.length = sizeof(hdr) + sizeof(dwval);
-				hdr.message = MESSAGE_RESULT;
-			} else if (strcmp(message, "Attached") == 0) {
-				/* device add message */
-				struct usbmuxd_device_record *dev = NULL;
-				plist_t props = plist_dict_get_item(plist, "Properties");
-				if (!props) {
-					DEBUG(1, "%s: Could not get properties for message '%s' from plist!\n", __func__, message);
-					plist_free_memory(message);
-					plist_free(plist);
-					return -EBADMSG;
-				}
+			int ret = 0;
 
-				dev = device_record_from_plist(props);
-				if (!dev) {
-					DEBUG(1, "%s: Could not create device record object from properties!\n", __func__);
-					plist_free_memory(message);
-					plist_free(plist);
-					return -EBADMSG;
-				}
-				*payload = (void*)dev;
-				hdr.length = sizeof(hdr) + sizeof(struct usbmuxd_device_record);
-				hdr.message = MESSAGE_DEVICE_ADD;
+			/* Result Message */
+			if (strcmp(message, "Result") == 0) {
+				ret = parse_result_packet(plist, &hdr, payload);
+			/* Device Attached */
+			} else if (strcmp(message, "Attached" == 0)) {
+				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_ADD, &hdr, payload);
+			/* Trust dialog is pending */
+			} else if (strcmp(message, "TrustPending") == 0) {
+				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_TRUST_PENDING, &hdr, payload);
+			/* Device is password protected */
+			} else if (strcmp(message, "PasswordProtected") == 0) {
+				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_PASSWORD_PROTECTED, &hdr, payload);
+			/* User has denied pairing */
+			} else if (strcmp(message, "UserDeniedPairing") == 0) {
+				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_USER_DENIED_PAIRING, &hdr, payload);
+			/* Device Detached */
 			} else if (strcmp(message, "Detached") == 0) {
-				/* device remove message */
-				uint32_t dwval = 0;
-				plist_t n = plist_dict_get_item(plist, "DeviceID");
-				if (n) {
-					plist_get_uint_val(n, &val);
-					*payload = malloc(sizeof(uint32_t));
-					dwval = val;
-					memcpy(*payload, &dwval, sizeof(dwval));
-					hdr.length = sizeof(hdr) + sizeof(dwval);
-					hdr.message = MESSAGE_DEVICE_REMOVE;
-				}
+				ret = parse_device_remove_packet(plist, &hdr, payload);
+			/* Unknown Message */
 			} else {
 				DEBUG(1, "%s: Unexpected message '%s' in plist!\n", __func__, message);
-				plist_free_memory(message);
-				plist_free(plist);
-				return -EBADMSG;
+				ret = -EBADMSG;
 			}
+
 			plist_free_memory(message);
+			if (ret < 0) {
+				plist_free(plist);
+				return ret;
+			}
 		}
 		plist_free(plist);
 	} else {
@@ -662,7 +697,9 @@ static int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		return -EBADMSG;
 	}
 
-	if (hdr.message == MESSAGE_DEVICE_ADD) {
+	if ((hdr.message == MESSAGE_DEVICE_ADD) || (hdr.message == MESSAGE_DEVICE_TRUST_PENDING) ||
+		(hdr.message == MESSAGE_DEVICE_PASSWORD_PROTECTED) || (hdr.message == MESSAGE_DEVICE_USER_DENIED_PAIRING))
+	{
 		struct usbmuxd_device_record *dev = payload;
 		usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
 		if (!devinfo) {
@@ -673,6 +710,7 @@ static int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 
 		devinfo->handle = dev->device_id;
 		devinfo->product_id = dev->product_id;
+		devinfo->location = dev->location;
 		memset(devinfo->udid, '\0', sizeof(devinfo->udid));
 		memcpy(devinfo->udid, dev->serial_number, sizeof(devinfo->udid));
 
@@ -680,8 +718,20 @@ static int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 			sprintf(devinfo->udid + 32, "%08x", devinfo->handle);
 		}
 
-		collection_add(&devices, devinfo);
-		generate_event(callback, devinfo, UE_DEVICE_ADD, user_data);
+		/* Add */
+		if (hdr.message == MESSAGE_DEVICE_ADD) {
+			collection_add(&devices, devinfo);
+			generate_event(callback, devinfo, UE_DEVICE_ADD, user_data);
+		/* Trust pending */
+		} else if (hdr.message == MESSAGE_DEVICE_TRUST_PENDING) {
+			generate_event(callback, devinfo, UE_DEVICE_TRUST_PENDING, user_data);
+		/* Password protected */
+		} else if (hdr.message == MESSAGE_DEVICE_PASSWORD_PROTECTED) {
+			generate_event(callback, devinfo, UE_DEVICE_PASSWORD_PROTECTED, user_data);
+		/* User denied pairing */
+		} else if (hdr.message == MESSAGE_DEVICE_USER_DENIED_PAIRING) {
+			generate_event(callback, devinfo, UE_DEVICE_USER_DENIED_PAIRING, user_data);
+		}
 	} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
 		uint32_t handle;
 		usbmuxd_device_info_t *devinfo;
@@ -810,6 +860,7 @@ static usbmuxd_device_info_t *device_info_from_device_record(struct usbmuxd_devi
 
 	devinfo->handle = dev->device_id;
 	devinfo->product_id = dev->product_id;
+	devinfo->location = dev->location;
 	memset(devinfo->udid, '\0', sizeof(devinfo->udid));
 	memcpy(devinfo->udid, dev->serial_number, sizeof(devinfo->udid));
 
@@ -995,6 +1046,7 @@ int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device)
 	 	if (!udid) {
 			device->handle = dev_list[i].handle;
 			device->product_id = dev_list[i].product_id;
+			device->location = dev_list[i].location;
 			strcpy(device->udid, dev_list[i].udid);
 			result = 1;
 			break;
@@ -1002,6 +1054,7 @@ int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device)
 		if (!strcmp(udid, dev_list[i].udid)) {
 			device->handle = dev_list[i].handle;
 			device->product_id = dev_list[i].product_id;
+			device->location = dev_list[i].location;
 			strcpy(device->udid, dev_list[i].udid);
 			result = 1;
 			break;
@@ -1011,6 +1064,85 @@ int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device)
 	free(dev_list);
 
 	return result;
+}
+
+static send_plist_command(plist_t command)
+{
+	int ret = 0;
+
+	/* Connect to usbmuxd */
+	int sfd = connect_usbmuxd_socket();
+	if (sfd < 0) {
+		DEBUG(1, "%s: Error: Connection to usbmuxd failed: %s\n", __func__, strerror(errno));
+		return sfd;
+	}
+
+	/* Send the command */
+	proto_version = 1;
+	int tag = ++use_tag;
+	if (send_plist_packet(sfd, tag, command) <= 0) {
+		DEBUG(1, "%s: Error sending message!\n", __func__);
+	} else {
+		uint32_t rc = 0;
+		ret = usbmuxd_get_result(sfd, tag, &rc, NULL);
+		if ((ret == 1) && (rc == 0)) {
+			ret = 0;
+		} else if (ret == 1) {
+			ret = -(int)rc;
+			DEBUG(1, "%s: Error: send device command has failed: %d\n", __func__, ret);
+		}
+	}
+
+	return ret;
+}
+
+int usbmuxd_add_device(uint32_t device_location)
+{
+	if (!device_location) {
+		return -EINVAL;
+	}
+
+	/* Create the AddDevice command */
+	plist_t command = create_plist_message("AddDevice");
+	plist_dict_set_item(command, "DeviceLocation", plist_new_uint(device_location));
+
+	int ret = send_plist_command(command);
+	plist_free(command);
+	
+	return ret;
+}
+
+int usbmuxd_remove_device(uint32_t device_location)
+{
+	if (!device_location) {
+		return -EINVAL;
+	}
+
+	/* Create the AddDevice command */
+	plist_t command = create_plist_message("RemoveDevice");
+	plist_dict_set_item(command, "DeviceLocation", plist_new_uint(device_location));
+
+	int ret = send_plist_command(command);
+	plist_free(command);
+	
+	return ret;
+}
+
+int usbmuxd_set_device_monitoring(uint32_t device_location, uint8_t auto_monitor)
+{
+	if (!device_location) {
+		return -EINVAL;
+	}
+
+	/* Create the AddDevice command */
+	plist_t command = create_plist_message("DeviceMonitor");
+	plist_dict_set_item(command, "DeviceLocation", plist_new_uint(device_location));
+	plist_dict_set_item(command, "AutoMonitor", plist_new_bool(auto_monitor));
+
+	int ret = send_plist_command(command);
+	plist_free(command);
+	
+	return ret;
 }
 
 int usbmuxd_connect(const int handle, const unsigned short port)

@@ -39,6 +39,7 @@ typedef struct {
 	uint32_t handle;
 	int product_id;
 	char udid[41];
+	uint32_t location;
 } usbmuxd_device_info_t;
 
 /**
@@ -46,7 +47,10 @@ typedef struct {
  */
 enum usbmuxd_event_type {
     UE_DEVICE_ADD = 1,
-    UE_DEVICE_REMOVE
+    UE_DEVICE_REMOVE,
+	UE_DEVICE_TRUST_PENDING,
+	UE_DEVICE_PASSWORD_PROTECTED,
+	UE_DEVICE_USER_DENIED_PAIRING
 };
 
 /**
@@ -115,6 +119,36 @@ int usbmuxd_device_list_free(usbmuxd_device_info_t **device_list);
  *    or a negative value on error.
  */
 int usbmuxd_get_device_by_udid(const char *udid, usbmuxd_device_info_t *device);
+
+/**
+ * Adds a device to usbmuxd.
+ *
+ * @param device_location The device's usb location
+ *
+ * @return 0 on success, -1 on error.
+ */
+int usbmuxd_add_device(uint32_t device_location);
+
+/**
+ * Removes a device to usbmuxd.
+ *
+ * @param device_location The device's usb location
+ *
+ * @return 0 on success, -1 on error.
+ */
+int usbmuxd_remove_device(uint32_t device_location);
+
+/**
+ * Set usbmuxd's monitoring config for a device
+ *
+ * @param device_location The device's usb location
+ *
+ * @param auto_monitor Should usbmuxd monitor the device for removals\arrivals.
+ *		Use 0 to disable monitoring, 1 to enable it.
+ *
+ * @return 0 on success, -1 on error.
+ */
+int usbmuxd_set_device_monitoring(uint32_t device_location, uint8_t auto_monitor);
 
 /**
  * Request proxy connect to 
@@ -216,6 +250,13 @@ int usbmuxd_save_pair_record(const char* record_id, const char *record_data, uin
  * @return 0 on success, a negative errno value otherwise.
  */
 int usbmuxd_delete_pair_record(const char* record_id);
+
+/**
+ * Shutdown usbmuxd
+ *
+ * @return 0 on success, a negative errno value otherwise.
+ */
+int usbmuxd_shutdown();
 
 /**
  * Enable or disable the use of inotify extension. Enabled by default.
