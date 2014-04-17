@@ -289,7 +289,7 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 			if (strcmp(message, "Result") == 0) {
 				ret = parse_result_packet(plist, &hdr, payload);
 			/* Device Attached */
-			} else if (strcmp(message, "Attached" == 0)) {
+			} else if (strcmp(message, "Attached") == 0) {
 				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_ADD, &hdr, payload);
 			/* Trust dialog is pending */
 			} else if (strcmp(message, "TrustPending") == 0) {
