@@ -188,7 +188,7 @@ static int parse_packet_with_dev_info(plist_t plist, uint32_t message, struct us
 	}
 
 	*payload = (void*)dev;
-	hdr->length = sizeof(hdr) + sizeof(struct usbmuxd_device_record);
+	hdr->length = sizeof(*hdr) + sizeof(struct usbmuxd_device_record);
 	hdr->message = message;
 
 	return 0;
@@ -203,7 +203,7 @@ static int parse_result_packet(plist_t plist, struct usbmuxd_header * hdr, void 
 	*payload = malloc(sizeof(uint32_t));
 	dwval = val;
 	memcpy(*payload, &dwval, sizeof(dwval));
-	hdr->length = sizeof(hdr)+sizeof(dwval);
+	hdr->length = sizeof(*hdr)+sizeof(dwval);
 	hdr->message = MESSAGE_RESULT;
 
 	return 0;
@@ -219,7 +219,7 @@ static int parse_device_remove_packet(plist_t plist, struct usbmuxd_header * hdr
 		*payload = malloc(sizeof(uint32_t));
 		dwval = val;
 		memcpy(*payload, &dwval, sizeof(dwval));
-		hdr->length = sizeof(hdr) + sizeof(dwval);
+		hdr->length = sizeof(*hdr) + sizeof(dwval);
 		hdr->message = MESSAGE_DEVICE_REMOVE;
 	}
 
