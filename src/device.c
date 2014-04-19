@@ -424,9 +424,9 @@ void device_client_process(int device_id, struct mux_client *client, short event
 
 	int res;
 	int size;
-	if(events & POLLOUT) {
+	if((events & POLLOUT) && conn->ib_size > 0) {
 		// Client is ready to receive data, send what we have
-		// in the client's connection buffer
+		// in the client's connection buffer (if there is any)
 		size = client_write(conn->client, conn->ib_buf, conn->ib_size);
 		if(size <= 0) {
 			usbmuxd_log(LL_DEBUG, "error writing to client (%d)", size);
@@ -441,9 +441,10 @@ void device_client_process(int device_id, struct mux_client *client, short event
 			memmove(conn->ib_buf, conn->ib_buf + size, conn->ib_size);
 		}
 	}
-	if(events & POLLIN) {
+	if((events & POLLIN) && conn->sendable > 0) {
 		// There is inbound trafic on the client socket,
 		// convert it to tcp and send to the device
+		// (if the device's input buffer is not full)
 		size = client_read(conn->client, conn->ob_buf, conn->sendable);
 		if(size <= 0) {
 			if (size < 0) {
