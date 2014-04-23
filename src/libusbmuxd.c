@@ -1422,3 +1422,4 @@ uint16_t libusbmuxd_get_socket_port()
 {
 	return usbmuxd_port;
 }
+
