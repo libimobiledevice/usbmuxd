@@ -300,6 +300,9 @@ static int receive_packet(int sfd, struct usbmuxd_header *header, void **payload
 			/* User has denied pairing */
 			} else if (strcmp(message, "UserDeniedPairing") == 0) {
 				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_USER_DENIED_PAIRING, &hdr, payload);
+			/* The device was removed before its "add device" (pairing) was completed */
+			} else if (strcmp(message, "RemovedDuringAdd") == 0) {
+				ret = parse_packet_with_dev_info(plist, MESSAGE_DEVICE_REMOVED_DURING_ADD, &hdr, payload);
 			/* Device Detached */
 			} else if (strcmp(message, "Detached") == 0) {
 				ret = parse_device_remove_packet(plist, &hdr, payload);
@@ -697,8 +700,11 @@ static int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		return -EBADMSG;
 	}
 
-	if ((hdr.message == MESSAGE_DEVICE_ADD) || (hdr.message == MESSAGE_DEVICE_TRUST_PENDING) ||
-		(hdr.message == MESSAGE_DEVICE_PASSWORD_PROTECTED) || (hdr.message == MESSAGE_DEVICE_USER_DENIED_PAIRING))
+	if ((hdr.message == MESSAGE_DEVICE_ADD) || 
+		(hdr.message == MESSAGE_DEVICE_TRUST_PENDING) ||
+		(hdr.message == MESSAGE_DEVICE_PASSWORD_PROTECTED) || 
+		(hdr.message == MESSAGE_DEVICE_USER_DENIED_PAIRING) ||
+		(hdr.message == MESSAGE_DEVICE_REMOVED_DURING_ADD))
 	{
 		struct usbmuxd_device_record *dev = payload;
 		usbmuxd_device_info_t *devinfo = (usbmuxd_device_info_t*)malloc(sizeof(usbmuxd_device_info_t));
@@ -731,6 +737,9 @@ static int get_next_event(int sfd, usbmuxd_event_cb_t callback, void *user_data)
 		/* User denied pairing */
 		} else if (hdr.message == MESSAGE_DEVICE_USER_DENIED_PAIRING) {
 			generate_event(callback, devinfo, UE_DEVICE_USER_DENIED_PAIRING, user_data);
+		/* Device removed during pairing (during "add device") */
+		} else if (hdr.message == MESSAGE_DEVICE_REMOVED_DURING_ADD) {
+			generate_event(callback, devinfo, UE_DEVICE_REMOVED_DURING_ADD, user_data);
 		}
 	} else if (hdr.message == MESSAGE_DEVICE_REMOVE) {
 		uint32_t handle;
