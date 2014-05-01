@@ -1101,7 +1101,8 @@ static send_plist_command(plist_t command)
 			DEBUG(1, "%s: Error: send device command has failed: %d\n", __func__, ret);
 		}
 	}
-
+	socket_close(sfd);
+	
 	return ret;
 }
 
@@ -1283,6 +1284,7 @@ int usbmuxd_read_buid(char **buid)
 		}
 		plist_free(pl);
 	}
+	socket_close(sfd);
 
 	return ret;
 }
@@ -1330,6 +1332,7 @@ int usbmuxd_read_pair_record(const char* record_id, char **record_data, uint32_t
 		}
 		plist_free(pl);
 	}
+	socket_close(sfd);
 
 	return ret;
 }
@@ -1368,6 +1371,7 @@ int usbmuxd_save_pair_record(const char* record_id, const char *record_data, uin
 		}
 	}
 	plist_free(data);
+	socket_close(sfd);
 
 	return ret;
 }
@@ -1404,6 +1408,7 @@ int usbmuxd_delete_pair_record(const char* record_id)
 			DEBUG(1, "%s: Error: deleting pair record failed: %d\n", __func__, ret);
 		}
 	}
+	socket_close(sfd);
 
 	return ret;
 }
