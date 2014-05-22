@@ -50,6 +50,8 @@ int next_device_id;
 
 enum mux_protocol {
 	MUX_PROTO_VERSION = 0,
+	MUX_PROTO_CONTROL = 1,
+	MUX_PROTO_SETUP = 2,
 	MUX_PROTO_TCP = IPPROTO_TCP,
 };
 
@@ -71,6 +73,9 @@ struct mux_header
 {
 	uint32_t protocol;
 	uint32_t length;
+	uint32_t magic;
+	uint16_t tx_seq;
+	uint16_t rx_seq;
 };
 
 struct version_header
@@ -115,6 +120,9 @@ struct mux_device
 	unsigned char *pktbuf;
 	uint32_t pktlen;
 	void *preflight_cb_data;
+	int version;
+	uint16_t rx_seq;
+	uint16_t tx_seq;
 };
 
 static struct collection device_list;
@@ -183,6 +191,9 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 		case MUX_PROTO_VERSION:
 			hdrlen = sizeof(struct version_header);
 			break;
+		case MUX_PROTO_SETUP:
+			hdrlen = 0;
+			break;
 		case MUX_PROTO_TCP:
 			hdrlen = sizeof(struct tcphdr);
 			break;
@@ -192,7 +203,9 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 	}
 	usbmuxd_log(LL_SPEW, "send_packet(%d, 0x%x, %p, %p, %d)", dev->id, proto, header, data, length);
 
-	int total = sizeof(struct mux_header) + hdrlen + length;
+	int mux_header_size = ((dev->version < 2) ? 8 : sizeof(struct mux_header));
+
+	int total = mux_header_size + hdrlen + length;
 
 	if(total > USB_MTU) {
 		usbmuxd_log(LL_ERROR, "Tried to send packet larger than USB MTU (hdr %d data %d total %d) to device %d", hdrlen, length, total, dev->id);
@@ -203,9 +216,19 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 	struct mux_header *mhdr = (struct mux_header *)buffer;
 	mhdr->protocol = htonl(proto);
 	mhdr->length = htonl(total);
-	memcpy(buffer + sizeof(struct mux_header), header, hdrlen);
+	if (dev->version >= 2) {
+		mhdr->magic = htonl(0xfeedface);
+		if (proto == MUX_PROTO_SETUP) {
+			dev->tx_seq = 0;
+			dev->rx_seq = 0xFFFF;
+		}
+		mhdr->tx_seq = htons(dev->tx_seq);
+		mhdr->rx_seq = htons(dev->rx_seq);
+		dev->tx_seq++;
+	}	
+	memcpy(buffer + mux_header_size, header, hdrlen);
 	if(data && length)
-		memcpy(buffer + sizeof(struct mux_header) + hdrlen, data, length);
+		memcpy(buffer + mux_header_size + hdrlen, data, length);
 
 	if((res = usb_send(dev->usbdev, buffer, total)) < 0) {
 		usbmuxd_log(LL_ERROR, "usb_send failed while sending packet (len %d) to device %d: %d", total, dev->id, res);
@@ -512,7 +535,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	}
 	vh->major = ntohl(vh->major);
 	vh->minor = ntohl(vh->minor);
-	if(vh->major != 1 || vh->minor != 0) {
+	if(vh->major != 2 && vh->major != 1) {
 		usbmuxd_log(LL_ERROR, "Device %d has unknown version %d.%d", dev->id, vh->major, vh->minor);
 		pthread_mutex_lock(&device_list_mutex);
 		collection_remove(&device_list, dev);
@@ -520,7 +543,13 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 		free(dev);
 		return;
 	}
-	usbmuxd_log(LL_NOTICE, "Connected to v%d.%d device %d on location 0x%x with serial number %s", vh->major, vh->minor, dev->id, usb_get_location(dev->usbdev), usb_get_serial(dev->usbdev));
+	dev->version = vh->major;
+
+	if (dev->version >= 2) {
+		send_packet(dev, MUX_PROTO_SETUP, NULL, "\x07", 1);
+	}
+
+	usbmuxd_log(LL_NOTICE, "Connected to v%d.%d device %d on location 0x%x with serial number %s", dev->version, vh->minor, dev->id, usb_get_location(dev->usbdev), usb_get_serial(dev->usbdev));
 	dev->state = MUXDEV_ACTIVE;
 	collection_init(&dev->connections);
 	struct device_info info;
@@ -529,6 +558,38 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	info.serial = usb_get_serial(dev->usbdev);
 	info.pid = usb_get_pid(dev->usbdev);
 	preflight_worker_device_add(&info);
+}
+
+static void device_control_input(struct mux_device *dev, unsigned char *payload, uint32_t payload_length)
+{
+	if (payload_length > 0) {
+		switch (payload[0]) {
+		case 3:
+			if (payload_length > 1) {
+				char* buf = malloc(payload_length);
+				strncpy(buf, (char*)payload+1, payload_length-1);
+				buf[payload_length-1] = '\0';
+				usbmuxd_log(LL_ERROR, "%s: ERROR: %s", __func__, buf);
+				free(buf);
+			} else {
+				usbmuxd_log(LL_ERROR, "%s: Error occured, but empty error message", __func__);
+			}
+			break;
+		case 7:
+			if (payload_length > 1) {
+				char* buf = malloc(payload_length);
+				strncpy(buf, (char*)payload+1, payload_length-1);
+				buf[payload_length-1] = '\0';
+				usbmuxd_log(LL_INFO, "%s: %s", __func__, buf);
+				free(buf);
+			}
+			break;
+		default:
+			break;
+		}
+	} else {
+		usbmuxd_log(LL_WARNING, "%s: got a type 1 packet without payload", __func__);
+	}
 }
 
 /**
@@ -686,7 +747,7 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_
 	}
 
 	struct mux_header *mhdr = (struct mux_header *)buffer;
-
+	int mux_header_size = ((dev->version < 2) ? 8 : sizeof(struct mux_header));
 	if(ntohl(mhdr->length) != length) {
 		usbmuxd_log(LL_ERROR, "Incoming packet size mismatch (dev %d, expected %d, got %d)", dev->id, ntohl(mhdr->length), length);
 		return;
@@ -696,23 +757,32 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_
 	unsigned char *payload;
 	uint32_t payload_length;
 
+	if (dev->version >= 2) {
+		dev->rx_seq = ntohs(mhdr->rx_seq);
+	}
+
 	switch(ntohl(mhdr->protocol)) {
 		case MUX_PROTO_VERSION:
-			if(length < (sizeof(struct mux_header) + sizeof(struct version_header))) {
+			if(length < (mux_header_size + sizeof(struct version_header))) {
 				usbmuxd_log(LL_ERROR, "Incoming version packet is too small (%d)", length);
 				return;
 			}
-			device_version_input(dev, (struct version_header *)(mhdr+1));
+			device_version_input(dev, (struct version_header *)((char*)mhdr+mux_header_size));
+			break;
+		case MUX_PROTO_CONTROL:
+			payload = (unsigned char *)(mhdr+1);
+			payload_length = length - mux_header_size;
+			device_control_input(dev, payload, payload_length);
 			break;
 		case MUX_PROTO_TCP:
-			if(length < (sizeof(struct mux_header) + sizeof(struct tcphdr))) {
+			if(length < (mux_header_size + sizeof(struct tcphdr))) {
 				usbmuxd_log(LL_ERROR, "Incoming TCP packet is too small (%d)", length);
 				return;
 			}
-			th = (struct tcphdr *)(mhdr+1);
+			th = (struct tcphdr *)((char*)mhdr+mux_header_size);
 			payload = (unsigned char *)(th+1);
-			payload_length = length - sizeof(struct tcphdr) - sizeof(struct mux_header);
-			device_tcp_input(dev, (struct tcphdr *)(mhdr+1), payload, payload_length);
+			payload_length = length - sizeof(struct tcphdr) - mux_header_size;
+			device_tcp_input(dev, th, payload, payload_length);
 			break;
 		default:
 			usbmuxd_log(LL_ERROR, "Incoming packet for device %d has unknown protocol 0x%x)", dev->id, ntohl(mhdr->protocol));
@@ -736,6 +806,7 @@ int device_add(struct usb_device *usbdev)
 	dev->pktbuf = malloc(DEV_MRU);
 	dev->pktlen = 0;
 	dev->preflight_cb_data = NULL;
+	dev->version = 0;
 	struct version_header vh;
 	vh.major = htonl(1);
 	vh.minor = htonl(0);
