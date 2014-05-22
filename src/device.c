@@ -808,7 +808,7 @@ int device_add(struct usb_device *usbdev)
 	dev->preflight_cb_data = NULL;
 	dev->version = 0;
 	struct version_header vh;
-	vh.major = htonl(1);
+	vh.major = htonl(2);
 	vh.minor = htonl(0);
 	vh.padding = 0;
 	if((res = send_packet(dev, MUX_PROTO_VERSION, &vh, NULL, 0)) < 0) {
