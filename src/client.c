@@ -476,6 +476,11 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 			} else {
 				char *message = NULL;
 				plist_t node = plist_dict_get_item(dict, "MessageType");
+				if (!node || plist_get_node_type(node) != PLIST_STRING) {
+					usbmuxd_log(LL_ERROR, "Could not read valid MessageType node from plist!");
+					plist_free(dict);
+					return -1;
+				}
 				plist_get_string_val(node, &message);
 				if (!message) {
 					usbmuxd_log(LL_ERROR, "Could not extract MessageType from plist!");
