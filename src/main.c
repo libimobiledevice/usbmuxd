@@ -377,7 +377,7 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfvuU:xX", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvVuU:xX", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
