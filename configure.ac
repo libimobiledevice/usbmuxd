@@ -23,7 +23,7 @@ AC_CHECK_LIB(pthread, [pthread_create, pthread_mutex_lock], [AC_SUBST(libpthread
 
 AC_ARG_WITH([preflight],
             [AS_HELP_STRING([--without-preflight],
-            [do not build with preflight worker support (default is yes)])],
+            [do not build with preflight worker support @<:@default=yes@:>@])],
             [with_preflight=no],
             [with_preflight=yes])
 
