@@ -42,6 +42,45 @@ else
   fi
 fi
 
+AC_ARG_WITH([udevrulesdir],
+            AS_HELP_STRING([--with-udevrulesdir=DIR],
+            [Directory for udev rules]),
+            [],
+            [with_udevrulesdir=auto])
+if test "x$with_udevrulesdir" = "xauto"; then
+  udevdir=$($PKG_CONFIG --variable=udevdir udev)
+  if test "x$udevdir" != "x"; then
+    with_udevrulesdir=$udevdir"/rules.d"
+  else
+    with_udevrulesdir=$prefix/lib/udev/rules.d
+  fi
+fi
+AC_SUBST([udevrulesdir], [$with_udevrulesdir])
+
+AC_ARG_WITH([systemd],
+            [AS_HELP_STRING([--without-systemd],
+            [do not build with systemd support @<:@default=yes@:>@])],
+            [with_systemd=no],
+            [with_systemd=yes])
+
+AC_ARG_WITH([systemdsystemunitdir],
+            [AS_HELP_STRING([--with-systemdsystemunitdir=DIR],
+            [directory for systemd service files])],
+            [with_systemdsystemunitdir=$withval],
+            [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+
+if test "x$with_systemdsystemunitdir" != xno; then
+  AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+fi
+AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno -a "x$with_systemd" = "xyes" ])
+
+if test "x$with_systemd" = xyes; then
+  udev_activation_rule="TAG+=\"systemd\", ENV{SYSTEMD_WANTS}=\"usbmuxd.service\""
+else
+  udev_activation_rule="RUN+=\"@sbindir@/usbmuxd -u -U usbmux\""
+fi
+AC_SUBST(udev_activation_rule)
+
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
@@ -61,19 +100,39 @@ AC_CHECK_FUNCS([strcasecmp strdup strerror strndup stpcpy])
 
 # Check for operating system
 AC_MSG_CHECKING([whether to enable WIN32 build settings])
+UDEV_SUB=
+SYSTEMD_SUB=
 case ${host_os} in
   *mingw32*|*cygwin*)
     win32=true
     AC_MSG_RESULT([yes])
     AC_CHECK_TOOL([WINDRES], [windres], AC_MSG_ERROR([windres not found]))
     AC_SUBST(WINDRES)
+    activation_method="manual"
+    ;;
+  darwin*)
+    win32=false
+    AC_MSG_RESULT([no])
+    activation_method="launchd"
     ;;
   *)
     win32=false
     AC_MSG_RESULT([no])
+    UDEV_SUB=udev
+    activation_method="systemd"
+    if test "x$with_systemd" != "xyes"; then
+      echo "*** Note: support for systemd activation has been disabled, using udev activation instead ***"
+      activation_method="udev"
+    else
+      AC_DEFINE(WITH_SYSTEMD, 1, [Define to enable systemd support])
+      SYSTEMD_SUB=systemd
+    fi
     ;;
 esac
 AM_CONDITIONAL(WIN32, test x$win32 = xtrue)
+
+AC_SUBST([UDEV_SUB])
+AC_SUBST([SYSTEMD_SUB])
 
 AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-g -Wall -Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter")
 AC_SUBST(GLOBAL_CFLAGS)
@@ -83,15 +142,30 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 AC_OUTPUT([
 Makefile
 src/Makefile
-udev/39-usbmuxd.rules
+udev/Makefile
+systemd/Makefile
 ])
 
-echo "
+echo -n "
 Configuration for $PACKAGE $VERSION:
 -------------------------------------------
 
-  Install prefix: ...........: $prefix
-  Preflight worker support ..: $have_limd
+  install prefix ............: $prefix
+  preflight worker support ..: $have_limd
+  activation method .........: $activation_method
+"
+
+if test "x$activation_method" = "xsystemd"; then
+  echo -n "  systemd unit directory ....: ${systemdsystemunitdir}
+"
+fi
+
+if test -n "$udevrulesdir"; then
+  echo -n "  udev rules directory ......: ${udevrulesdir}
+"
+fi
+
+echo "  compiler ..................: ${CC}
 
   Now type 'make' to build $PACKAGE $VERSION,
   and then 'make install' for installation.

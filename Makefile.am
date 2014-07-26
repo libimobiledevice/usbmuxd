@@ -1,6 +1,7 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src
+SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB)
 
-udevrulesdir = /lib/udev/rules.d
-udevrules_DATA = udev/39-usbmuxd.rules
+DISTCHECK_CONFIGURE_FLAGS =				\
+	--with-udevrulesdir=$$dc_install_base/$(udevrulesdir) \
+	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)

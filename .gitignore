@@ -34,4 +34,5 @@ py-compile
 stamp-h1
 src/.libs
 src/usbmuxd
-udev/85-usbmuxd.rules
+udev/39-usbmuxd.rules
+systemd/usbmuxd.service
