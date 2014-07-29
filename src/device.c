@@ -300,6 +300,7 @@ static int send_tcp(struct mux_connection *conn, uint8_t flags, const unsigned c
 static void connection_teardown(struct mux_connection *conn)
 {
 	int res;
+	int size;
 	if(conn->state == CONN_DEAD)
 		return;
 	usbmuxd_log(LL_DEBUG, "connection_teardown dev %d sport %d dport %d", conn->dev->id, conn->sport, conn->dport);
@@ -313,6 +314,21 @@ static void connection_teardown(struct mux_connection *conn)
 			client_notify_connect(conn->client, RESULT_CONNREFUSED);
 		} else {
 			conn->state = CONN_DEAD;
+			if((conn->events & POLLOUT) && conn->ib_size > 0){
+				while(1){
+					size = client_write(conn->client, conn->ib_buf, conn->ib_size);
+					if(size <= 0) {
+						break;
+					}
+					if(size == (int)conn->ib_size) {
+						conn->ib_size = 0;
+						break;
+					} else {
+						conn->ib_size -= size;
+						memmove(conn->ib_buf, conn->ib_buf + size, conn->ib_size);
+					}
+				}
+			}
 			client_close(conn->client);
 		}
 	}
