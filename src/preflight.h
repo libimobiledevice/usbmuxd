@@ -18,8 +18,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 */
 
-#ifndef __PREFLIGHT_H__
-#define __PREFLIGHT_H__
+#ifndef PREFLIGHT_H
+#define PREFLIGHT_H
 
 #include "device.h"
 

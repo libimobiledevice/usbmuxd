@@ -20,8 +20,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 */
 
-#ifndef __USB_H__
-#define __USB_H__
+#ifndef USB_H
+#define USB_H
 
 #include <stdint.h>
 #include "utils.h"

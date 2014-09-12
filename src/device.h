@@ -18,8 +18,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 */
 
-#ifndef __DEVICE_H__
-#define __DEVICE_H__
+#ifndef DEVICE_H
+#define DEVICE_H
 
 #include "usb.h"
 #include "client.h"
@@ -52,4 +52,5 @@ void device_check_timeouts(void);
 void device_init(void);
 void device_kill_connections(void);
 void device_shutdown(void);
+
 #endif

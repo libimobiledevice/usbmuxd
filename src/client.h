@@ -19,8 +19,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 */
 
-#ifndef __CLIENT_H__
-#define __CLIENT_H__
+#ifndef CLIENT_H
+#define CLIENT_H
 
 #include <stdint.h>
 #include "usbmuxd-proto.h"

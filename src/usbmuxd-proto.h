@@ -21,8 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 /* Protocol defintion for usbmuxd proxy protocol */
-#ifndef __USBMUXD_PROTO_H
-#define __USBMUXD_PROTO_H
+#ifndef USBMUXD_PROTO_H
+#define USBMUXD_PROTO_H
 
 #include <stdint.h>
 #define USBMUXD_PROTOCOL_VERSION 0
@@ -93,4 +93,4 @@ struct usbmuxd_device_record {
 }
 #endif
 
-#endif /* __USBMUXD_PROTO_H */
+#endif /* USBMUXD_PROTO_H */
