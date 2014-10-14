@@ -6,7 +6,7 @@ A socket daemon to multiplex connections from and to iOS devices.
 Background
 ==========
 
-'usbmuxd' stands for "USB multiplexing daemon". This daemon is in charge of
+usbmuxd stands for "USB multiplexing daemon". This daemon is in charge of
 multiplexing connections over USB to an iOS device. To users, it means
 you can sync your music, contacts, photos, etc. over USB. To developers, it
 means you can connect to any listening localhost socket on the device. usbmuxd
@@ -14,16 +14,16 @@ is not used for tethering data transfer which uses a dedicated USB interface as
 a virtual network device. Multiple connections to different TCP ports can happen
 in parallel. The higher-level layers are handled by libimobiledevice.
 
-When usbmuxd is running (normally started, or stopped as a result of 'udev'
+When usbmuxd is running (normally started, or stopped as a result of "udev"
 auto-insertion messages or by systemd) it provides a socket interface in
-'/var/run/usbmuxd' that is designed to be compatible with the socket interface
+"/var/run/usbmuxd" that is designed to be compatible with the socket interface
 that is provided on Mac OS X.
 
-You should also create a 'usbmux' user that has access to USB devices on your
+You should also create a "usbmux" user that has access to USB devices on your
 system. Alternatively, you can pass a different username using the -U argument.
 
-Due to iOS 7 the daemon now also manages pairing records with iOSdevices and
-the host in '/var/lib/lockdown' (Linux) or '/var/db/lockdown' (Mac OS X).
+Due to iOS 7 the daemon now also manages pairing records with iOS devices and
+the host in "/var/lib/lockdown" (Linux) or "/var/db/lockdown" (Mac OS X).
 Ensure proper permissions are setup for the daemon to access the directory.
 
 Requirements
