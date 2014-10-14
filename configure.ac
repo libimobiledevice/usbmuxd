@@ -77,7 +77,7 @@ AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_sy
 if test "x$with_systemd" = xyes; then
   udev_activation_rule="TAG+=\"systemd\", ENV{SYSTEMD_WANTS}=\"usbmuxd.service\""
 else
-  udev_activation_rule="RUN+=\"@sbindir@/usbmuxd -u -U usbmux\""
+  udev_activation_rule="RUN+=\"@sbindir@/usbmux --user usbmux --udev\""
 fi
 AC_SUBST(udev_activation_rule)
 
