@@ -3,5 +3,5 @@ Description=Socket daemon for the usbmux protocol used by Apple devices
 
 [Service]
 Type=simple
-ExecStart=@sbindir@/usbmuxd -u -U usbmux -f
+ExecStart=@sbindir@/usbmuxd --user usbmux --systemd
 PIDFile=@localstatedir@/run/usbmuxd.pid
