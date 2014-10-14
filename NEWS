@@ -2,6 +2,11 @@ Version 1.0.9
 ~~~~~~~~~~~~~
 
 * Changes:
+  - Fix broken handling of "--user" argument value
+  - Add new "--enable-exit" argument to enable handling of "--exit" requests
+  - Add new "--disable-hotplug" argument to disable automatic device discovery
+  - Add new "--systemd" argument to startup with right settings for systemd
+  - Add man page for usbmuxd
   - Update copyright headers to match best practice
   - Flush input buffer on connection teardown
   - Add systemd based activation with fallback for udev and manual activation
@@ -32,10 +37,5 @@ Version 1.0.9
   - Implement preflight worker to support iOS 7 based trust dialog handling
   - Install usbmuxd binary to sbindir instead of bindir
   - Switch from CMake to autotools build system
-  - Fix various memory leaks
-  - Add libusbmuxd_set_use_inotify() to control inotify support at runtime
-  - Add libusbmuxd_set_debug_level() to enable debugging
-  - Use mutex to handle concurrency issues
-  - Fix and cleanup win32 build
 
 This is the first release after the usbmuxd/libusbmuxd project split.
