@@ -1,6 +1,8 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB)
+SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB) docs
+
+EXTRA_DIST = docs
 
 DISTCHECK_CONFIGURE_FLAGS =				\
 	--with-udevrulesdir=$$dc_install_base/$(udevrulesdir) \

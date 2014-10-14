@@ -144,6 +144,7 @@ Makefile
 src/Makefile
 udev/Makefile
 systemd/Makefile
+docs/Makefile
 ])
 
 echo -n "
