@@ -366,7 +366,7 @@ static void parse_opts(int argc, char **argv)
 		{"help", 0, NULL, 'h'},
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
-		{"user", 2, NULL, 'U'},
+		{"user", 1, NULL, 'U'},
 		{"udev", 0, NULL, 'u'},
 		{"exit", 0, NULL, 'x'},
 		{"force-exit", 0, NULL, 'X'},
