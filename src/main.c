@@ -1,6 +1,7 @@
 /*
  * main.c
  *
+ * Copyright (C) 2013-2014 Martin Szulecki <m.szulecki@libimobiledevice.org>
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2009 Paul Sladen <libiphone@paul.sladen.org>
@@ -58,7 +59,8 @@ static int verbose = 0;
 static int foreground = 0;
 static int drop_privileges = 0;
 static const char *drop_user = NULL;
-static int opt_udev = 0;
+static int opt_disable_hotplug = 0;
+static int opt_enable_exit = 0;
 static int opt_exit = 0;
 static int exit_signal = 0;
 static int daemon_pipe;
@@ -105,7 +107,7 @@ static void handle_signal(int sig)
 		usbmuxd_log(LL_NOTICE,"Caught signal %d, exiting", sig);
 		should_exit = 1;
 	} else {
-		if(opt_udev) {
+		if(opt_enable_exit) {
 			if (sig == SIGUSR1) {
 				usbmuxd_log(LL_INFO, "Caught SIGUSR1, checking if we can terminate (no more devices attached)...");
 				if (device_get_count(1) > 0) {
@@ -120,7 +122,7 @@ static void handle_signal(int sig)
 				should_discover = 1;
 			}
 		} else {
-			usbmuxd_log(LL_INFO, "Caught SIGUSR1/2 but we weren't started in --udev mode, ignoring");
+			usbmuxd_log(LL_INFO, "Caught SIGUSR1/2 but this instance was not started with \"--enable-exit\", ignoring.");
 		}
 	}
 }
@@ -200,7 +202,7 @@ static int main_loop(int listenfd)
 				}
 				if(should_discover) {
 					should_discover = 0;
-					usbmuxd_log(LL_INFO, "Device discovery triggered by udev");
+					usbmuxd_log(LL_INFO, "Device discovery triggered");
 					usb_discover();
 				}
 			}
@@ -351,11 +353,16 @@ static void usage()
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
 	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
 	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
-	printf("  -u, --udev\t\tRun in udev operation mode.\n");
-	printf("  -x, --exit\t\tTell a running instance to exit if there are no devices\n");
-	printf("            \t\tconnected (must be in udev mode).\n");
-	printf("  -X, --force-exit\tTell a running instance to exit, even if there are still\n");
-	printf("                  \tdevices connected (always works).\n");
+	printf("  -n, --disable-hotplug\tDisables automatic discovery of devices on hotplug.\n");
+	printf("                       \tStarting another instance will trigger discovery instead.\n");
+	printf("  -z, --enable-exit\tEnable \"--exit\" request from other instances and exit\n");
+	printf("                   \tautomatically if no device is attached.\n");
+	printf("  -u, --udev\t\tRun in udev operation mode (implies -n and -z).\n");
+	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
+	printf("  -x, --exit\t\tNotify a running instance to exit if there are no devices\n");
+	printf("            \t\tconnected (sends SIGUSR1 to running instance) and exit.\n");
+	printf("  -X, --force-exit\tNotify a running instance to exit even if there are still\n");
+	printf("                  \tdevices connected (always works) and exit.\n");
 	printf("  -V, --version\t\tPrint version information and exit.\n");
 	printf("\n");
 }
@@ -367,7 +374,10 @@ static void parse_opts(int argc, char **argv)
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
 		{"user", 1, NULL, 'U'},
+		{"disable-hotplug", 0, NULL, 'n'},
+		{"enable-exit", 0, NULL, 'z'},
 		{"udev", 0, NULL, 'u'},
+		{"systemd", 0, NULL, 's'},
 		{"exit", 0, NULL, 'x'},
 		{"force-exit", 0, NULL, 'X'},
 		{"version", 0, NULL, 'V'},
@@ -376,7 +386,7 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 	while (1) {
-		c = getopt_long(argc, argv, "hfvVuU:xX", longopts, (int *) 0);
+		c = getopt_long(argc, argv, "hfvVuU:xXsnz", longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -399,7 +409,18 @@ static void parse_opts(int argc, char **argv)
 			drop_user = optarg;
 			break;
 		case 'u':
-			opt_udev = 1;
+			opt_disable_hotplug = 1;
+			opt_enable_exit = 1;
+			break;
+		case 's':
+			opt_enable_exit = 1;
+			foreground = 1;
+			break;
+		case 'n':
+			opt_disable_hotplug = 1;
+			break;
+		case 'z':
+			opt_enable_exit = 1;
 			break;
 		case 'x':
 			opt_exit = 1;
@@ -474,7 +495,7 @@ int main(int argc, char *argv[])
 				goto terminate;
 			}
 		} else {
-			if (!opt_udev) {
+			if (!opt_disable_hotplug) {
 				usbmuxd_log(LL_ERROR, "Another instance is already running (pid %d). exiting.", lock.l_pid);
 				res = -1;
 			} else {
@@ -497,7 +518,7 @@ int main(int argc, char *argv[])
 	unlink(lockfile);
 
 	if (opt_exit) {
-		usbmuxd_log(LL_NOTICE, "No running instance found, none killed. exiting.");
+		usbmuxd_log(LL_NOTICE, "No running instance found, none killed. Exiting.");
 		goto terminate;
 	}
 
@@ -635,8 +656,13 @@ int main(int argc, char *argv[])
 		if((res = notify_parent(0)) < 0)
 			goto terminate;
 
-	if(opt_udev)
-		usb_autodiscover(0); // discovery triggered by udev
+	if(opt_disable_hotplug) {
+		usbmuxd_log(LL_NOTICE, "Automatic device discovery on hotplug disabled.");
+		usb_autodiscover(0); // discovery to be triggered by new instance
+	}
+	if (opt_enable_exit) {
+		usbmuxd_log(LL_NOTICE, "Enabled exit on SIGUSR1 if no devices are attached. Start a new instance with \"--exit\" to trigger.");
+	}
 
 	res = main_loop(listenfd);
 	if(res < 0)
