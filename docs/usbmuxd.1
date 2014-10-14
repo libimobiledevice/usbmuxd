@@ -30,19 +30,32 @@ Ensure proper permissions are setup for the daemon to access the directory.
 .SH OPTIONS
 .TP
 .B \-U, \-\-user USER
-change to this user after startup (needs USB privileges).
+Change to this user after startup (needs USB privileges).
+.TP
+.B \-f, \-\-foreground
+Do not daemonize (implies one -v).
+.TP
+.B \-n, \-\-disable-hotplug
+Disables automatic discovery of devices on hotplug. Starting another instance
+will trigger discovery instead.
+.TP
+.B \-z, \-\-enable-exit
+Enable "--exit" request from other instances and exit automatically if no
+device is attached.
 .TP
 .B \-u, \-\-udev
-run in udev operation mode (USB hotplug will be signaled to the daemon using udev).
+Run in udev operation mode (implies -n and -z).
+.TP
+.B \-s, \-\-systemd
+Run in systemd operation mode (implies -z and -f).
 .TP
 .B \-x, \-\-exit
-tell a running instance to exit if there are no devices connected.
+Notify a running instance to exit if there are no devices connected (sends
+SIGUSR1 to running instance) and exit.
 .TP 
 .B \-X, \-\-force-exit
-tell a running instance to exit, even if there are still devices connected (always works).
-.TP 
-.B \-f, \-\-foreground
-do not daemonize (implies one -v).
+Notify a running instance to exit even if there are still devices connected
+(always works) and exit.
 .TP 
 .B \-v, \-\-verbose
 be verbose (use twice or more to increase verbose level).
