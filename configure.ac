@@ -112,7 +112,8 @@ case ${host_os} in
   darwin*)
     win32=false
     AC_MSG_RESULT([no])
-    activation_method="launchd"
+    # No support for launchd yet
+    activation_method="manual"
     ;;
   *)
     win32=false
