@@ -55,7 +55,6 @@ if test "x$with_udevrulesdir" = "xauto"; then
     with_udevrulesdir=$prefix/lib/udev/rules.d
   fi
 fi
-AC_SUBST([udevrulesdir], [$with_udevrulesdir])
 
 AC_ARG_WITH([systemd],
             [AS_HELP_STRING([--without-systemd],
@@ -119,6 +118,8 @@ case ${host_os} in
     win32=false
     AC_MSG_RESULT([no])
     UDEV_SUB=udev
+    AC_SUBST([udevrulesdir], [$with_udevrulesdir])
+    AC_DEFINE(HAVE_UDEV, 1, [Define to enable udev support])
     activation_method="systemd"
     if test "x$with_systemd" != "xyes"; then
       echo "*** Note: support for systemd activation has been disabled, using udev activation instead ***"
