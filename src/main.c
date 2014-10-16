@@ -357,8 +357,12 @@ static void usage()
 	printf("                       \tStarting another instance will trigger discovery instead.\n");
 	printf("  -z, --enable-exit\tEnable \"--exit\" request from other instances and exit\n");
 	printf("                   \tautomatically if no device is attached.\n");
+#ifdef HAVE_UDEV
 	printf("  -u, --udev\t\tRun in udev operation mode (implies -n and -z).\n");
+#endif
+#ifdef HAVE_SYSTEMD
 	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
+#endif
 	printf("  -x, --exit\t\tNotify a running instance to exit if there are no devices\n");
 	printf("            \t\tconnected (sends SIGUSR1 to running instance) and exit.\n");
 	printf("  -X, --force-exit\tNotify a running instance to exit even if there are still\n");
@@ -376,8 +380,12 @@ static void parse_opts(int argc, char **argv)
 		{"user", 1, NULL, 'U'},
 		{"disable-hotplug", 0, NULL, 'n'},
 		{"enable-exit", 0, NULL, 'z'},
+#ifdef HAVE_UDEV
 		{"udev", 0, NULL, 'u'},
+#endif
+#ifdef HAVE_SYSTEMD
 		{"systemd", 0, NULL, 's'},
+#endif
 		{"exit", 0, NULL, 'x'},
 		{"force-exit", 0, NULL, 'X'},
 		{"version", 0, NULL, 'V'},
@@ -385,8 +393,16 @@ static void parse_opts(int argc, char **argv)
 	};
 	int c;
 
+#ifdef HAVE_SYSTEMD
+	const char* opts_spec = "hfvVuU:xXsnz";
+#elif HAVE_UDEV
+	const char* opts_spec = "hfvVuU:xXnz";
+#else
+	const char* opts_spec = "hfvVU:xXnz";
+#endif
+
 	while (1) {
-		c = getopt_long(argc, argv, "hfvVuU:xXsnz", longopts, (int *) 0);
+		c = getopt_long(argc, argv, opts_spec, longopts, (int *) 0);
 		if (c == -1) {
 			break;
 		}
@@ -408,14 +424,18 @@ static void parse_opts(int argc, char **argv)
 			drop_privileges = 1;
 			drop_user = optarg;
 			break;
+#ifdef HAVE_UDEV
 		case 'u':
 			opt_disable_hotplug = 1;
 			opt_enable_exit = 1;
 			break;
+#endif
+#ifdef HAVE_SYSTEMD
 		case 's':
 			opt_enable_exit = 1;
 			foreground = 1;
 			break;
+#endif
 		case 'n':
 			opt_disable_hotplug = 1;
 			break;
