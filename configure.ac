@@ -124,7 +124,7 @@ case ${host_os} in
       echo "*** Note: support for systemd activation has been disabled, using udev activation instead ***"
       activation_method="udev"
     else
-      AC_DEFINE(WITH_SYSTEMD, 1, [Define to enable systemd support])
+      AC_DEFINE(HAVE_SYSTEMD, 1, [Define to enable systemd support])
       SYSTEMD_SUB=systemd
     fi
     ;;
