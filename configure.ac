@@ -149,23 +149,20 @@ systemd/Makefile
 docs/Makefile
 ])
 
-echo -n "
+echo "
 Configuration for $PACKAGE $VERSION:
 -------------------------------------------
 
   install prefix ............: $prefix
   preflight worker support ..: $have_limd
-  activation method .........: $activation_method
-"
+  activation method .........: $activation_method"
 
 if test "x$activation_method" = "xsystemd"; then
-  echo -n "  systemd unit directory ....: ${systemdsystemunitdir}
-"
+  echo "  systemd unit directory ....: ${systemdsystemunitdir}"
 fi
 
 if test -n "$udevrulesdir"; then
-  echo -n "  udev rules directory ......: ${udevrulesdir}
-"
+  echo "  udev rules directory ......: ${udevrulesdir}"
 fi
 
 echo "  compiler ..................: ${CC}
