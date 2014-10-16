@@ -4,7 +4,7 @@ edit = \
 	-e 's|@localstatedir[@]|$(localstatedir)|g' \
 	< $< > $@ || rm $@
 
-if HAVE_SYSTEMD
+if WANT_SYSTEMD
 
 systemdsystemunit_DATA = \
 	usbmuxd.service
