@@ -38,7 +38,7 @@ if test "x$have_limd" = "xyes"; then
   fi
 else
   if test "x$with_preflight" == "xyes"; then
-    AC_MSG_ERROR([preflight worker support requested but libimobiledevice could not befound])
+    AC_MSG_ERROR([preflight worker support requested but libimobiledevice could not be found])
   fi
 fi
 
