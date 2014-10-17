@@ -1,3 +1,15 @@
+Version 1.1.0
+~~~~~~~~~~~~~
+
+* Changes:
+  - Check for pkg-config availability in autogen.sh
+  - Fix missing "usbmuxd-proto.h" in released tarbal
+  - Fix typo which broke udev support in rule for udev activation mode
+  - Fix broken configure summary on OS X and change activation method
+    to "manual"
+  - Compile bits of udev and systemd support only if needed
+  - Bump autoconf requirement to 2.64
+
 Version 1.0.9
 ~~~~~~~~~~~~~
 
