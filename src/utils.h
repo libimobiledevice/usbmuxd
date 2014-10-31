@@ -87,5 +87,6 @@ int plist_read_from_filename(plist_t *plist, const char *filename);
 int plist_write_to_filename(plist_t plist, const char *filename, enum plist_format_t format);
 
 uint64_t mstime64(void);
+void get_tick_count(struct timeval * tv);
 
 #endif

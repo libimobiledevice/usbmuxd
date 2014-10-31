@@ -34,6 +34,7 @@
 #include "usb.h"
 #include "log.h"
 #include "device.h"
+#include "utils.h"
 
 // interval for device connection/disconnection polling, in milliseconds
 // we need this because there is currently no asynchronous device discovery mechanism in libusb
@@ -266,7 +267,7 @@ int usb_discover(void)
 			usbmuxd_log(LL_FATAL, "Too many errors getting device list");
 			return cnt;
 		} else {
-			gettimeofday(&next_dev_poll_time, NULL);
+			get_tick_count(&next_dev_poll_time);
 			next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
 			next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
 			next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
@@ -477,7 +478,7 @@ int usb_discover(void)
 
 	libusb_free_device_list(devs, 1);
 
-	gettimeofday(&next_dev_poll_time, NULL);
+	get_tick_count(&next_dev_poll_time);
 	next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
 	next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
 	next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
@@ -538,7 +539,7 @@ static int dev_poll_remain_ms(void)
 	struct timeval tv;
 	if(!device_polling)
 		return 100000; // devices will never be polled if this is > 0
-	gettimeofday(&tv, NULL);
+	get_tick_count(&tv);
 	msecs = (next_dev_poll_time.tv_sec - tv.tv_sec) * 1000;
 	msecs += (next_dev_poll_time.tv_usec - tv.tv_usec) / 1000;
 	if(msecs < 0)
@@ -595,7 +596,7 @@ int usb_process_timeout(int msec)
 {
 	int res;
 	struct timeval tleft, tcur, tfin;
-	gettimeofday(&tcur, NULL);
+	get_tick_count(&tcur);
 	tfin.tv_sec = tcur.tv_sec + (msec / 1000);
 	tfin.tv_usec = tcur.tv_usec + (msec % 1000) * 1000;
 	tfin.tv_sec += tfin.tv_usec / 1000000;
@@ -614,7 +615,7 @@ int usb_process_timeout(int msec)
 		}
 		// reap devices marked dead due to an RX error
 		reap_dead_devices();
-		gettimeofday(&tcur, NULL);
+		get_tick_count(&tcur);
 	}
 	return 0;
 }

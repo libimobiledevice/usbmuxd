@@ -31,6 +31,7 @@
 #include <syslog.h>
 
 #include "log.h"
+#include "utils.h"
 
 unsigned int log_level = LL_WARNING;
 
@@ -70,7 +71,7 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 	if(level > log_level)
 		return;
 
-	gettimeofday(&ts, NULL);
+	get_tick_count(&ts);
 	tp = localtime(&ts.tv_sec);
 
 	fs = malloc(20 + strlen(fmt));

@@ -28,6 +28,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <time.h>
 #include <sys/time.h>
 
 #include "utils.h"
@@ -298,15 +299,26 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 	return 1;
 }
 
+void get_tick_count(struct timeval * tv)
+{
+	struct timespec ts;
+	if(0 == clock_gettime(CLOCK_MONOTONIC, &ts)) {
+		tv->tv_sec = ts.tv_sec;
+		tv->tv_usec = ts.tv_nsec / 1000;
+	} else {
+		gettimeofday(tv, NULL);
+	}
+}
+
 /**
  * Get number of milliseconds since the epoch.
  */
 uint64_t mstime64(void)
 {
 	struct timeval tv;
-	gettimeofday(&tv, NULL);
+	get_tick_count(&tv);
 
-  // Careful, avoid overflow on 32 bit systems
-  // time_t could be 4 bytes
+	// Careful, avoid overflow on 32 bit systems
+	// time_t could be 4 bytes
 	return ((long long)tv.tv_sec) * 1000LL + ((long long)tv.tv_usec) / 1000LL;
 }
