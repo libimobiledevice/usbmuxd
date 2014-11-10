@@ -28,6 +28,7 @@ struct device_info {
 	const char *serial;
 	uint32_t location;
 	uint16_t pid;
+	uint64_t speed;
 };
 
 void device_data_input(struct usb_device *dev, unsigned char *buf, uint32_t length);

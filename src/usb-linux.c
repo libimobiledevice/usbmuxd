@@ -56,6 +56,7 @@ struct usb_device {
 	struct collection rx_xfers;
 	struct collection tx_xfers;
 	int wMaxPacketSize;
+	uint64_t speed;
 };
 
 static struct collection device_list;
@@ -425,6 +426,7 @@ int usb_discover(void)
 		usbdev->address = address;
 		usbdev->vid = devdesc.idVendor;
 		usbdev->pid = devdesc.idProduct;
+		usbdev->speed = 480000000;
 		usbdev->dev = handle;
 		usbdev->alive = 1;
 		usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, usbdev->ep_out);
@@ -434,6 +436,25 @@ int usb_discover(void)
 		} else {
 			usbmuxd_log(LL_INFO, "Using wMaxPacketSize=%d for device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
 		}
+
+		switch (libusb_get_device_speed(dev)) {
+			case LIBUSB_SPEED_LOW:
+				usbdev->speed = 1500000;
+				break;
+			case LIBUSB_SPEED_FULL:
+				usbdev->speed = 12000000;
+				break;
+			case LIBUSB_SPEED_SUPER:
+				usbdev->speed = 5000000000;
+				break;
+			case LIBUSB_SPEED_HIGH:
+			case LIBUSB_SPEED_UNKNOWN:
+			default:
+				usbdev->speed = 480000000;
+				break;
+		}
+
+		usbmuxd_log(LL_INFO, "USB Speed is %g MBit/s for device %d-%d", (double)(usbdev->speed / 1000000.0), usbdev->bus, usbdev->address);
 
 		collection_init(&usbdev->tx_xfers);
 		collection_init(&usbdev->rx_xfers);
@@ -508,6 +529,14 @@ uint16_t usb_get_pid(struct usb_device *dev)
 		return 0;
 	}
 	return dev->pid;
+}
+
+uint64_t usb_get_speed(struct usb_device *dev)
+{
+	if (!dev->dev) {
+		return 0;
+	}
+	return dev->speed;
 }
 
 void usb_get_fds(struct fdlist *list)

@@ -572,6 +572,7 @@ static void device_version_input(struct mux_device *dev, struct version_header *
 	info.location = usb_get_location(dev->usbdev);
 	info.serial = usb_get_serial(dev->usbdev);
 	info.pid = usb_get_pid(dev->usbdev);
+	info.speed = usb_get_speed(dev->usbdev);
 	preflight_worker_device_add(&info);
 }
 
@@ -924,6 +925,7 @@ int device_get_list(int include_hidden, struct device_info **devices)
 			p->serial = usb_get_serial(dev->usbdev);
 			p->location = usb_get_location(dev->usbdev);
 			p->pid = usb_get_pid(dev->usbdev);
+			p->speed = usb_get_speed(dev->usbdev);
 			count++;
 			p++;
 		}

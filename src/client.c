@@ -306,8 +306,7 @@ static plist_t create_device_attached_plist(struct device_info *dev)
 	plist_dict_set_item(dict, "MessageType", plist_new_string("Attached"));
 	plist_dict_set_item(dict, "DeviceID", plist_new_uint(dev->id));
 	plist_t props = plist_new_dict();
-	// TODO: get current usb speed
-	plist_dict_set_item(props, "ConnectionSpeed", plist_new_uint(480000000));
+	plist_dict_set_item(props, "ConnectionSpeed", plist_new_uint(dev->speed));
 	plist_dict_set_item(props, "ConnectionType", plist_new_string("USB"));
 	plist_dict_set_item(props, "DeviceID", plist_new_uint(dev->id));
 	plist_dict_set_item(props, "LocationID", plist_new_uint(dev->location));
