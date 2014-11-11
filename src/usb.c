@@ -36,6 +36,10 @@
 #include "device.h"
 #include "utils.h"
 
+#if (defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102)) || (defined(LIBUSBX_API_VERSION) && (LIBUSBX_API_VERSION >= 0x01000102))
+#define HAVE_LIBUSB_HOTPLUG_API 1
+#endif
+
 // interval for device connection/disconnection polling, in milliseconds
 // we need this because there is currently no asynchronous device discovery mechanism in libusb
 #define DEVICE_POLL_TIME 1000
@@ -65,6 +69,7 @@ static struct timeval next_dev_poll_time;
 
 static int devlist_failures;
 static int device_polling;
+static int device_hotplug = 1;
 
 static void usb_disconnect(struct usb_device *dev)
 {
@@ -253,9 +258,217 @@ static int start_rx_loop(struct usb_device *dev)
 	return 0;
 }
 
+static int usb_device_add(libusb_device* dev)
+{
+	int j, res;
+	// the following are non-blocking operations on the device list
+	uint8_t bus = libusb_get_bus_number(dev);
+	uint8_t address = libusb_get_device_address(dev);
+	struct libusb_device_descriptor devdesc;
+	int found = 0;
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		if(usbdev->bus == bus && usbdev->address == address) {
+			usbdev->alive = 1;
+			found = 1;
+			break;
+		}
+	} ENDFOREACH
+	if(found)
+		return 0; //device already found
+
+	if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %d", bus, address, res);
+		return -1;
+	}
+	if(devdesc.idVendor != VID_APPLE)
+		return -1;
+	if((devdesc.idProduct < PID_RANGE_LOW) ||
+		(devdesc.idProduct > PID_RANGE_MAX))
+		return -1;
+	libusb_device_handle *handle;
+	usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
+	// potentially blocking operations follow; they will only run when new devices are detected, which is acceptable
+	if((res = libusb_open(dev, &handle)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %d", bus, address, res);
+		return -1;
+	}
+
+	int current_config = 0;
+	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %d", bus, address, res);
+		libusb_close(handle);
+		return -1;
+	}
+	if (current_config != devdesc.bNumConfigurations) {
+		struct libusb_config_descriptor *config;
+		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
+		} else {
+			for(j=0; j<config->bNumInterfaces; j++) {
+				const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+				if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
+					usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %d", intf->bInterfaceNumber, bus, address, res);
+					continue;
+				}
+				if(res == 1) {
+					usbmuxd_log(LL_INFO, "Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
+					if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
+						usbmuxd_log(LL_WARNING, "Could not detach kernel driver (%d), configuration change will probably fail!", res);
+						continue;
+					}
+				}
+			}
+			libusb_free_config_descriptor(config);
+		}
+
+		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, devdesc.bNumConfigurations);
+		if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
+			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
+			libusb_close(handle);
+			return -1;
+		}
+	}
+
+	struct libusb_config_descriptor *config;
+	if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
+		libusb_close(handle);
+		return -1;
+	}
+
+	struct usb_device *usbdev;
+	usbdev = malloc(sizeof(struct usb_device));
+	memset(usbdev, 0, sizeof(*usbdev));
+
+	for(j=0; j<config->bNumInterfaces; j++) {
+		const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+		if(intf->bInterfaceClass != INTERFACE_CLASS ||
+		   intf->bInterfaceSubClass != INTERFACE_SUBCLASS ||
+		   intf->bInterfaceProtocol != INTERFACE_PROTOCOL)
+			continue;
+		if(intf->bNumEndpoints != 2) {
+			usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+			continue;
+		}
+		if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+		   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+			usbdev->interface = intf->bInterfaceNumber;
+			usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
+			usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
+			usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+			break;
+		} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+		          (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+			usbdev->interface = intf->bInterfaceNumber;
+			usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
+			usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
+			usbmuxd_log(LL_INFO, "Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+			break;
+		} else {
+			usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+		}
+	}
+
+	if(j == config->bNumInterfaces) {
+		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
+		libusb_free_config_descriptor(config);
+		libusb_close(handle);
+		free(usbdev);
+		return -1;
+	}
+
+	libusb_free_config_descriptor(config);
+
+	if((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %d", usbdev->interface, bus, address, res);
+		libusb_close(handle);
+		free(usbdev);
+		return -1;
+	}
+
+	if((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)usbdev->serial, 256)) <= 0) {
+		usbmuxd_log(LL_WARNING, "Could not get serial number for device %d-%d: %d", bus, address, res);
+		libusb_release_interface(handle, usbdev->interface);
+		libusb_close(handle);
+		free(usbdev);
+		return -1;
+	}
+	usbdev->serial[res] = 0;
+	usbdev->bus = bus;
+	usbdev->address = address;
+	usbdev->vid = devdesc.idVendor;
+	usbdev->pid = devdesc.idProduct;
+	usbdev->speed = 480000000;
+	usbdev->dev = handle;
+	usbdev->alive = 1;
+	usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, usbdev->ep_out);
+	if (usbdev->wMaxPacketSize <= 0) {
+		usbmuxd_log(LL_ERROR, "Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
+		usbdev->wMaxPacketSize = 64;
+	} else {
+		usbmuxd_log(LL_INFO, "Using wMaxPacketSize=%d for device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
+	}
+
+	switch (libusb_get_device_speed(dev)) {
+		case LIBUSB_SPEED_LOW:
+			usbdev->speed = 1500000;
+			break;
+		case LIBUSB_SPEED_FULL:
+			usbdev->speed = 12000000;
+			break;
+		case LIBUSB_SPEED_SUPER:
+			usbdev->speed = 5000000000;
+			break;
+		case LIBUSB_SPEED_HIGH:
+		case LIBUSB_SPEED_UNKNOWN:
+		default:
+			usbdev->speed = 480000000;
+			break;
+	}
+
+	usbmuxd_log(LL_INFO, "USB Speed is %g MBit/s for device %d-%d", (double)(usbdev->speed / 1000000.0), usbdev->bus, usbdev->address);
+
+	collection_init(&usbdev->tx_xfers);
+	collection_init(&usbdev->rx_xfers);
+
+	collection_add(&device_list, usbdev);
+
+	if(device_add(usbdev) < 0) {
+		usb_disconnect(usbdev);
+		return -1;
+	}
+
+	// Spin up NUM_RX_LOOPS parallel usb data retrieval loops
+	// Old usbmuxds used only 1 rx loop, but that leaves the
+	// USB port sleeping most of the time
+	int rx_loops = NUM_RX_LOOPS;
+	for (rx_loops = NUM_RX_LOOPS; rx_loops > 0; rx_loops--) {
+		if(start_rx_loop(usbdev) < 0) {
+			usbmuxd_log(LL_WARNING, "Failed to start RX loop number %d", NUM_RX_LOOPS - rx_loops);
+		}
+	}
+
+	// Ensure we have at least 1 RX loop going
+	if (rx_loops == NUM_RX_LOOPS) {
+		usbmuxd_log(LL_FATAL, "Failed to start any RX loop for device %d-%d",
+					usbdev->bus, usbdev->address);
+		device_remove(usbdev);
+		usb_disconnect(usbdev);
+		return -1;
+	} else if (rx_loops > 0) {
+		usbmuxd_log(LL_WARNING, "Failed to start all %d RX loops. Going on with %d loops. "
+					"This may have negative impact on device read speed.",
+					NUM_RX_LOOPS, NUM_RX_LOOPS - rx_loops);
+	} else {
+		usbmuxd_log(LL_DEBUG, "All %d RX loops started successfully", NUM_RX_LOOPS);
+	}
+
+	return 0;
+}
+
 int usb_discover(void)
 {
-	int cnt, i, j, res;
+	int cnt, i;
 	int valid_count = 0;
 	libusb_device **devs;
 
@@ -288,209 +501,10 @@ int usb_discover(void)
 	// Enumerate all USB devices and mark the ones we already know
 	// about as live, again
 	for(i=0; i<cnt; i++) {
-		// the following are non-blocking operations on the device list
 		libusb_device *dev = devs[i];
-		uint8_t bus = libusb_get_bus_number(dev);
-		uint8_t address = libusb_get_device_address(dev);
-		struct libusb_device_descriptor devdesc;
-		int found = 0;
-		FOREACH(struct usb_device *usbdev, &device_list) {
-			if(usbdev->bus == bus && usbdev->address == address) {
-				valid_count++;
-				usbdev->alive = 1;
-				found = 1;
-				break;
-			}
-		} ENDFOREACH
-		if(found)
-			continue; //device already found
-		if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %d", bus, address, res);
+		if (usb_device_add(dev) < 0) {
 			continue;
 		}
-		if(devdesc.idVendor != VID_APPLE)
-			continue;
-		if((devdesc.idProduct < PID_RANGE_LOW) ||
-			(devdesc.idProduct > PID_RANGE_MAX))
-			continue;
-		libusb_device_handle *handle;
-		usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
-		// potentially blocking operations follow; they will only run when new devices are detected, which is acceptable
-		if((res = libusb_open(dev, &handle)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %d", bus, address, res);
-			continue;
-		}
-
-		int current_config = 0;
-		if((res = libusb_get_configuration(handle, &current_config)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %d", bus, address, res);
-			libusb_close(handle);
-			continue;
-		}
-		if (current_config != devdesc.bNumConfigurations) {
-			struct libusb_config_descriptor *config;
-			if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-				usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
-			} else {
-				for(j=0; j<config->bNumInterfaces; j++) {
-					const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
-					if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
-						usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %d", intf->bInterfaceNumber, bus, address, res);
-						continue;
-					}
-					if(res == 1) {
-						usbmuxd_log(LL_INFO, "Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
-						if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
-							usbmuxd_log(LL_WARNING, "Could not detach kernel driver (%d), configuration change will probably fail!", res);
-							continue;
-						}
-					}
-				}
-				libusb_free_config_descriptor(config);
-			}
-
-			usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, devdesc.bNumConfigurations);
-			if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
-				usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
-				libusb_close(handle);
-				continue;
-			}
-		}
-
-		struct libusb_config_descriptor *config;
-		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
-			libusb_close(handle);
-			continue;
-		}
-
-		struct usb_device *usbdev;
-		usbdev = malloc(sizeof(struct usb_device));
-		memset(usbdev, 0, sizeof(*usbdev));
-
-		for(j=0; j<config->bNumInterfaces; j++) {
-			const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
-			if(intf->bInterfaceClass != INTERFACE_CLASS ||
-			   intf->bInterfaceSubClass != INTERFACE_SUBCLASS ||
-			   intf->bInterfaceProtocol != INTERFACE_PROTOCOL)
-				continue;
-			if(intf->bNumEndpoints != 2) {
-				usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
-				continue;
-			}
-			if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
-			   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-				usbdev->interface = intf->bInterfaceNumber;
-				usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
-				usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
-				usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
-				break;
-			} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
-			          (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-				usbdev->interface = intf->bInterfaceNumber;
-				usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
-				usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
-				usbmuxd_log(LL_INFO, "Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
-				break;
-			} else {
-				usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
-			}
-		}
-
-		if(j == config->bNumInterfaces) {
-			usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
-			libusb_free_config_descriptor(config);
-			libusb_close(handle);
-			free(usbdev);
-			continue;
-		}
-
-		libusb_free_config_descriptor(config);
-
-		if((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %d", usbdev->interface, bus, address, res);
-			libusb_close(handle);
-			free(usbdev);
-			continue;
-		}
-
-		if((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)usbdev->serial, 256)) <= 0) {
-			usbmuxd_log(LL_WARNING, "Could not get serial number for device %d-%d: %d", bus, address, res);
-			libusb_release_interface(handle, usbdev->interface);
-			libusb_close(handle);
-			free(usbdev);
-			continue;
-		}
-		usbdev->serial[res] = 0;
-		usbdev->bus = bus;
-		usbdev->address = address;
-		usbdev->vid = devdesc.idVendor;
-		usbdev->pid = devdesc.idProduct;
-		usbdev->speed = 480000000;
-		usbdev->dev = handle;
-		usbdev->alive = 1;
-		usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, usbdev->ep_out);
-		if (usbdev->wMaxPacketSize <= 0) {
-			usbmuxd_log(LL_ERROR, "Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
-			usbdev->wMaxPacketSize = 64;
-		} else {
-			usbmuxd_log(LL_INFO, "Using wMaxPacketSize=%d for device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
-		}
-
-		switch (libusb_get_device_speed(dev)) {
-			case LIBUSB_SPEED_LOW:
-				usbdev->speed = 1500000;
-				break;
-			case LIBUSB_SPEED_FULL:
-				usbdev->speed = 12000000;
-				break;
-			case LIBUSB_SPEED_SUPER:
-				usbdev->speed = 5000000000;
-				break;
-			case LIBUSB_SPEED_HIGH:
-			case LIBUSB_SPEED_UNKNOWN:
-			default:
-				usbdev->speed = 480000000;
-				break;
-		}
-
-		usbmuxd_log(LL_INFO, "USB Speed is %g MBit/s for device %d-%d", (double)(usbdev->speed / 1000000.0), usbdev->bus, usbdev->address);
-
-		collection_init(&usbdev->tx_xfers);
-		collection_init(&usbdev->rx_xfers);
-
-		collection_add(&device_list, usbdev);
-
-		if(device_add(usbdev) < 0) {
-			usb_disconnect(usbdev);
-			continue;
-		}
-
-		// Spin up NUM_RX_LOOPS parallel usb data retrieval loops
-		// Old usbmuxds used only 1 rx loop, but that leaves the
-		// USB port sleeping most of the time
-		int rx_loops = NUM_RX_LOOPS;
-		for (rx_loops = NUM_RX_LOOPS; rx_loops > 0; rx_loops--) {
-			if(start_rx_loop(usbdev) < 0) {
-				usbmuxd_log(LL_WARNING, "Failed to start RX loop number %d", NUM_RX_LOOPS - rx_loops);
-			}
-		}
-
-		// Ensure we have at least 1 RX loop going
-		if (rx_loops == NUM_RX_LOOPS) {
-			usbmuxd_log(LL_FATAL, "Failed to start any RX loop for device %d-%d",
-						usbdev->bus, usbdev->address);
-			device_remove(usbdev);
-			usb_disconnect(usbdev);
-			continue;
-		} else if (rx_loops > 0) {
-			usbmuxd_log(LL_WARNING, "Failed to start all %d RX loops. Going on with %d loops. "
-						"This may have negative impact on device read speed.",
-						NUM_RX_LOOPS, NUM_RX_LOOPS - rx_loops);
-		} else {
-			usbmuxd_log(LL_DEBUG, "All %d RX loops started successfully", NUM_RX_LOOPS);
-		}
-
 		valid_count++;
 	}
 
@@ -560,6 +574,7 @@ void usb_autodiscover(int enable)
 {
 	usbmuxd_log(LL_DEBUG, "usb polling enable: %d", enable);
 	device_polling = enable;
+	device_hotplug = enable;
 }
 
 static int dev_poll_remain_ms(void)
@@ -649,6 +664,32 @@ int usb_process_timeout(int msec)
 	return 0;
 }
 
+#ifdef HAVE_LIBUSB_HOTPLUG_API
+static libusb_hotplug_callback_handle usb_hotplug_cb_handle;
+
+static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *user_data)
+{
+	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
+		if (device_hotplug) {
+			usb_device_add(device);
+		}
+	} else if (LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT == event) {
+		uint8_t bus = libusb_get_bus_number(device);
+		uint8_t address = libusb_get_device_address(device);
+		FOREACH(struct usb_device *usbdev, &device_list) {
+			if(usbdev->bus == bus && usbdev->address == address) {
+				usbdev->alive = 0;
+				device_remove(usbdev);
+				break;
+			}
+		} ENDFOREACH
+	} else {
+		usbmuxd_log(LL_ERROR, "Unhandled event %d", event);
+	}
+	return 0;
+}
+#endif
+
 int usb_init(void)
 {
 	int res;
@@ -665,12 +706,37 @@ int usb_init(void)
 
 	collection_init(&device_list);
 
-	return usb_discover();
+#ifdef HAVE_LIBUSB_HOTPLUG_API
+	if (libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
+		usbmuxd_log(LL_INFO, "Registering for libusb hotplug events");
+		res = libusb_hotplug_register_callback(NULL, LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT, LIBUSB_HOTPLUG_ENUMERATE, VID_APPLE, LIBUSB_HOTPLUG_MATCH_ANY, 0, usb_hotplug_cb, NULL, &usb_hotplug_cb_handle);
+		if (res == LIBUSB_SUCCESS) {
+			device_polling = 0;
+		} else {
+			usbmuxd_log(LL_ERROR, "ERROR: Could not register for libusb hotplug events (%d)", res);
+		}
+	} else {
+		usbmuxd_log(LL_ERROR, "libusb does not support hotplug events");
+	}
+#endif
+	if (device_polling) {
+		res = usb_discover();
+		if (res >= 0) {
+		}
+	} else {
+		res = collection_count(&device_list);
+	}
+	return res;
 }
 
 void usb_shutdown(void)
 {
 	usbmuxd_log(LL_DEBUG, "usb_shutdown");
+
+#ifdef HAVE_LIBUSB_HOTPLUG_API
+	libusb_hotplug_deregister_callback(NULL, usb_hotplug_cb_handle);
+#endif
+
 	FOREACH(struct usb_device *usbdev, &device_list) {
 		device_remove(usbdev);
 		usb_disconnect(usbdev);
