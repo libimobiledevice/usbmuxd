@@ -1,5 +1,5 @@
 /*
- * usb-linux.c
+ * usb.c
  *
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
