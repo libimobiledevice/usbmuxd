@@ -22,9 +22,6 @@
 
 #include "device.h"
 
-extern void userpref_get_system_buid(char **systembuid);
-extern void userpref_device_record_get_host_id(const char *udid, char **host_id);
-
 void preflight_device_remove_cb(void *data);
 void preflight_worker_device_add(struct device_info* info);
 
