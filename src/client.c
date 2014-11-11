@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <pthread.h>
@@ -100,12 +101,28 @@ int client_read(struct mux_client *client, void *buffer, uint32_t len)
  */
 int client_write(struct mux_client *client, void *buffer, uint32_t len)
 {
+	int sret = -1;
+	fd_set fds;
+	struct timeval to = {0, 0};
+
 	usbmuxd_log(LL_SPEW, "client_write fd %d buf %p len %d", client->fd, buffer, len);
 	if(client->state != CLIENT_CONNECTED) {
 		usbmuxd_log(LL_ERROR, "Attempted to write to client %d not in CONNECTED state", client->fd);
 		return -1;
 	}
-	return send(client->fd, buffer, len, 0);
+
+	/* make sure fd is ready for writing */
+	FD_ZERO(&fds);
+	FD_SET(client->fd, &fds);
+	sret = select(client->fd + 1, NULL, &fds, NULL, &to);
+
+	/* only send data if the fd is ready */
+	if (sret > 0) {
+		sret = send(client->fd, buffer, len, 0);
+	} else {
+		usbmuxd_log(LL_ERROR, "ERROR: client_write: fd %d not ready for writing", client->fd);
+	}
+	return sret;
 }
 
 /**
