@@ -22,6 +22,8 @@
 #include <config.h>
 #endif
 
+#define _GNU_SOURCE 1
+
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -166,7 +168,21 @@ int client_accept(int listenfd)
 	collection_add(&client_list, client);
 	pthread_mutex_unlock(&client_list_mutex);
 
+#ifdef SO_PEERCRED
+	if (log_level >= LL_INFO) {
+		struct ucred cr;
+		len = sizeof(struct ucred);
+		getsockopt(cfd, SOL_SOCKET, SO_PEERCRED, &cr, &len);
+
+		if (getpid() == cr.pid) {
+			usbmuxd_log(LL_INFO, "New client on fd %d (self)", client->fd);
+		} else {
+			usbmuxd_log(LL_INFO, "New client on fd %d (pid %d)", client->fd, cr.pid);
+		}
+	}
+#else
 	usbmuxd_log(LL_INFO, "New client on fd %d", client->fd);
+#endif
 	return client->fd;
 }
 
