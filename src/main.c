@@ -82,6 +82,15 @@ static int create_socket(void) {
 		return -1;
 	}
 
+	int flags = fcntl(listenfd, F_GETFL, 0);
+	if (flags < 0) {
+		usbmuxd_log(LL_FATAL, "ERROR: Could not get flags for socket");
+	} else {
+		if (fcntl(listenfd, F_SETFL, flags | O_NONBLOCK) < 0) {
+			usbmuxd_log(LL_FATAL, "ERROR: Could not set socket to non-blocking");
+		}
+	}
+
 	bzero(&bind_addr, sizeof(bind_addr));
 	bind_addr.sun_family = AF_UNIX;
 	strcpy(bind_addr.sun_path, socket_path);

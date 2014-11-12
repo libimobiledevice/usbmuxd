@@ -33,6 +33,7 @@
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <fcntl.h>
 
 #include <plist/plist.h>
 
@@ -100,12 +101,23 @@ int client_read(struct mux_client *client, void *buffer, uint32_t len)
  */
 int client_write(struct mux_client *client, void *buffer, uint32_t len)
 {
+	int sret = -1;
+
 	usbmuxd_log(LL_SPEW, "client_write fd %d buf %p len %d", client->fd, buffer, len);
 	if(client->state != CLIENT_CONNECTED) {
 		usbmuxd_log(LL_ERROR, "Attempted to write to client %d not in CONNECTED state", client->fd);
 		return -1;
 	}
-	return send(client->fd, buffer, len, 0);
+
+	sret = send(client->fd, buffer, len, 0);
+	if (sret < 0) {
+		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+			usbmuxd_log(LL_ERROR, "ERROR: client_write: fd %d not ready for writing", client->fd);
+		} else {
+			usbmuxd_log(LL_ERROR, "ERROR: client_write: sending to fd %d failed: %s", client->fd, strerror(errno));
+		}
+	}
+	return sret;
 }
 
 /**
@@ -148,6 +160,15 @@ int client_accept(int listenfd)
 	if (cfd < 0) {
 		usbmuxd_log(LL_ERROR, "accept() failed (%s)", strerror(errno));
 		return cfd;
+	}
+
+	int flags = fcntl(cfd, F_GETFL, 0);
+	if (flags < 0) {
+		usbmuxd_log(LL_ERROR, "ERROR: Could not get socket flags!");
+	} else {
+		if (fcntl(cfd, F_SETFL, flags | O_NONBLOCK) < 0) {
+			usbmuxd_log(LL_ERROR, "ERROR: Could not set socket to non-blocking mode");
+		}
 	}
 
 	struct mux_client *client;
