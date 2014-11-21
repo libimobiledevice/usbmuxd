@@ -1,5 +1,6 @@
 [Unit]
 Description=Socket daemon for the usbmux protocol used by Apple devices
+Documentation=man:usbmuxd(8)
 
 [Service]
 Type=simple
