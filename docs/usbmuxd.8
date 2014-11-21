@@ -1,4 +1,4 @@
-.TH "usbmuxd" 1
+.TH "usbmuxd" 8
 .SH NAME
 usbmuxd \- Expose a socket to multiplex connections from and to iOS devices.
 .SH SYNOPSIS
@@ -52,17 +52,17 @@ Run in systemd operation mode (implies -z and -f).
 .B \-x, \-\-exit
 Notify a running instance to exit if there are no devices connected (sends
 SIGUSR1 to running instance) and exit.
-.TP 
+.TP
 .B \-X, \-\-force-exit
 Notify a running instance to exit even if there are still devices connected
 (always works) and exit.
-.TP 
+.TP
 .B \-v, \-\-verbose
 be verbose (use twice or more to increase verbose level).
-.TP 
+.TP
 .B \-V, \-\-version
 print version information and exit.
-.TP 
+.TP
 .B \-h, \-\-help
 prints usage information.
 

@@ -1,3 +1,3 @@
-man_MANS = usbmuxd.1
+man_MANS = usbmuxd.8
 
 EXTRA_DIST = $(man_MANS)
