@@ -22,6 +22,10 @@
 #endif
 
 #include <Windows.h>
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -32,12 +36,15 @@
 #endif
 
 #include <dirent.h>
+#ifndef _MSC_VER
 #include <libgen.h>
+#endif
 #include <sys/stat.h>
 #include <errno.h>
 
 #ifdef WIN32
 #include <shlobj.h>
+#include <direct.h>
 #endif
 
 #include "conf.h"

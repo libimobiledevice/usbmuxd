@@ -2,6 +2,7 @@
  * preflight.c
  *
  * Copyright (C) 2013 Nikias Bassen <nikias@gmx.li>
+ * Copyright (C) 2014 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +22,24 @@
 #include <config.h>
 #endif
 
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
+#ifndef _MSC_VER
 #include <unistd.h>
+#include <sys/time.h>
+#endif
 #include <errno.h>
 
 #include <pthread.h>
 
-#include <sys/time.h>
+
+#ifdef WIN32
+#include <windows.h>
+#endif
 
 #ifdef HAVE_LIBIMOBILEDEVICE
 #include <libimobiledevice/libimobiledevice.h>
@@ -268,7 +279,11 @@ retry:
 		client_device_add(info);
 
 		while (cbdata.np && cbdata.is_device_connected == 1) {
+#ifdef WIN32
+			Sleep(1);
+#else
 			sleep(1);
+#endif
 		}
 		device_set_preflight_cb_data(info->id, NULL);
 

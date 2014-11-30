@@ -24,6 +24,10 @@
 #include <config.h>
 #endif
 
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
 #ifdef WIN32
 #include <ws2tcpip.h>
 #include <winsock2.h>

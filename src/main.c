@@ -62,6 +62,7 @@
 #include "conf.h"
 #include <pthread.h>
 #include <signal.h>
+#include "usbmuxd-proto.h"
 
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
@@ -141,7 +142,7 @@ static socket_handle create_socket(void) {
 	}
 #endif
 
-	bzero(&bind_addr, sizeof(bind_addr));
+	memset(&bind_addr, 0, sizeof(bind_addr));
 
 #ifdef WIN32  
 	bind_addr.sin_family = AF_INET;

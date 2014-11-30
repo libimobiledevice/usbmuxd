@@ -28,8 +28,12 @@
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
-#include <time.h>
+#ifdef _MSC_VER
+// Includes a definition for 'timeval'
+#include "winsock2.h"
+#else
 #include <sys/time.h>
+#endif
 
 #ifdef WIN32
 #else

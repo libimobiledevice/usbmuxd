@@ -23,6 +23,10 @@
 #include <config.h>
 #endif
 
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
 #define _GNU_SOURCE 1
 
 #ifdef WIN32

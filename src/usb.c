@@ -121,7 +121,7 @@ static void reap_dead_devices(void) {
 }
 
 // Callback from write operation
-static void tx_callback(struct libusb_transfer *xfer)
+static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
 	usbmuxd_log(LL_SPEW, "TX callback dev %d-%d len %d -> %d status %d", dev->bus, dev->address, xfer->length, xfer->actual_length, xfer->status);
@@ -193,7 +193,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 // Callback from read operation
 // Under normal operation this issues a new read transfer request immediately,
 // doing a kind of read-callback loop
-static void rx_callback(struct libusb_transfer *xfer)
+static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
 	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
@@ -667,7 +667,7 @@ int usb_process_timeout(int msec)
 #ifdef HAVE_LIBUSB_HOTPLUG_API
 static libusb_hotplug_callback_handle usb_hotplug_cb_handle;
 
-static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *user_data)
+static int LIBUSB_CALL usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *user_data)
 {
 	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
 		if (device_hotplug) {
