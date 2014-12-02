@@ -2,6 +2,7 @@ Version 1.1.1
 ~~~~~~~~~~~~~
 
 * Changes:
+  - Make use of libusb hotplug events for device discovery
   - Use clock_gettime() instead of gettimeofday() to avoid timing issues
     when calculating packet timeouts
   - Get correct USB device speed instead of hardcoded value
