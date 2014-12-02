@@ -1,3 +1,13 @@
+Version 1.1.1
+~~~~~~~~~~~~~
+
+* Changes:
+  - Use clock_gettime() instead of gettimeofday() to avoid timing issues
+    when calculating packet timeouts
+  - Get correct USB device speed instead of hardcoded value
+  - Use non-blocking sockets for client communication to avoid hanging
+  - Use correct manual section (8) for manpage
+
 Version 1.1.0
 ~~~~~~~~~~~~~
 
