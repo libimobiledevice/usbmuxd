@@ -59,6 +59,7 @@ int socket_receive_timeout(int fd, void *data, size_t size, int flags,
 					 unsigned int timeout);
 
 int socket_send(int fd, void *data, size_t size);
+int socket_send_timeout(int fd, void *data, size_t length, unsigned int timeout);
 int socket_send_all(int fd, const char *data, size_t length);
 
 void socket_set_verbose(int level);

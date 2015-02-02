@@ -185,6 +185,19 @@ int usbmuxd_disconnect(int sfd);
 int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes);
 
 /**
+ * Send data to the specified socket.
+ *
+ * @param sfd socket file descriptor returned by usbmuxd_connect()
+ * @param data buffer to send
+ * @param len size of buffer to send
+ * @param sent_bytes how many bytes sent
+ * @param timeout how many milliseconds to wait for the socket to become writable
+ *
+ * @return 0 on success, a negative errno value otherwise.
+ */
+int usbmuxd_send_timeout(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes, unsigned int timeout);
+
+/**
  * Receive data from the specified socket.
  *
  * @param sfd socket file descriptor returned by usbmuxd_connect()

@@ -1228,6 +1228,30 @@ int usbmuxd_send(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes)
 	return 0;
 }
 
+int usbmuxd_send_timeout(int sfd, const char *data, uint32_t len, uint32_t *sent_bytes, unsigned int timeout)
+{
+	int num_sent = 0;
+
+	if (sfd < 0)
+	{
+		return -EINVAL;
+	}
+
+	num_sent = socket_send_timeout(sfd, (void*)data, len, timeout);
+	if (num_sent < 0) {
+		*sent_bytes = 0;
+		num_sent = errno;
+		DEBUG(1, "%s: Error %d when sending: %s\n", __func__, num_sent, strerror(num_sent));
+		return -num_sent;
+	} else if ((uint32_t)num_sent < len) {
+		DEBUG(1, "%s: Warning: Did not send enough (only %d of %d)\n", __func__, num_sent, len);
+	}
+
+	*sent_bytes = num_sent;
+
+	return 0;
+}
+
 int usbmuxd_recv_timeout(int sfd, char *data, uint32_t len, uint32_t *recv_bytes, unsigned int timeout)
 {
 	int num_recv = socket_receive_timeout(sfd, (void*)data, len, 0, timeout);

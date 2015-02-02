@@ -454,6 +454,35 @@ int socket_send(int fd, void *data, size_t length)
 	return send(fd, data, length, flags);
 }
 
+int socket_send_timeout(int fd, void *data, size_t length, unsigned int timeout)
+{
+	int res = -1;
+	int result = 0;
+
+	int flags = 0;
+#ifdef MSG_NOSIGNAL
+	flags |= MSG_NOSIGNAL;
+#endif
+
+	// check if data is available
+	res = socket_check_fd(fd, FDM_WRITE, timeout);
+	if (res <= 0) {
+		return res;
+	}
+
+	result = send(fd, data, length, flags);
+	if (result == 0) {
+		// but this is an error condition
+		if (verbose >= 3)
+			fprintf(stderr, "%s: fd=%d send returned 0\n", __func__, fd);
+		return -EAGAIN;
+	}
+	if (result < 0) {
+		return -errno;
+	}
+	return result;
+}
+
 int socket_send_all(int fd, const char *data, size_t length)
 {
 	size_t bytes_sent = 0;
