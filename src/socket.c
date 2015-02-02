@@ -438,9 +438,7 @@ int socket_receive_timeout(int fd, void *data, size_t length, int flags,
 			fprintf(stderr, "%s: fd=%d recv returned 0\n", __func__, fd);
 		return -EAGAIN;
 	}
-	if (result < 0) {
-		return -errno;
-	}
+
 	return result;
 }
 
@@ -477,9 +475,7 @@ int socket_send_timeout(int fd, void *data, size_t length, unsigned int timeout)
 			fprintf(stderr, "%s: fd=%d send returned 0\n", __func__, fd);
 		return -EAGAIN;
 	}
-	if (result < 0) {
-		return -errno;
-	}
+
 	return result;
 }
 
