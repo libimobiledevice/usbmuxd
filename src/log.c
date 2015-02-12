@@ -38,16 +38,6 @@
 #define DEBUG(...) __android_log_print(ANDROID_LOG_DEBUG, "usbmuxd", __VA_ARGS__)
 #endif
 
-#ifdef __ANDROID__
-#include <android/log.h>
-#define DEBUG(...) __android_log_print(ANDROID_LOG_DEBUG, "usbmuxd", __VA_ARGS__)
-#endif
-
-#ifdef __ANDROID__
-#include <android/log.h>
-#define DEBUG(...) __android_log_print(ANDROID_LOG_DEBUG, "usbmuxd", __VA_ARGS__)
-#endif
-
 unsigned int log_level = LL_WARNING;
 
 int log_syslog = 0;
@@ -104,7 +94,6 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 	} else {
 		vfprintf(stderr, fs, ap);
 	}
-	DEBUG(fs, ap);
 	va_end(ap);
 
 	free(fs);
