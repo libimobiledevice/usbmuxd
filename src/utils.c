@@ -30,6 +30,9 @@
 #include <stdarg.h>
 #include <time.h>
 #include <sys/time.h>
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#endif
 
 #include "utils.h"
 
@@ -298,6 +301,36 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 
 	return 1;
 }
+
+#ifdef __APPLE__
+typedef int clockid_t;
+#define CLOCK_MONOTONIC 1
+
+static int clock_gettime(clockid_t clk_id, struct timespec *ts)
+{
+	// See http://developer.apple.com/library/mac/qa/qa1398
+
+	uint64_t mach_time, nano_sec;
+
+	static mach_timebase_info_data_t base_info;
+
+	mach_time = mach_absolute_time();
+
+	if (base_info.denom == 0) {
+		(void) mach_timebase_info(&base_info);
+	}
+
+	if (base_info.numer == 1 && base_info.denom == 1)
+		nano_sec = mach_time;
+	else
+		nano_sec = mach_time * base_info.numer / base_info.denom;
+
+	ts->tv_sec = nano_sec / 1000000000;
+	ts->tv_nsec = nano_sec % 1000000000;
+
+	return 0;
+}
+#endif
 
 void get_tick_count(struct timeval * tv)
 {
