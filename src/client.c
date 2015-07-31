@@ -373,6 +373,7 @@ static int send_system_buid(struct mux_client *client, uint32_t tag)
 
 	plist_t dict = plist_new_dict();
 	plist_dict_set_item(dict, "BUID", plist_new_string(buid));
+	free(buid);
 	res = send_plist_pkt(client, tag, dict);
 	plist_free(dict);
 	return res;
