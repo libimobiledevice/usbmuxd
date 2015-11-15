@@ -59,7 +59,7 @@ fi
 AC_ARG_WITH([systemd],
             [AS_HELP_STRING([--without-systemd],
             [do not build with systemd support @<:@default=yes@:>@])],
-            [with_systemd=no],
+            [],
             [with_systemd=yes])
 
 AC_ARG_WITH([systemdsystemunitdir],
