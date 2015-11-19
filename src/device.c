@@ -829,6 +829,7 @@ int device_add(struct usb_device *usbdev)
 	vh.padding = 0;
 	if((res = send_packet(dev, MUX_PROTO_VERSION, &vh, NULL, 0)) < 0) {
 		usbmuxd_log(LL_ERROR, "Error sending version request packet to device %d", id);
+		free(dev->pktbuf);
 		free(dev);
 		return res;
 	}
