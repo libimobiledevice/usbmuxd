@@ -1,10 +1,10 @@
-About
-=====
+# usbmud
+
+## About
 
 A socket daemon to multiplex connections from and to iOS devices.
 
-Background
-==========
+## Background
 
 usbmuxd stands for "USB multiplexing daemon". This daemon is in charge of
 multiplexing connections over USB to an iOS device. To users, it means
@@ -26,34 +26,35 @@ Due to iOS 7 the daemon now also manages pairing records with iOS devices and
 the host in "/var/lib/lockdown" (Linux) or "/var/db/lockdown" (Mac OS X).
 Ensure proper permissions are setup for the daemon to access the directory.
 
-Requirements
-============
+## Requirements
 
 Development Packages of:
-	libimobiledevice
-	libplist
-	libusb
+* libimobiledevice
+* libplist
+* libusb
 
 Software:
-	make
-	autoheader
-	automake
-	autoconf
-	libtool
-	pkg-config
-	gcc
-	udev (Linux only)
+  make
+  autoheader
+  automake
+  autoconf
+  libtool
+  pkg-config
+  gcc
+  udev (Linux only)
 
 Optional:
-	systemd (Linux only)
+  systemd (Linux only)
 
-Installation
-============
+## Installation
 
 To compile run:
-	./autogen.sh
-	make
-	sudo make install
+
+```bash
+./autogen.sh
+make
+sudo make install
+```
 
 The daemon is automatically started by udev or systemd depending on what you
 have configured it on hotplug of an iOS device and exits if the last device
@@ -62,32 +63,17 @@ was unplugged.
 For debugging purposes it is helpful to start usbmuxd using the foreground '-f'
 argument and enable verbose mode '-v' to get suitable logs.
 
-Who/What/Where?
-===============
+## Who/What/Where?
 
-Home:
-	http://www.libimobiledevice.org/
+* Home: http://www.libimobiledevice.org/
+* Code: `git clone http://git.libimobiledevice.org/usbmuxd.git`
+* Code (Mirror): `git clone https://github.com/libimobiledevice/usbmuxd.git`
+* Tickets: http://github.com/libimobiledevice/usbmuxd/issues
+* Mailing List: http://lists.libimobiledevice.org/mailman/listinfo/libimobiledevice-devel
+* IRC: irc://irc.freenode.net#libimobiledevice
+* Twitter: https://twitter.com/libimobiledev
 
-Code:
-	git clone http://git.libimobiledevice.org/usbmuxd.git
-
-Code (Mirror):
-	git clone https://github.com/libimobiledevice/usbmuxd.git
-
-Tickets:
-	http://github.com/libimobiledevice/usbmuxd/issues
-
-Mailing List:
-	http://lists.libimobiledevice.org/mailman/listinfo/libimobiledevice-devel
-
-IRC:
-	irc://irc.freenode.net#libimobiledevice
-
-Twitter:
-	https://twitter.com/libimobiledev
-
-Credits
-=======
+## Credits
 
 The first usbmuxd daemon implementation was authored by Hector Martin.
 
@@ -95,5 +81,4 @@ Apple, iPhone, iPod, and iPod Touch are trademarks of Apple Inc.
 libimobiledevice is an independent software library and has not been
 authorized, sponsored, or otherwise approved by Apple Inc.
 
-README Updated on:
-	2015-01-28
+README Updated on: 2015-12-13
