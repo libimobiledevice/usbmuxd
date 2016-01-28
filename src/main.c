@@ -189,7 +189,7 @@ static int main_loop(int listenfd)
 		to = usb_get_timeout();
 		usbmuxd_log(LL_FLOOD, "USB timeout is %d ms", to);
 		dto = device_get_timeout();
-		usbmuxd_log(LL_FLOOD, "Device timeout is %d ms", to);
+		usbmuxd_log(LL_FLOOD, "Device timeout is %d ms", dto);
 		if(dto < to)
 			to = dto;
 
