@@ -40,6 +40,10 @@ void log_enable_syslog();
 void log_disable_syslog();
 #endif
 
-void usbmuxd_log(enum loglevel level, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+void usbmuxd_log(enum loglevel level, const char *fmt, ...) 
+#ifndef _MSC_VER
+__attribute__ ((format (printf, 2, 3)))
+#endif
+;
 
 #endif

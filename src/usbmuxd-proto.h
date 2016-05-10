@@ -32,6 +32,12 @@
 #define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
 #endif
 
+#ifdef _MSC_VER
+#define PACK( __Declaration__ ) __pragma( pack(push, 1) ) __Declaration__ __pragma( pack(pop) )
+#else
+#define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,36 +63,41 @@ enum usbmuxd_msgtype {
 	MESSAGE_PLIST = 8,
 };
 
+PACK(
 struct usbmuxd_header {
 	uint32_t length;    // length of message, including header
 	uint32_t version;   // protocol version
 	uint32_t message;   // message type
 	uint32_t tag;       // responses to this query will echo back this tag
-} __attribute__((__packed__));
+});
 
+PACK(
 struct usbmuxd_result_msg {
 	struct usbmuxd_header header;
 	uint32_t result;
-} __attribute__((__packed__));
+});
 
+PACK(
 struct usbmuxd_connect_request {
 	struct usbmuxd_header header;
 	uint32_t device_id;
 	uint16_t port;   // TCP port number
 	uint16_t reserved;   // set to zero
-} __attribute__((__packed__));
+});
 
+PACK(
 struct usbmuxd_listen_request {
 	struct usbmuxd_header header;
-} __attribute__((__packed__));
+});
 
+PACK(
 struct usbmuxd_device_record {
 	uint32_t device_id;
 	uint16_t product_id;
 	char serial_number[256];
 	uint16_t padding;
 	uint32_t location;
-} __attribute__((__packed__));
+});
 
 #ifdef __cplusplus
 }
