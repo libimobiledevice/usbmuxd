@@ -34,8 +34,11 @@ enum loglevel {
 
 extern unsigned int log_level;
 
+#ifdef WIN32
+#else
 void log_enable_syslog();
 void log_disable_syslog();
+#endif
 
 void usbmuxd_log(enum loglevel level, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
 

@@ -4,6 +4,7 @@
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (c) 2013 Federico Mena Quintero
+ * Copyright (C) 2014 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as
@@ -32,6 +33,11 @@
 #include <sys/time.h>
 #ifdef __APPLE__
 #include <mach/mach_time.h>
+#endif
+
+#ifdef WIN32
+#include <windows.h>
+#include "winsock2-ext.h"
 #endif
 
 #include "utils.h"
@@ -332,6 +338,28 @@ static int clock_gettime(clockid_t clk_id, struct timespec *ts)
 }
 #endif
 
+#ifdef WIN32
+void get_tick_count(struct timeval * tv)
+{
+	FILETIME ft;
+	LARGE_INTEGER t;
+	double microseconds; 
+
+	static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+
+	SYSTEMTIME  system_time;
+	FILETIME    file_time;
+	uint64_t    time;
+
+	GetSystemTime(&system_time);
+	SystemTimeToFileTime(&system_time, &file_time);
+	time = ((uint64_t)file_time.dwLowDateTime);
+	time += ((uint64_t)file_time.dwHighDateTime) << 32;
+
+	tv->tv_sec = (long)((time - EPOCH) / 10000000L);
+	tv->tv_usec = (long)(system_time.wMilliseconds * 1000);
+}
+#else
 void get_tick_count(struct timeval * tv)
 {
 	struct timespec ts;
@@ -342,6 +370,7 @@ void get_tick_count(struct timeval * tv)
 		gettimeofday(tv, NULL);
 	}
 }
+#endif
 
 /**
  * Get number of milliseconds since the epoch.

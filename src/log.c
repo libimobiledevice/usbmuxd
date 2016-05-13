@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
+ * Copyright (C) 2014 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,14 +28,21 @@
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
+#include <time.h>
 #include <sys/time.h>
+
+#ifdef WIN32
+#else
 #include <syslog.h>
+#endif
 
 #include "log.h"
 #include "utils.h"
 
 unsigned int log_level = LL_WARNING;
 
+#ifdef WIN32
+#else
 int log_syslog = 0;
 
 void log_enable_syslog()
@@ -60,6 +68,7 @@ static int level_to_syslog_level(int level)
 	}
 	return result;
 }
+#endif
 
 void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 {
@@ -72,9 +81,18 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 		return;
 
 	get_tick_count(&ts);
-	tp = localtime(&ts.tv_sec);
 
 	fs = malloc(20 + strlen(fmt));
+
+#ifdef WIN32
+	time_t ltime;
+	time(&ltime);
+	tp = localtime(&ltime);
+
+	strftime(fs, 10, "[%H:%M:%S", tp);
+	sprintf(fs + 9, ".%03d][%d] %s\n", (int)(ts.tv_usec / 1000), level, fmt);
+#else
+	tp = localtime(&ts.tv_sec);
 
 	if(log_syslog) {
 		sprintf(fs, "[%d] %s\n", level, fmt);
@@ -82,13 +100,20 @@ void usbmuxd_log(enum loglevel level, const char *fmt, ...)
 		strftime(fs, 10, "[%H:%M:%S", tp);
 		sprintf(fs+9, ".%03d][%d] %s\n", (int)(ts.tv_usec / 1000), level, fmt);
 	}
+#endif
 
 	va_start(ap, fmt);
+
+#ifdef WIN32
+	vfprintf(stderr, fs, ap);
+#else
 	if (log_syslog) {
 		vsyslog(level_to_syslog_level(level), fs, ap);
 	} else {
 		vfprintf(stderr, fs, ap);
 	}
+#endif
+
 	va_end(ap);
 
 	free(fs);

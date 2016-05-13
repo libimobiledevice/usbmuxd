@@ -21,6 +21,7 @@
 #include <config.h>
 #endif
 
+#include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
