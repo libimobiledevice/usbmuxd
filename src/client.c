@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
+ * Copyright (C) 2014 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,14 +25,21 @@
 
 #define _GNU_SOURCE 1
 
+#ifdef WIN32
+#include <ws2tcpip.h>
+#include <winsock2.h>
+#include "winsock2-ext.h"
+#else
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <arpa/inet.h>
 #include <pthread.h>
 #include <fcntl.h>
 
@@ -162,6 +170,10 @@ int client_accept(int listenfd)
 		return cfd;
 	}
 
+#ifdef WIN32
+	u_long iMode = 1;
+	ioctlsocket(cfd, FIONBIO, &iMode);
+#else
 	int flags = fcntl(cfd, F_GETFL, 0);
 	if (flags < 0) {
 		usbmuxd_log(LL_ERROR, "ERROR: Could not get socket flags!");
@@ -170,6 +182,7 @@ int client_accept(int listenfd)
 			usbmuxd_log(LL_ERROR, "ERROR: Could not set socket to non-blocking mode");
 		}
 	}
+#endif
 
 	struct mux_client *client;
 	client = malloc(sizeof(struct mux_client));
@@ -215,7 +228,13 @@ void client_close(struct mux_client *client)
 		client->state = CLIENT_DEAD;
 		device_abort_connect(client->connect_device, client);
 	}
+
+#ifdef WIN32
+	closesocket(client->fd);
+#else
 	close(client->fd);
+#endif
+
 	if(client->ob_buf)
 		free(client->ob_buf);
 	if(client->ib_buf)

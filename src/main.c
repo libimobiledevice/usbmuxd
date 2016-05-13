@@ -5,6 +5,7 @@
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2009 Paul Sladen <libiphone@paul.sladen.org>
+ * Copyright (C) 2014 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,27 +28,40 @@
 #include <config.h>
 #endif
 
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
+#ifdef WIN32
+#include <winsock2.h>
+#include "winsock2-ext.h"
+#include <windows.h>
+#else
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/resource.h>
+#include <pwd.h>
+#include <grp.h>
+#endif
+
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/resource.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <pwd.h>
-#include <grp.h>
 
 #include "log.h"
 #include "usb.h"
 #include "device.h"
 #include "client.h"
 #include "conf.h"
+#include <pthread.h>
+#include <signal.h>
 
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
@@ -67,21 +81,56 @@ static int daemon_pipe;
 
 static int report_to_parent = 0;
 
-static int create_socket(void) {
-	struct sockaddr_un bind_addr;
-	int listenfd;
+#ifdef WIN32
+#define socket_handle SOCKET
+#else
+#define socket_handle int
+#endif
 
-	if(unlink(socket_path) == -1 && errno != ENOENT) {
+static socket_handle create_socket(void) {
+	struct sockaddr_un bind_addr;
+	socket_handle listenfd;
+	int ret;
+
+#ifdef WIN32
+	WSADATA wsaData = { 0 };
+
+	// Initialize Winsock
+	usbmuxd_log(LL_INFO, "Starting WSA");
+	ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (ret != 0) {
+		usbmuxd_log(LL_FATAL, "ERROR: WSAStartup failed: %s", strerror(ret));
+		return 1;
+	}
+
+	usbmuxd_log(LL_INFO, "Opening socket");
+	listenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (listenfd == INVALID_SOCKET) {
+		usbmuxd_log(LL_FATAL, "ERROR: socket() failed: %s", WSAGetLastError());
+	}
+#else
+	if (unlink(socket_path) == -1 && errno != ENOENT) {
 		usbmuxd_log(LL_FATAL, "unlink(%s) failed: %s", socket_path, strerror(errno));
 		return -1;
 	}
 
 	listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (listenfd == -1) {
-		usbmuxd_log(LL_FATAL, "socket() failed: %s", strerror(errno));
+		usbmuxd_log(LL_FATAL, "ERROR: socket() failed: %s", strerror(errno));
 		return -1;
 	}
+#endif
 
+#ifdef WIN32
+	u_long iMode = 1;
+
+	usbmuxd_log(LL_INFO, "Setting socket to non-blocking");
+	ret = ioctlsocket(listenfd, FIONBIO, &iMode);
+	if (ret != NO_ERROR) {
+		usbmuxd_log(LL_FATAL, "ERROR: Could not set socket to non blocking: %d", ret);
+		return -1;
+	}
+#else
 	int flags = fcntl(listenfd, F_GETFL, 0);
 	if (flags < 0) {
 		usbmuxd_log(LL_FATAL, "ERROR: Could not get flags for socket");
@@ -90,28 +139,49 @@ static int create_socket(void) {
 			usbmuxd_log(LL_FATAL, "ERROR: Could not set socket to non-blocking");
 		}
 	}
+#endif
 
 	bzero(&bind_addr, sizeof(bind_addr));
+
+#ifdef WIN32  
+	bind_addr.sin_family = AF_INET;
+	bind_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	bind_addr.sin_port = htons(USBMUXD_SOCKET_PORT);
+#else
 	bind_addr.sun_family = AF_UNIX;
 	strcpy(bind_addr.sun_path, socket_path);
+#endif
+
+	usbmuxd_log(LL_INFO, "Binding to socket");
 	if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
+#ifdef WIN32
+		usbmuxd_log(LL_FATAL, "bind() failed. WSAGetLastError returned error code %u. Is another process using TCP port %d?", WSAGetLastError(), USBMUXD_SOCKET_PORT);
+#else
 		usbmuxd_log(LL_FATAL, "bind() failed: %s", strerror(errno));
+#endif
 		return -1;
 	}
 
 	// Start listening
+	usbmuxd_log(LL_INFO, "Starting to listen on socket");
 	if (listen(listenfd, 5) != 0) {
 		usbmuxd_log(LL_FATAL, "listen() failed: %s", strerror(errno));
 		return -1;
 	}
 
+#ifndef WIN32
 	chmod(socket_path, 0666);
+#endif
 
 	return listenfd;
 }
 
+#ifdef WIN32
+#else
 static void handle_signal(int sig)
 {
+	usbmuxd_log(LL_NOTICE, "Caught signal %d, exiting", sig);
+	should_exit = 1;
 	if (sig != SIGUSR1 && sig != SIGUSR2) {
 		usbmuxd_log(LL_NOTICE,"Caught signal %d, exiting", sig);
 		should_exit = 1;
@@ -158,8 +228,9 @@ static void set_signal_handlers(void)
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
 }
+#endif
 
-#ifndef HAVE_PPOLL
+#if(!HAVE_PPOLL && !WIN32)
 static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout, const sigset_t *sigmask)
 {
 	int ready;
@@ -174,14 +245,26 @@ static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout
 }
 #endif
 
+#ifdef WIN32
+static int ppoll(struct WSAPoll *fds, nfds_t nfds, int timeout)
+{
+	return WSAPoll(fds, nfds, timeout);
+}
+#endif
+
 static int main_loop(int listenfd)
 {
 	int to, cnt, i, dto;
 	struct fdlist pollfds;
+
+#ifdef WIN32
+	int timeout;
+#else
 	struct timespec tspec;
 
 	sigset_t empty_sigset;
 	sigemptyset(&empty_sigset); // unmask all signals
+#endif
 
 	fdlist_create(&pollfds);
 	while(!should_exit) {
@@ -199,9 +282,14 @@ static int main_loop(int listenfd)
 		client_get_fds(&pollfds);
 		usbmuxd_log(LL_FLOOD, "fd count is %d", pollfds.count);
 
+#ifdef WIN32
+		cnt = ppoll(pollfds.fds, pollfds.count, timeout);
+#else
 		tspec.tv_sec = to / 1000;
 		tspec.tv_nsec = (to % 1000) * 1000000;
 		cnt = ppoll(pollfds.fds, pollfds.count, &tspec, &empty_sigset);
+#endif
+
 		usbmuxd_log(LL_FLOOD, "poll() returned %d", cnt);
 		if(cnt == -1) {
 			if(errno == EINTR) {
@@ -255,6 +343,8 @@ static int main_loop(int listenfd)
 /**
  * make this program run detached from the current console
  */
+#ifdef WIN32
+#else
 static int daemonize(void)
 {
 	pid_t pid;
@@ -353,6 +443,7 @@ static int notify_parent(int status)
 	}
 	return 0;
 }
+#endif
 
 static void usage()
 {
@@ -372,10 +463,15 @@ static void usage()
 #ifdef HAVE_SYSTEMD
 	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
 #endif
+
+#ifdef WIN32
+#else
 	printf("  -x, --exit\t\tNotify a running instance to exit if there are no devices\n");
 	printf("            \t\tconnected (sends SIGUSR1 to running instance) and exit.\n");
 	printf("  -X, --force-exit\tNotify a running instance to exit even if there are still\n");
 	printf("                  \tdevices connected (always works) and exit.\n");
+#endif
+
 	printf("  -V, --version\t\tPrint version information and exit.\n");
 	printf("\n");
 }
@@ -451,6 +547,9 @@ static void parse_opts(int argc, char **argv)
 		case 'z':
 			opt_enable_exit = 1;
 			break;
+
+#ifdef WIN32
+#else
 		case 'x':
 			opt_exit = 1;
 			exit_signal = SIGUSR1;
@@ -459,6 +558,7 @@ static void parse_opts(int argc, char **argv)
 			opt_exit = 1;
 			exit_signal = SIGTERM;
 			break;
+#endif
 		default:
 			usage();
 			exit(2);
@@ -471,20 +571,29 @@ int main(int argc, char *argv[])
 	int listenfd;
 	int res = 0;
 	int lfd;
-	struct flock lock;
 	char pids[10];
+
+#ifdef WIN32
+	HANDLE mutex;
+#else
+	struct flock lock;
+#endif
 
 	parse_opts(argc, argv);
 
 	argc -= optind;
 	argv += optind;
 
+#ifdef WIN32
+	verbose += LL_NOTICE;
+#else
 	if (!foreground) {
 		verbose += LL_WARNING;
 		log_enable_syslog();
 	} else {
 		verbose += LL_NOTICE;
 	}
+#endif
 
 	/* set log level to specified verbosity */
 	log_level = verbose;
@@ -493,6 +602,15 @@ int main(int argc, char *argv[])
 	should_exit = 0;
 	should_discover = 0;
 
+#ifdef WIN32
+	mutex = CreateMutex(NULL, TRUE, "usbmuxd");
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
+	{
+		usbmuxd_log(LL_ERROR, "Another instance is already running. Exiting.");
+		res = -1;
+		goto terminate;
+	}
+#else
 	set_signal_handlers();
 	signal(SIGPIPE, SIG_IGN);
 
@@ -586,6 +704,7 @@ int main(int argc, char *argv[])
 	getrlimit(RLIMIT_NOFILE, &rlim);
 	rlim.rlim_max = 65536;
 	setrlimit(RLIMIT_NOFILE, (const struct rlimit*)&rlim);
+#endif
 
 	usbmuxd_log(LL_INFO, "Creating socket");
 	res = listenfd = create_socket();
@@ -597,7 +716,11 @@ int main(int argc, char *argv[])
 	struct stat fst;
 	memset(&fst, '\0', sizeof(struct stat));
 	if (stat(userprefdir, &fst) < 0) {
+#ifdef WIN32
+		if (_mkdir(userprefdir) < 0) {
+#else
 		if (mkdir(userprefdir, 0775) < 0) {
+#endif
 			usbmuxd_log(LL_FATAL, "Failed to create required directory '%s': %s", userprefdir, strerror(errno));
 			res = -1;
 			goto terminate;
@@ -617,6 +740,8 @@ int main(int argc, char *argv[])
 	}
 #endif
 
+#ifdef WIN32
+#else
 	// drop elevated privileges
 	if (drop_privileges && (getuid() == 0 || geteuid() == 0)) {
 		struct passwd *pw;
@@ -670,6 +795,7 @@ int main(int argc, char *argv[])
 			usbmuxd_log(LL_NOTICE, "Successfully dropped privileges to '%s'", drop_user);
 		}
 	}
+#endif
 
 	client_init();
 	device_init();
@@ -681,9 +807,12 @@ int main(int argc, char *argv[])
 
 	usbmuxd_log(LL_NOTICE, "Initialization complete");
 
+#ifdef WIN32
+#else
 	if (report_to_parent)
 		if((res = notify_parent(0)) < 0)
 			goto terminate;
+#endif
 
 	if(opt_disable_hotplug) {
 		usbmuxd_log(LL_NOTICE, "Automatic device discovery on hotplug disabled.");
@@ -705,14 +834,25 @@ int main(int argc, char *argv[])
 	usbmuxd_log(LL_NOTICE, "Shutdown complete");
 
 terminate:
+#ifdef WIN32
+	ReleaseMutex(mutex);
+#endif
+
+#ifdef WIN32
+#else
 	log_disable_syslog();
+#endif
 
 	if (res < 0)
 		res = -res;
 	else
 		res = 0;
+
+#ifdef WIN32
+#else
 	if (report_to_parent)
 		notify_parent(res);
+#endif
 
 	return res;
 }

@@ -24,9 +24,17 @@
 #include <config.h>
 #endif
 
-#include <sys/time.h>
+#ifdef WIN32
+#include <ws2tcpip.h>
+#include <winsock2.h>
+#include "winsock2-ext.h"
+#include "tcp.h"
+#else
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/time.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
