@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2009 Hector Martin "marcan" <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
+ * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
