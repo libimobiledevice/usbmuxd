@@ -49,7 +49,7 @@
 
 struct usb_device;
 
-int usb_init(void);
+int usb_initialize(void);
 void usb_shutdown(void);
 const char *usb_get_serial(struct usb_device *dev);
 uint32_t usb_get_location(struct usb_device *dev);
