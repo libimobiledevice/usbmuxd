@@ -55,7 +55,11 @@ const char *usb_get_serial(struct usb_device *dev);
 uint32_t usb_get_location(struct usb_device *dev);
 uint16_t usb_get_pid(struct usb_device *dev);
 uint64_t usb_get_speed(struct usb_device *dev);
+
+#ifndef WIN32
 void usb_get_fds(struct fdlist *list);
+#endif
+
 int usb_get_timeout(void);
 int usb_send(struct usb_device *dev, const unsigned char *buf, int length);
 int usb_discover(void);

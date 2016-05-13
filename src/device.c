@@ -949,6 +949,7 @@ int device_get_list(int include_hidden, struct device_info **devices)
 	return count;
 }
 
+#ifndef WIN32
 int device_get_timeout(void)
 {
 	uint64_t oldest = (uint64_t)-1LL;
@@ -988,6 +989,7 @@ void device_check_timeouts(void)
 	} ENDFOREACH
 	pthread_mutex_unlock(&device_list_mutex);
 }
+#endif
 
 void device_init(void)
 {

@@ -46,8 +46,10 @@ void device_set_preflight_cb_data(int device_id, void* data);
 int device_get_count(int include_hidden);
 int device_get_list(int include_hidden, struct device_info **devices);
 
+#ifndef WIN32
 int device_get_timeout(void);
 void device_check_timeouts(void);
+#endif
 
 void device_init(void);
 void device_kill_connections(void);

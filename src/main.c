@@ -258,9 +258,7 @@ static int main_loop(int listenfd)
 	int to, cnt, i, dto;
 	struct fdlist pollfds;
 
-#ifdef WIN32
-	int timeout;
-#else
+#ifndef WIN32
 	struct timespec tspec;
 
 	sigset_t empty_sigset;
@@ -270,21 +268,30 @@ static int main_loop(int listenfd)
 	fdlist_create(&pollfds);
 	while(!should_exit) {
 		usbmuxd_log(LL_FLOOD, "main_loop iteration");
+#ifndef WIN32
 		to = usb_get_timeout();
 		usbmuxd_log(LL_FLOOD, "USB timeout is %d ms", to);
 		dto = device_get_timeout();
 		usbmuxd_log(LL_FLOOD, "Device timeout is %d ms", dto);
 		if(dto < to)
 			to = dto;
+#endif
 
 		fdlist_reset(&pollfds);
 		fdlist_add(&pollfds, FD_LISTEN, listenfd, POLLIN);
+
+#ifndef WIN32
+		// Polling of USB events is not available through libusb on Windows,
+		// see http://libusb.org/static/api-1.0/group__poll.html
 		usb_get_fds(&pollfds);
+#endif
+
 		client_get_fds(&pollfds);
 		usbmuxd_log(LL_FLOOD, "fd count is %d", pollfds.count);
 
 #ifdef WIN32
-		cnt = ppoll(pollfds.fds, pollfds.count, timeout);
+		cnt = ppoll(pollfds.fds, pollfds.count, 100);
+		usb_process();
 #else
 		tspec.tv_sec = to / 1000;
 		tspec.tv_nsec = (to % 1000) * 1000000;
@@ -304,6 +311,7 @@ static int main_loop(int listenfd)
 					usb_discover();
 				}
 			}
+#ifndef WIN32
 		} else if(cnt == 0) {
 			if(usb_process() < 0) {
 				usbmuxd_log(LL_FATAL, "usb_process() failed");
@@ -311,6 +319,7 @@ static int main_loop(int listenfd)
 				return -1;
 			}
 			device_check_timeouts();
+#endif
 		} else {
 			int done_usb = 0;
 			for(i=0; i<pollfds.count; i++) {
@@ -801,7 +810,7 @@ int main(int argc, char *argv[])
 	client_init();
 	device_init();
 	usbmuxd_log(LL_INFO, "Initializing USB");
-	if((res = usb_init()) < 0)
+	if((res = usb_initialize()) < 0)
 		goto terminate;
 
 	usbmuxd_log(LL_INFO, "%d device%s detected", res, (res==1)?"":"s");
