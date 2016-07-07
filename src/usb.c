@@ -794,7 +794,8 @@ static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hot
 int usb_init(void)
 {
 	int res;
-	usbmuxd_log(LL_DEBUG, "usb_init for linux / libusb 1.0");
+	const struct libusb_version* libusb_version_info = libusb_get_version();
+	usbmuxd_log(LL_DEBUG, "Using libusb %d.%d", libusb_version_info->major, libusb_version_info->minor);
 
 	devlist_failures = 0;
 	device_polling = 1;
