@@ -800,7 +800,9 @@ int usb_init(void)
 	devlist_failures = 0;
 	device_polling = 1;
 	res = libusb_init(NULL);
-	//libusb_set_debug(NULL, 3);
+
+	libusb_set_debug(NULL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG: (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING: LIBUSB_LOG_LEVEL_NONE)));
+
 	if(res != 0) {
 		usbmuxd_log(LL_FATAL, "libusb_init failed: %d", res);
 		return -1;
