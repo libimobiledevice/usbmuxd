@@ -108,9 +108,7 @@ AC_TYPE_UINT8_T
 AC_SEARCH_LIBS([clock_gettime],[rt posix4])
 
 # Checks for library functions.
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
-AC_CHECK_FUNCS([strcasecmp strdup strerror strndup stpcpy])
+AC_CHECK_FUNCS([strcasecmp strdup strerror strndup stpcpy malloc realloc])
 AC_CHECK_FUNCS([ppoll clock_gettime localtime_r])
 
 # Check for operating system
