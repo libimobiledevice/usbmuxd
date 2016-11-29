@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #ifdef __APPLE__
 #include <mach/mach_time.h>
+#include <AvailabilityMacros.h>
 #endif
 
 #include "utils.h"
@@ -303,7 +304,8 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 }
 
 #ifdef __APPLE__
-typedef int clockid_t;
+#ifndef AVAILABLE_MAC_OS_X_VERSION_10_12_AND_LATER
+ typedef int clockid_t;
 #define CLOCK_MONOTONIC 1
 
 static int clock_gettime(clockid_t clk_id, struct timespec *ts)
@@ -330,6 +332,7 @@ static int clock_gettime(clockid_t clk_id, struct timespec *ts)
 
 	return 0;
 }
+#endif
 #endif
 
 void get_tick_count(struct timeval * tv)
