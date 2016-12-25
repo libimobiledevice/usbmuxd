@@ -1,0 +1,58 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "E52D074D31BC8A238D3EEB87B4CEBFBE2C5FF88B+++078E76C",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++DE5014A" : 0,
+    "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++43FA728" : 9223372036854775807,
+    "A0A70348AF94C209E8F52F4CE8B75FC1FF60793F+++2EF4997" : 0,
+    "E52D074D31BC8A238D3EEB87B4CEBFBE2C5FF88B+++078E76C" : 0,
+    "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++3A9F7FA" : 0,
+    "97DEBE5E75882055095471C30476BE04A8F57925+++85FD547" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "350A0FB7-3EBE-4E41-8D3F-804DA95CFB53",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++DE5014A" : "libimobiledevice",
+    "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++43FA728" : "libplist\/",
+    "A0A70348AF94C209E8F52F4CE8B75FC1FF60793F+++2EF4997" : "libusb\/",
+    "E52D074D31BC8A238D3EEB87B4CEBFBE2C5FF88B+++078E76C" : "usbmuxd\/",
+    "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++3A9F7FA" : "libimobiledevice\/",
+    "97DEBE5E75882055095471C30476BE04A8F57925+++85FD547" : "libusbmuxd\/"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "usbmuxd",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "xCode\/usbmuxd.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/lunzii\/libusbmuxd.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "97DEBE5E75882055095471C30476BE04A8F57925+++85FD547"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/lunzii\/libusb.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "A0A70348AF94C209E8F52F4CE8B75FC1FF60793F+++2EF4997"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/lunzii\/usbmuxd.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "E52D074D31BC8A238D3EEB87B4CEBFBE2C5FF88B+++078E76C"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/lunzii\/libimobiledevice.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++3A9F7FA"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/olunx\/libplist.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++43FA728"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/lunzii\/libimobiledevice.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "F12AAB142D225A23A20B5B62D5F1B3376BB3038D+++DE5014A"
+    }
+  ]
+}

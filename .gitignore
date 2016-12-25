@@ -36,3 +36,4 @@ src/.libs
 src/usbmuxd
 udev/39-usbmuxd.rules
 systemd/usbmuxd.service
+.DS_Store
