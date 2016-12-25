@@ -15,14 +15,14 @@
 		C804F6041A8C7B8800A74780 /* preflight.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5F71A8C7B8800A74780 /* preflight.c */; };
 		C804F6061A8C7B8800A74780 /* utils.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5FD1A8C7B8800A74780 /* utils.c */; };
 		C804F6371A8C817D00A74780 /* usb.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F6361A8C817D00A74780 /* usb.c */; };
-		C804F6621A8C84A800A74780 /* libxml2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F62F1A8C7FC400A74780 /* libxml2.dylib */; };
 		C804F66E1A8C871F00A74780 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F66D1A8C871F00A74780 /* IOKit.framework */; };
 		C804F6701A8C872600A74780 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F66F1A8C872600A74780 /* CoreFoundation.framework */; };
-		C804F6771A8C877B00A74780 /* libobjc.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F6761A8C877B00A74780 /* libobjc.dylib */; };
-		C804F6791A8C880F00A74780 /* libplist.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F6421A8C83A600A74780 /* libplist.a */; };
-		C804F67A1A8C881300A74780 /* libusb-1.0.0.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F6431A8C83A600A74780 /* libusb-1.0.0.a */; };
-		C804F67B1A8C881E00A74780 /* libusbmuxd.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F6441A8C83A600A74780 /* libusbmuxd.a */; };
 		C804F67C1A8C882700A74780 /* libimobiledevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F61A1A8C7BB100A74780 /* libimobiledevice.a */; };
+		C8A97CC11E0F7A320013886F /* libobjc.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97CC01E0F7A320013886F /* libobjc.tbd */; };
+		C8A97CC31E0F7A390013886F /* libxml2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97CC21E0F7A390013886F /* libxml2.tbd */; };
+		C8A97D971E0FAF9B0013886F /* libplist.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97D941E0FAF9B0013886F /* libplist.a */; };
+		C8A97D981E0FAF9B0013886F /* libusb-1.0.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97D951E0FAF9B0013886F /* libusb-1.0.0.dylib */; };
+		C8A97D991E0FAF9B0013886F /* libusbmuxd.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97D961E0FAF9B0013886F /* libusbmuxd.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -131,14 +131,14 @@
 		C804F5FE1A8C7B8800A74780 /* utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
 		C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = libimobiledevice.xcodeproj; path = ../../libimobiledevice/Xcode/libimobiledevice.xcodeproj; sourceTree = "<group>"; };
 		C804F62D1A8C7BC400A74780 /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
-		C804F62F1A8C7FC400A74780 /* libxml2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libxml2.dylib; path = usr/lib/libxml2.dylib; sourceTree = SDKROOT; };
 		C804F6361A8C817D00A74780 /* usb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = usb.c; sourceTree = "<group>"; };
-		C804F6421A8C83A600A74780 /* libplist.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libplist.a; path = "../../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffcqwxxuceazayguzsgbgltlueqa/Build/Products/Debug/libplist.a"; sourceTree = "<group>"; };
-		C804F6431A8C83A600A74780 /* libusb-1.0.0.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libusb-1.0.0.a"; path = "../../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffcqwxxuceazayguzsgbgltlueqa/Build/Products/Debug/libusb-1.0.0.a"; sourceTree = "<group>"; };
-		C804F6441A8C83A600A74780 /* libusbmuxd.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libusbmuxd.a; path = "../../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffcqwxxuceazayguzsgbgltlueqa/Build/Products/Debug/libusbmuxd.a"; sourceTree = "<group>"; };
 		C804F66D1A8C871F00A74780 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		C804F66F1A8C872600A74780 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
-		C804F6761A8C877B00A74780 /* libobjc.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libobjc.dylib; path = usr/lib/libobjc.dylib; sourceTree = SDKROOT; };
+		C8A97CC01E0F7A320013886F /* libobjc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libobjc.tbd; path = usr/lib/libobjc.tbd; sourceTree = SDKROOT; };
+		C8A97CC21E0F7A390013886F /* libxml2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxml2.tbd; path = usr/lib/libxml2.tbd; sourceTree = SDKROOT; };
+		C8A97D941E0FAF9B0013886F /* libplist.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libplist.a; path = "../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffqqtyuwzuxipfgwhhlbwbjfeahu/Build/Products/Debug/libplist.a"; sourceTree = "<group>"; };
+		C8A97D951E0FAF9B0013886F /* libusb-1.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libusb-1.0.0.dylib"; path = "../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffqqtyuwzuxipfgwhhlbwbjfeahu/Build/Products/Debug/libusb-1.0.0.dylib"; sourceTree = "<group>"; };
+		C8A97D961E0FAF9B0013886F /* libusbmuxd.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libusbmuxd.a; path = "../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffqqtyuwzuxipfgwhhlbwbjfeahu/Build/Products/Debug/libusbmuxd.a"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -146,14 +146,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C8A97D971E0FAF9B0013886F /* libplist.a in Frameworks */,
+				C8A97D981E0FAF9B0013886F /* libusb-1.0.0.dylib in Frameworks */,
+				C8A97D991E0FAF9B0013886F /* libusbmuxd.a in Frameworks */,
+				C8A97CC31E0F7A390013886F /* libxml2.tbd in Frameworks */,
+				C8A97CC11E0F7A320013886F /* libobjc.tbd in Frameworks */,
 				C804F67C1A8C882700A74780 /* libimobiledevice.a in Frameworks */,
-				C804F67B1A8C881E00A74780 /* libusbmuxd.a in Frameworks */,
-				C804F67A1A8C881300A74780 /* libusb-1.0.0.a in Frameworks */,
-				C804F6791A8C880F00A74780 /* libplist.a in Frameworks */,
-				C804F6771A8C877B00A74780 /* libobjc.dylib in Frameworks */,
 				C804F6701A8C872600A74780 /* CoreFoundation.framework in Frameworks */,
 				C804F66E1A8C871F00A74780 /* IOKit.framework in Frameworks */,
-				C804F6621A8C84A800A74780 /* libxml2.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,11 +224,11 @@
 		C804F6711A8C872E00A74780 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				C804F6421A8C83A600A74780 /* libplist.a */,
-				C804F6431A8C83A600A74780 /* libusb-1.0.0.a */,
-				C804F6441A8C83A600A74780 /* libusbmuxd.a */,
-				C804F6761A8C877B00A74780 /* libobjc.dylib */,
-				C804F62F1A8C7FC400A74780 /* libxml2.dylib */,
+				C8A97D941E0FAF9B0013886F /* libplist.a */,
+				C8A97D951E0FAF9B0013886F /* libusb-1.0.0.dylib */,
+				C8A97D961E0FAF9B0013886F /* libusbmuxd.a */,
+				C8A97CC21E0F7A390013886F /* libxml2.tbd */,
+				C8A97CC01E0F7A320013886F /* libobjc.tbd */,
 				C804F66F1A8C872600A74780 /* CoreFoundation.framework */,
 				C804F66D1A8C871F00A74780 /* IOKit.framework */,
 				C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */,
@@ -476,7 +476,7 @@
 				);
 				OTHER_CFLAGS = "-DHAVE_CONFIG_H";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx10.9;
+				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
@@ -497,7 +497,7 @@
 				);
 				OTHER_CFLAGS = "-DHAVE_CONFIG_H";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx10.9;
+				SDKROOT = macosx;
 			};
 			name = Release;
 		};
