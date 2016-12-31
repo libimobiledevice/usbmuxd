@@ -236,7 +236,9 @@ retry:
 		lockdownd_service_descriptor_t service = NULL;
 		lerr = lockdownd_start_service(lockdown, "com.apple.mobile.insecure_notification_proxy", &service);
 		if (lerr != LOCKDOWN_E_SUCCESS) {
-			usbmuxd_log(LL_ERROR, "%s: ERROR: Could not start insecure_notification_proxy on %s, lockdown error %d", __func__, _dev->udid, lerr);
+			/* even though we failed, simple mode should still work, so only warn of an error */
+			usbmuxd_log(LL_INFO, "%s: ERROR: Could not start insecure_notification_proxy on %s, lockdown error %d", __func__, _dev->udid, lerr);
+			client_device_add(info);
 			goto leave;
 		}
 
