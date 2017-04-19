@@ -75,8 +75,8 @@ char *stpcpy(char * s1, const char * s2);
 #endif
 char *string_concat(const char *str, ...);
 
-void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length);
-void buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length);
+int buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length);
+int buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length);
 
 enum plist_format_t {
 	PLIST_FORMAT_XML,
