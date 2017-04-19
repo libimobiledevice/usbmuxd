@@ -35,6 +35,7 @@ int client_notify_connect(struct mux_client *client, enum usbmuxd_result result)
 
 void client_device_add(struct device_info *dev);
 void client_device_remove(int device_id);
+void client_device_paired(int device_id);
 
 int client_accept(int fd);
 void client_get_fds(struct fdlist *list);

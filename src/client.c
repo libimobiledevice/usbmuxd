@@ -442,6 +442,24 @@ static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 	return res;
 }
 
+static int notify_device_paired(struct mux_client *client, uint32_t device_id)
+{
+	int res = -1;
+	if (client->proto_version == 1) {
+		/* XML plist packet */
+		plist_t dict = plist_new_dict();
+		plist_dict_set_item(dict, "MessageType", plist_new_string("Paired"));
+		plist_dict_set_item(dict, "DeviceID", plist_new_uint(device_id));
+		res = send_plist_pkt(client, 0, dict);
+		plist_free(dict);
+	}
+	else {
+		/* binary packet */
+		res = send_pkt(client, 0, MESSAGE_DEVICE_PAIRED, &device_id, sizeof(uint32_t));
+	}
+	return res;
+}
+
 static int start_listen(struct mux_client *client)
 {
 	struct device_info *devs = NULL;
@@ -808,6 +826,18 @@ void client_device_remove(int device_id)
 			notify_device_remove(client, id);
 	} ENDFOREACH
 	pthread_mutex_unlock(&client_list_mutex);
+}
+
+void client_device_paired(int device_id)
+{
+	pthread_mutex_lock(&client_list_mutex);
+	uint32_t id = device_id;
+	usbmuxd_log(LL_DEBUG, "client_device_paired: id %d", device_id);
+	FOREACH(struct mux_client *client, &client_list) {
+		if (client->state == CLIENT_LISTEN)
+			notify_device_paired(client, id);
+	} ENDFOREACH
+		pthread_mutex_unlock(&client_list_mutex);
 }
 
 void client_init(void)

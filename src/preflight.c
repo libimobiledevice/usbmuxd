@@ -107,6 +107,9 @@ static void np_callback(const char* notification, void* userdata)
 		lockdownd_client_free(lockdown);
 		// device will reconnect by itself at this point.
 
+		// Let the clients know the device has paired successfully.
+		client_device_paired((int)(long)_dev->conn_data);
+
 	} else if (strcmp(notification, "com.apple.mobile.lockdown.request_host_buid") == 0) {
 		lerr = lockdownd_client_new(cbdata->dev, &lockdown, "usbmuxd");
 		if (lerr != LOCKDOWN_E_SUCCESS) {

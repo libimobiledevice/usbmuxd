@@ -52,7 +52,7 @@ enum usbmuxd_msgtype {
 	MESSAGE_LISTEN = 3,
 	MESSAGE_DEVICE_ADD = 4,
 	MESSAGE_DEVICE_REMOVE = 5,
-	//???
+	MESSAGE_DEVICE_PAIRED = 6,
 	//???
 	MESSAGE_PLIST = 8,
 };
