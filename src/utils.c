@@ -302,11 +302,8 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 	return 1;
 }
 
-#ifdef __APPLE__
-typedef int clockid_t;
-#define CLOCK_MONOTONIC 1
 
-static int clock_gettime(clockid_t clk_id, struct timespec *ts)
+int clock_gettime(clockid_t clk_id, struct timespec *ts)
 {
 	// See http://developer.apple.com/library/mac/qa/qa1398
 
@@ -330,7 +327,6 @@ static int clock_gettime(clockid_t clk_id, struct timespec *ts)
 
 	return 0;
 }
-#endif
 
 void get_tick_count(struct timeval * tv)
 {
