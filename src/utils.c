@@ -302,7 +302,7 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 	return 1;
 }
 
-#ifdef __APPLE__
+#ifndef HAVE_CLOCK_GETTIME
 typedef int clockid_t;
 #define CLOCK_MONOTONIC 1
 
