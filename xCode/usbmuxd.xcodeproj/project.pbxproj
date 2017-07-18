@@ -1,0 +1,528 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		C804F5FF1A8C7B8800A74780 /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5ED1A8C7B8800A74780 /* client.c */; };
+		C804F6001A8C7B8800A74780 /* conf.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5EF1A8C7B8800A74780 /* conf.c */; };
+		C804F6011A8C7B8800A74780 /* device.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5F11A8C7B8800A74780 /* device.c */; };
+		C804F6021A8C7B8800A74780 /* log.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5F31A8C7B8800A74780 /* log.c */; };
+		C804F6031A8C7B8800A74780 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5F51A8C7B8800A74780 /* main.c */; };
+		C804F6041A8C7B8800A74780 /* preflight.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5F71A8C7B8800A74780 /* preflight.c */; };
+		C804F6061A8C7B8800A74780 /* utils.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F5FD1A8C7B8800A74780 /* utils.c */; };
+		C804F6371A8C817D00A74780 /* usb.c in Sources */ = {isa = PBXBuildFile; fileRef = C804F6361A8C817D00A74780 /* usb.c */; };
+		C804F66E1A8C871F00A74780 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F66D1A8C871F00A74780 /* IOKit.framework */; };
+		C804F6701A8C872600A74780 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F66F1A8C872600A74780 /* CoreFoundation.framework */; };
+		C804F67C1A8C882700A74780 /* libimobiledevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C804F61A1A8C7BB100A74780 /* libimobiledevice.a */; };
+		C8A97CC11E0F7A320013886F /* libobjc.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97CC01E0F7A320013886F /* libobjc.tbd */; };
+		C8A97CC31E0F7A390013886F /* libxml2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97CC21E0F7A390013886F /* libxml2.tbd */; };
+		C8A97D971E0FAF9B0013886F /* libplist.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97D941E0FAF9B0013886F /* libplist.a */; };
+		C8A97D981E0FAF9B0013886F /* libusb-1.0.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97D951E0FAF9B0013886F /* libusb-1.0.0.dylib */; };
+		C8A97D991E0FAF9B0013886F /* libusbmuxd.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C8A97D961E0FAF9B0013886F /* libusbmuxd.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C804F6191A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C847BEA71A7537F400271179;
+			remoteInfo = libimobiledevice;
+		};
+		C804F61B1A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB84091A75D4630022C2CD;
+			remoteInfo = idevice_id;
+		};
+		C804F61D1A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB845D1A75D7870022C2CD;
+			remoteInfo = idevicecrashreport;
+		};
+		C804F61F1A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB847D1A75D9CA0022C2CD;
+			remoteInfo = idevicediagnostics;
+		};
+		C804F6211A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C847C1101A755DF300271179;
+			remoteInfo = ideviceinfo;
+		};
+		C804F6231A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB850D1A75EC0E0022C2CD;
+			remoteInfo = ideviceimagemounter;
+		};
+		C804F6251A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB841D1A75D5A80022C2CD;
+			remoteInfo = idevicename;
+		};
+		C804F6271A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB844D1A75D7030022C2CD;
+			remoteInfo = idevicepair;
+		};
+		C804F6291A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB84371A75D66D0022C2CD;
+			remoteInfo = idevicescreenshot;
+		};
+		C804F62B1A8C7BB100A74780 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C8EB846D1A75D7D80022C2CD;
+			remoteInfo = idevicesyslog;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C804F5E01A8C7B5400A74780 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		C804F5E21A8C7B5400A74780 /* usbmuxd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = usbmuxd; sourceTree = BUILT_PRODUCTS_DIR; };
+		C804F5ED1A8C7B8800A74780 /* client.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = client.c; sourceTree = "<group>"; };
+		C804F5EE1A8C7B8800A74780 /* client.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = client.h; sourceTree = "<group>"; };
+		C804F5EF1A8C7B8800A74780 /* conf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = conf.c; sourceTree = "<group>"; };
+		C804F5F01A8C7B8800A74780 /* conf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = conf.h; sourceTree = "<group>"; };
+		C804F5F11A8C7B8800A74780 /* device.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = device.c; sourceTree = "<group>"; };
+		C804F5F21A8C7B8800A74780 /* device.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = device.h; sourceTree = "<group>"; };
+		C804F5F31A8C7B8800A74780 /* log.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = log.c; sourceTree = "<group>"; };
+		C804F5F41A8C7B8800A74780 /* log.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
+		C804F5F51A8C7B8800A74780 /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		C804F5F61A8C7B8800A74780 /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		C804F5F71A8C7B8800A74780 /* preflight.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = preflight.c; sourceTree = "<group>"; };
+		C804F5F81A8C7B8800A74780 /* preflight.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = preflight.h; sourceTree = "<group>"; };
+		C804F5F91A8C7B8800A74780 /* tcp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = tcp.h; sourceTree = "<group>"; };
+		C804F5FB1A8C7B8800A74780 /* usb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = usb.h; sourceTree = "<group>"; };
+		C804F5FC1A8C7B8800A74780 /* usbmuxd-proto.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "usbmuxd-proto.h"; sourceTree = "<group>"; };
+		C804F5FD1A8C7B8800A74780 /* utils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = utils.c; sourceTree = "<group>"; };
+		C804F5FE1A8C7B8800A74780 /* utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
+		C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = libimobiledevice.xcodeproj; path = ../../libimobiledevice/Xcode/libimobiledevice.xcodeproj; sourceTree = "<group>"; };
+		C804F62D1A8C7BC400A74780 /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
+		C804F6361A8C817D00A74780 /* usb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = usb.c; sourceTree = "<group>"; };
+		C804F66D1A8C871F00A74780 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		C804F66F1A8C872600A74780 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		C8A97CC01E0F7A320013886F /* libobjc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libobjc.tbd; path = usr/lib/libobjc.tbd; sourceTree = SDKROOT; };
+		C8A97CC21E0F7A390013886F /* libxml2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxml2.tbd; path = usr/lib/libxml2.tbd; sourceTree = SDKROOT; };
+		C8A97D941E0FAF9B0013886F /* libplist.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libplist.a; path = "../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffqqtyuwzuxipfgwhhlbwbjfeahu/Build/Products/Debug/libplist.a"; sourceTree = "<group>"; };
+		C8A97D951E0FAF9B0013886F /* libusb-1.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libusb-1.0.0.dylib"; path = "../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffqqtyuwzuxipfgwhhlbwbjfeahu/Build/Products/Debug/libusb-1.0.0.dylib"; sourceTree = "<group>"; };
+		C8A97D961E0FAF9B0013886F /* libusbmuxd.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libusbmuxd.a; path = "../../../Library/Developer/Xcode/DerivedData/usbmuxd-ffqqtyuwzuxipfgwhhlbwbjfeahu/Build/Products/Debug/libusbmuxd.a"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C804F5DF1A8C7B5400A74780 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8A97D971E0FAF9B0013886F /* libplist.a in Frameworks */,
+				C8A97D981E0FAF9B0013886F /* libusb-1.0.0.dylib in Frameworks */,
+				C8A97D991E0FAF9B0013886F /* libusbmuxd.a in Frameworks */,
+				C8A97CC31E0F7A390013886F /* libxml2.tbd in Frameworks */,
+				C8A97CC11E0F7A320013886F /* libobjc.tbd in Frameworks */,
+				C804F67C1A8C882700A74780 /* libimobiledevice.a in Frameworks */,
+				C804F6701A8C872600A74780 /* CoreFoundation.framework in Frameworks */,
+				C804F66E1A8C871F00A74780 /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C804F5D91A8C7B5400A74780 = {
+			isa = PBXGroup;
+			children = (
+				C804F62D1A8C7BC400A74780 /* config.h */,
+				C804F6711A8C872E00A74780 /* Frameworks */,
+				C804F5E31A8C7B5400A74780 /* Products */,
+				C804F5EC1A8C7B8800A74780 /* src */,
+			);
+			sourceTree = "<group>";
+		};
+		C804F5E31A8C7B5400A74780 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C804F5E21A8C7B5400A74780 /* usbmuxd */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C804F5EC1A8C7B8800A74780 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				C804F6361A8C817D00A74780 /* usb.c */,
+				C804F5ED1A8C7B8800A74780 /* client.c */,
+				C804F5EE1A8C7B8800A74780 /* client.h */,
+				C804F5EF1A8C7B8800A74780 /* conf.c */,
+				C804F5F01A8C7B8800A74780 /* conf.h */,
+				C804F5F11A8C7B8800A74780 /* device.c */,
+				C804F5F21A8C7B8800A74780 /* device.h */,
+				C804F5F31A8C7B8800A74780 /* log.c */,
+				C804F5F41A8C7B8800A74780 /* log.h */,
+				C804F5F51A8C7B8800A74780 /* main.c */,
+				C804F5F61A8C7B8800A74780 /* Makefile.am */,
+				C804F5F71A8C7B8800A74780 /* preflight.c */,
+				C804F5F81A8C7B8800A74780 /* preflight.h */,
+				C804F5F91A8C7B8800A74780 /* tcp.h */,
+				C804F5FB1A8C7B8800A74780 /* usb.h */,
+				C804F5FC1A8C7B8800A74780 /* usbmuxd-proto.h */,
+				C804F5FD1A8C7B8800A74780 /* utils.c */,
+				C804F5FE1A8C7B8800A74780 /* utils.h */,
+			);
+			name = src;
+			path = ../src;
+			sourceTree = "<group>";
+		};
+		C804F6091A8C7BB000A74780 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C804F61A1A8C7BB100A74780 /* libimobiledevice.a */,
+				C804F61C1A8C7BB100A74780 /* idevice_id */,
+				C804F61E1A8C7BB100A74780 /* idevicecrashreport */,
+				C804F6201A8C7BB100A74780 /* idevicediagnotics */,
+				C804F6221A8C7BB100A74780 /* ideviceinfo */,
+				C804F6241A8C7BB100A74780 /* ideviceimagemounter */,
+				C804F6261A8C7BB100A74780 /* idevicename */,
+				C804F6281A8C7BB100A74780 /* idevicepair */,
+				C804F62A1A8C7BB100A74780 /* idevicescreenshot */,
+				C804F62C1A8C7BB100A74780 /* idevicesyslog */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C804F6711A8C872E00A74780 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C8A97D941E0FAF9B0013886F /* libplist.a */,
+				C8A97D951E0FAF9B0013886F /* libusb-1.0.0.dylib */,
+				C8A97D961E0FAF9B0013886F /* libusbmuxd.a */,
+				C8A97CC21E0F7A390013886F /* libxml2.tbd */,
+				C8A97CC01E0F7A320013886F /* libobjc.tbd */,
+				C804F66F1A8C872600A74780 /* CoreFoundation.framework */,
+				C804F66D1A8C871F00A74780 /* IOKit.framework */,
+				C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C804F5E11A8C7B5400A74780 /* usbmuxd */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C804F5E91A8C7B5400A74780 /* Build configuration list for PBXNativeTarget "usbmuxd" */;
+			buildPhases = (
+				C804F5DE1A8C7B5400A74780 /* Sources */,
+				C804F5DF1A8C7B5400A74780 /* Frameworks */,
+				C804F5E01A8C7B5400A74780 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = usbmuxd;
+			productName = usbmuxd;
+			productReference = C804F5E21A8C7B5400A74780 /* usbmuxd */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C804F5DA1A8C7B5400A74780 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0610;
+				ORGANIZATIONNAME = libimobiledevice;
+				TargetAttributes = {
+					C804F5E11A8C7B5400A74780 = {
+						CreatedOnToolsVersion = 6.1.1;
+					};
+				};
+			};
+			buildConfigurationList = C804F5DD1A8C7B5400A74780 /* Build configuration list for PBXProject "usbmuxd" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = C804F5D91A8C7B5400A74780;
+			productRefGroup = C804F5E31A8C7B5400A74780 /* Products */;
+			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = C804F6091A8C7BB000A74780 /* Products */;
+					ProjectRef = C804F6081A8C7BB000A74780 /* libimobiledevice.xcodeproj */;
+				},
+			);
+			projectRoot = "";
+			targets = (
+				C804F5E11A8C7B5400A74780 /* usbmuxd */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		C804F61A1A8C7BB100A74780 /* libimobiledevice.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.dylib";
+			path = libimobiledevice.a;
+			remoteRef = C804F6191A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F61C1A8C7BB100A74780 /* idevice_id */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevice_id;
+			remoteRef = C804F61B1A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F61E1A8C7BB100A74780 /* idevicecrashreport */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevicecrashreport;
+			remoteRef = C804F61D1A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F6201A8C7BB100A74780 /* idevicediagnotics */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevicediagnotics;
+			remoteRef = C804F61F1A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F6221A8C7BB100A74780 /* ideviceinfo */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = ideviceinfo;
+			remoteRef = C804F6211A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F6241A8C7BB100A74780 /* ideviceimagemounter */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = ideviceimagemounter;
+			remoteRef = C804F6231A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F6261A8C7BB100A74780 /* idevicename */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevicename;
+			remoteRef = C804F6251A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F6281A8C7BB100A74780 /* idevicepair */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevicepair;
+			remoteRef = C804F6271A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F62A1A8C7BB100A74780 /* idevicescreenshot */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevicescreenshot;
+			remoteRef = C804F6291A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		C804F62C1A8C7BB100A74780 /* idevicesyslog */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = idevicesyslog;
+			remoteRef = C804F62B1A8C7BB100A74780 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C804F5DE1A8C7B5400A74780 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C804F6371A8C817D00A74780 /* usb.c in Sources */,
+				C804F6031A8C7B8800A74780 /* main.c in Sources */,
+				C804F6061A8C7B8800A74780 /* utils.c in Sources */,
+				C804F6041A8C7B8800A74780 /* preflight.c in Sources */,
+				C804F6021A8C7B8800A74780 /* log.c in Sources */,
+				C804F6011A8C7B8800A74780 /* device.c in Sources */,
+				C804F5FF1A8C7B8800A74780 /* client.c in Sources */,
+				C804F6001A8C7B8800A74780 /* conf.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C804F5E71A8C7B5400A74780 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		C804F5E81A8C7B5400A74780 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		C804F5EA1A8C7B5400A74780 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				HEADER_SEARCH_PATHS = (
+					../../libimobiledevice/include/,
+					../../libplist/include/,
+					../../libusb/libusb/,
+					../../libusbmuxd/include/,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(USER_LIBRARY_DIR)/Developer/Xcode/DerivedData/usbmuxd-ffcqwxxuceazayguzsgbgltlueqa/Build/Products/Debug",
+				);
+				OTHER_CFLAGS = "-DHAVE_CONFIG_H";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		C804F5EB1A8C7B5400A74780 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				HEADER_SEARCH_PATHS = (
+					../../libimobiledevice/include/,
+					../../libplist/include/,
+					../../libusb/libusb/,
+					../../libusbmuxd/include/,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(USER_LIBRARY_DIR)/Developer/Xcode/DerivedData/usbmuxd-ffcqwxxuceazayguzsgbgltlueqa/Build/Products/Debug",
+				);
+				OTHER_CFLAGS = "-DHAVE_CONFIG_H";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C804F5DD1A8C7B5400A74780 /* Build configuration list for PBXProject "usbmuxd" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C804F5E71A8C7B5400A74780 /* Debug */,
+				C804F5E81A8C7B5400A74780 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C804F5E91A8C7B5400A74780 /* Build configuration list for PBXNativeTarget "usbmuxd" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C804F5EA1A8C7B5400A74780 /* Debug */,
+				C804F5EB1A8C7B5400A74780 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C804F5DA1A8C7B5400A74780 /* Project object */;
+}

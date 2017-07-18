@@ -170,137 +170,137 @@ char *stpcpy(char * s1, const char * s2)
  * @return a newly allocated string, or NULL if @str is NULL.  This will also
  * return NULL and set errno to ENOMEM if memory is exhausted.
  */
-char *string_concat(const char *str, ...)
-{
-	size_t len;
-	va_list args;
-	char *s;
-	char *result;
-	char *dest;
-
-	if (!str)
-		return NULL;
-
-	/* Compute final length */
-
-	len = strlen(str) + 1; /* plus 1 for the null terminator */
-
-	va_start(args, str);
-	s = va_arg(args, char *);
-	while (s) {
-		len += strlen(s);
-		s = va_arg(args, char*);
-	}
-	va_end(args);
-
-	/* Concat each string */
-
-	result = malloc(len);
-	if (!result)
-		return NULL; /* errno remains set */
-
-	dest = result;
-
-	dest = stpcpy(dest, str);
-
-	va_start(args, str);
-	s = va_arg(args, char *);
-	while (s) {
-		dest = stpcpy(dest, s);
-		s = va_arg(args, char *);
-	}
-	va_end(args);
-
-	return result;
-}
-
-void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length)
-{
-	FILE *f;
-	uint64_t size;
-
-	*length = 0;
-
-	f = fopen(filename, "rb");
-	if (!f) {
-		return;
-	}
-
-	fseek(f, 0, SEEK_END);
-	size = ftell(f);
-	rewind(f);
-
-	if (size == 0) {
-		fclose(f);
-		return;
-	}
-
-	*buffer = (char*)malloc(sizeof(char)*(size+1));
-	if (fread(*buffer, sizeof(char), size, f) != size) {
-		usbmuxd_log(LL_ERROR, "%s: ERROR: couldn't read %d bytes from %s", __func__, (int)size, filename);
-	}
-	fclose(f);
-
-	*length = size;
-}
-
-void buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length)
-{
-	FILE *f;
-
-	f = fopen(filename, "wb");
-	if (f) {
-		fwrite(buffer, sizeof(char), length, f);
-		fclose(f);
-	}
-}
-
-int plist_read_from_filename(plist_t *plist, const char *filename)
-{
-	char *buffer = NULL;
-	uint64_t length;
-
-	if (!filename)
-		return 0;
-
-	buffer_read_from_filename(filename, &buffer, &length);
-
-	if (!buffer) {
-		return 0;
-	}
-
-	if ((length > 8) && (memcmp(buffer, "bplist00", 8) == 0)) {
-		plist_from_bin(buffer, length, plist);
-	} else {
-		plist_from_xml(buffer, length, plist);
-	}
-
-	free(buffer);
-
-	return 1;
-}
-
-int plist_write_to_filename(plist_t plist, const char *filename, enum plist_format_t format)
-{
-	char *buffer = NULL;
-	uint32_t length;
-
-	if (!plist || !filename)
-		return 0;
-
-	if (format == PLIST_FORMAT_XML)
-		plist_to_xml(plist, &buffer, &length);
-	else if (format == PLIST_FORMAT_BINARY)
-		plist_to_bin(plist, &buffer, &length);
-	else
-		return 0;
-
-	buffer_write_to_filename(filename, buffer, length);
-
-	free(buffer);
-
-	return 1;
-}
+//char *string_concat(const char *str, ...)
+//{
+//	size_t len;
+//	va_list args;
+//	char *s;
+//	char *result;
+//	char *dest;
+//
+//	if (!str)
+//		return NULL;
+//
+//	/* Compute final length */
+//
+//	len = strlen(str) + 1; /* plus 1 for the null terminator */
+//
+//	va_start(args, str);
+//	s = va_arg(args, char *);
+//	while (s) {
+//		len += strlen(s);
+//		s = va_arg(args, char*);
+//	}
+//	va_end(args);
+//
+//	/* Concat each string */
+//
+//	result = malloc(len);
+//	if (!result)
+//		return NULL; /* errno remains set */
+//
+//	dest = result;
+//
+//	dest = stpcpy(dest, str);
+//
+//	va_start(args, str);
+//	s = va_arg(args, char *);
+//	while (s) {
+//		dest = stpcpy(dest, s);
+//		s = va_arg(args, char *);
+//	}
+//	va_end(args);
+//
+//	return result;
+//}
+//
+//void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length)
+//{
+//	FILE *f;
+//	uint64_t size;
+//
+//	*length = 0;
+//
+//	f = fopen(filename, "rb");
+//	if (!f) {
+//		return;
+//	}
+//
+//	fseek(f, 0, SEEK_END);
+//	size = ftell(f);
+//	rewind(f);
+//
+//	if (size == 0) {
+//		fclose(f);
+//		return;
+//	}
+//
+//	*buffer = (char*)malloc(sizeof(char)*(size+1));
+//	if (fread(*buffer, sizeof(char), size, f) != size) {
+//		usbmuxd_log(LL_ERROR, "%s: ERROR: couldn't read %d bytes from %s", __func__, (int)size, filename);
+//	}
+//	fclose(f);
+//
+//	*length = size;
+//}
+//
+//void buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length)
+//{
+//	FILE *f;
+//
+//	f = fopen(filename, "wb");
+//	if (f) {
+//		fwrite(buffer, sizeof(char), length, f);
+//		fclose(f);
+//	}
+//}
+//
+//int plist_read_from_filename(plist_t *plist, const char *filename)
+//{
+//	char *buffer = NULL;
+//	uint64_t length;
+//
+//	if (!filename)
+//		return 0;
+//
+//	buffer_read_from_filename(filename, &buffer, &length);
+//
+//	if (!buffer) {
+//		return 0;
+//	}
+//
+//	if ((length > 8) && (memcmp(buffer, "bplist00", 8) == 0)) {
+//		plist_from_bin(buffer, length, plist);
+//	} else {
+//		plist_from_xml(buffer, length, plist);
+//	}
+//
+//	free(buffer);
+//
+//	return 1;
+//}
+//
+//int plist_write_to_filename(plist_t plist, const char *filename, enum plist_format_t format)
+//{
+//	char *buffer = NULL;
+//	uint32_t length;
+//
+//	if (!plist || !filename)
+//		return 0;
+//
+//	if (format == PLIST_FORMAT_XML)
+//		plist_to_xml(plist, &buffer, &length);
+//	else if (format == PLIST_FORMAT_BINARY)
+//		plist_to_bin(plist, &buffer, &length);
+//	else
+//		return 0;
+//
+//	buffer_write_to_filename(filename, buffer, length);
+//
+//	free(buffer);
+//
+//	return 1;
+//}
 
 #ifndef HAVE_CLOCK_GETTIME
 typedef int clockid_t;
@@ -334,13 +334,13 @@ static int clock_gettime(clockid_t clk_id, struct timespec *ts)
 
 void get_tick_count(struct timeval * tv)
 {
-	struct timespec ts;
-	if(0 == clock_gettime(CLOCK_MONOTONIC, &ts)) {
-		tv->tv_sec = ts.tv_sec;
-		tv->tv_usec = ts.tv_nsec / 1000;
-	} else {
+//	struct timespec ts;
+//	if(0 == clock_gettime(CLOCK_MONOTONIC, &ts)) {
+//		tv->tv_sec = ts.tv_sec;
+//		tv->tv_usec = ts.tv_nsec / 1000;
+//	} else {
 		gettimeofday(tv, NULL);
-	}
+//	}
 }
 
 /**
