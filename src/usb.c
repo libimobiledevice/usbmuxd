@@ -445,6 +445,7 @@ static int usb_device_add(libusb_device* dev)
 	for (rx_loops = NUM_RX_LOOPS; rx_loops > 0; rx_loops--) {
 		if(start_rx_loop(usbdev) < 0) {
 			usbmuxd_log(LL_WARNING, "Failed to start RX loop number %d", NUM_RX_LOOPS - rx_loops);
+			break;
 		}
 	}
 
