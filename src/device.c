@@ -588,7 +588,7 @@ static void device_control_input(struct mux_device *dev, unsigned char *payload,
 				usbmuxd_log(LL_ERROR, "%s: ERROR: %s", __func__, buf);
 				free(buf);
 			} else {
-				usbmuxd_log(LL_ERROR, "%s: Error occured, but empty error message", __func__);
+				usbmuxd_log(LL_ERROR, "%s: Error occurred, but empty error message", __func__);
 			}
 			break;
 		case 7:
