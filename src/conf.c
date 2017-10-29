@@ -254,11 +254,11 @@ static int internal_set_value(const char *config_file, const char *key, plist_t 
 		usbmuxd_log(LL_DEBUG, "setting key %s in config_file %s", key, config_file);
 	}
 
-	plist_write_to_filename(config, config_file, PLIST_FORMAT_XML);
+	int res = plist_write_to_filename(config, config_file, PLIST_FORMAT_XML);
 
 	plist_free(config);
 
-	return 1;
+	return res;
 }
 
 static int config_set_value(const char *key, plist_t value)
@@ -273,6 +273,9 @@ static int config_set_value(const char *key, plist_t value)
 	config_file = string_concat(config_path, DIR_SEP_S, CONFIG_FILE, NULL);
 
 	int result = internal_set_value(config_file, key, value);
+	if (!result) {
+		usbmuxd_log(LL_ERROR, "ERROR: Failed to write to '%s': %s", config_file, strerror(errno));
+	}
 
 	free(config_file);
 
@@ -378,7 +381,9 @@ void config_get_system_buid(char **system_buid)
 		/* no config, generate system_buid */
 		usbmuxd_log(LL_DEBUG, "no previous %s found", CONFIG_SYSTEM_BUID_KEY);
 		*system_buid = config_generate_system_buid();
-		config_set_system_buid(*system_buid);
+		if (!config_set_system_buid(*system_buid)) {
+			usbmuxd_log(LL_WARNING, "WARNING: Failed to store SystemBUID, this might be a problem");
+		}
 	}
 
 	usbmuxd_log(LL_DEBUG, "using %s as %s", *system_buid, CONFIG_SYSTEM_BUID_KEY);
