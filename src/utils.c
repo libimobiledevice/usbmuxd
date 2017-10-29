@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <sys/time.h>
+#include <errno.h>
 #ifdef __APPLE__
 #include <mach/mach_time.h>
 #endif
@@ -214,7 +215,7 @@ char *string_concat(const char *str, ...)
 	return result;
 }
 
-void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length)
+int buffer_read_from_filename(const char *filename, char **buffer, uint64_t *length)
 {
 	FILE *f;
 	uint64_t size;
@@ -223,7 +224,7 @@ void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *le
 
 	f = fopen(filename, "rb");
 	if (!f) {
-		return;
+		return 0;
 	}
 
 	fseek(f, 0, SEEK_END);
@@ -232,26 +233,49 @@ void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *le
 
 	if (size == 0) {
 		fclose(f);
-		return;
+		return 0;
 	}
 
 	*buffer = (char*)malloc(sizeof(char)*(size+1));
+
+	if (!buffer) {
+		return 0;
+	}
+
+	int ret = 1;
 	if (fread(*buffer, sizeof(char), size, f) != size) {
 		usbmuxd_log(LL_ERROR, "%s: ERROR: couldn't read %d bytes from %s", __func__, (int)size, filename);
+		free(buffer);
+		ret = 0;
+		errno = EIO;
 	}
 	fclose(f);
 
 	*length = size;
+	return ret;
 }
 
-void buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length)
+int buffer_write_to_filename(const char *filename, const char *buffer, uint64_t length)
 {
 	FILE *f;
 
 	f = fopen(filename, "wb");
 	if (f) {
-		fwrite(buffer, sizeof(char), length, f);
+		size_t written = fwrite(buffer, sizeof(char), length, f);
 		fclose(f);
+
+		if (written == length) {
+			return 1;
+		}
+		else {
+			// Not all data could be written.
+			errno = EIO;
+			return 0;
+		}
+	}
+	else {
+		// Failed to open the file, let the caller know.
+		return 0;
 	}
 }
 
@@ -263,9 +287,7 @@ int plist_read_from_filename(plist_t *plist, const char *filename)
 	if (!filename)
 		return 0;
 
-	buffer_read_from_filename(filename, &buffer, &length);
-
-	if (!buffer) {
+	if (!buffer_read_from_filename(filename, &buffer, &length)) {
 		return 0;
 	}
 
@@ -295,11 +317,11 @@ int plist_write_to_filename(plist_t plist, const char *filename, enum plist_form
 	else
 		return 0;
 
-	buffer_write_to_filename(filename, buffer, length);
+	int res  = buffer_write_to_filename(filename, buffer, length);
 
 	free(buffer);
 
-	return 1;
+	return res;
 }
 
 #ifndef HAVE_CLOCK_GETTIME
