@@ -36,6 +36,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/resource.h>
@@ -62,6 +64,7 @@ int no_preflight = 0;
 // Global state for main.c
 static int verbose = 0;
 static int foreground = 0;
+static int tcp = 0;
 static int drop_privileges = 0;
 static const char *drop_user = NULL;
 static int opt_disable_hotplug = 0;
@@ -74,17 +77,26 @@ static int report_to_parent = 0;
 
 static int create_socket(void) {
 	struct sockaddr_un bind_addr;
+	struct sockaddr_in tcp_addr;
 	int listenfd;
 
-	if(unlink(socket_path) == -1 && errno != ENOENT) {
-		usbmuxd_log(LL_FATAL, "unlink(%s) failed: %s", socket_path, strerror(errno));
-		return -1;
-	}
+	if (!tcp) {
+		if(unlink(socket_path) == -1 && errno != ENOENT) {
+			usbmuxd_log(LL_FATAL, "unlink(%s) failed: %s", socket_path, strerror(errno));
+			return -1;
+		}
 
-	listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (listenfd == -1) {
-		usbmuxd_log(LL_FATAL, "socket() failed: %s", strerror(errno));
-		return -1;
+		listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
+		if (listenfd == -1) {
+			usbmuxd_log(LL_FATAL, "socket() failed: %s", strerror(errno));
+			return -1;
+		}
+	} else {
+		listenfd = socket(AF_INET, SOCK_STREAM, 0);
+		if (listenfd == -1) {
+			usbmuxd_log(LL_FATAL, "ERROR: socket() failed: %s", strerror(errno));
+			return -1;
+		}
 	}
 
 	int flags = fcntl(listenfd, F_GETFL, 0);
@@ -96,12 +108,26 @@ static int create_socket(void) {
 		}
 	}
 
-	bzero(&bind_addr, sizeof(bind_addr));
-	bind_addr.sun_family = AF_UNIX;
-	strcpy(bind_addr.sun_path, socket_path);
-	if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
-		usbmuxd_log(LL_FATAL, "bind() failed: %s", strerror(errno));
-		return -1;
+	if (tcp) {
+		usbmuxd_log(LL_INFO, "Preparing a TCP socket");
+		tcp_addr.sin_family = AF_INET;
+		tcp_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		tcp_addr.sin_port = htons(USBMUXD_SOCKET_PORT);
+
+		if (bind(listenfd, (struct sockaddr*)&tcp_addr, sizeof(tcp_addr)) != 0) {
+			usbmuxd_log(LL_FATAL, "bind() failed: %s", strerror(errno));
+			return -1;
+		}
+	} else {
+		usbmuxd_log(LL_INFO, "Preparing a Unix socket");
+		bzero(&bind_addr, sizeof(bind_addr));
+		bind_addr.sun_family = AF_UNIX;
+		strcpy(bind_addr.sun_path, socket_path);
+
+		if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
+			usbmuxd_log(LL_FATAL, "bind() failed: %s", strerror(errno));
+			return -1;
+		}
 	}
 
 	// Start listening
@@ -368,6 +394,7 @@ static void usage()
 	printf("OPTIONS:\n");
 	printf("  -h, --help\t\tPrint this message.\n");
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
+	printf("  -t, --tcp\t\tCreate a TCP socket instead of a Unix socket.\n");
 	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
 	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
 	printf("  -n, --disable-hotplug\tDisables automatic discovery of devices on hotplug.\n");
@@ -398,6 +425,7 @@ static void parse_opts(int argc, char **argv)
 		{"help", no_argument, NULL, 'h'},
 		{"foreground", no_argument, NULL, 'f'},
 		{"verbose", no_argument, NULL, 'v'},
+		{"tcp", 0, no_argument, 't' },
 		{"user", required_argument, NULL, 'U'},
 		{"disable-hotplug", no_argument, NULL, 'n'},
 		{"enable-exit", no_argument, NULL, 'z'},
@@ -417,11 +445,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnzl:p";
+	const char* opts_spec = "hfvVtuU:xXsnzl:p";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnzl:p";
+	const char* opts_spec = "hfvVtuU:xXnzl:p";
 #else
-	const char* opts_spec = "hfvVU:xXnzl:p";
+	const char* opts_spec = "hfvVtU:xXnzl:p";
 #endif
 
 	while (1) {
@@ -439,6 +467,9 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 'v':
 			++verbose;
+			break;
+		case 't':
+			tcp = 1;
 			break;
 		case 'V':
 			printf("%s\n", PACKAGE_STRING);

@@ -26,9 +26,8 @@
 #include <stdint.h>
 #define USBMUXD_PROTOCOL_VERSION 0
 
-#if defined(WIN32) || defined(__CYGWIN__)
 #define USBMUXD_SOCKET_PORT 27015
-#else
+#if !defined(WIN32) && !defined(__CYGWIN__)
 #define USBMUXD_SOCKET_FILE "/var/run/usbmuxd"
 #endif
 
