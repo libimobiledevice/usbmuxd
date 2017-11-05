@@ -65,6 +65,7 @@ int no_preflight = 0;
 static int verbose = 0;
 static int foreground = 0;
 static int tcp = 0;
+static int all_interfaces = 0;
 static int drop_privileges = 0;
 static const char *drop_user = NULL;
 static int opt_disable_hotplug = 0;
@@ -111,7 +112,7 @@ static int create_socket(void) {
 	if (tcp) {
 		usbmuxd_log(LL_INFO, "Preparing a TCP socket");
 		tcp_addr.sin_family = AF_INET;
-		tcp_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		tcp_addr.sin_addr.s_addr = all_interfaces == 0 ? inet_addr("127.0.0.1") : inet_addr("0.0.0.0");
 		tcp_addr.sin_port = htons(USBMUXD_SOCKET_PORT);
 
 		if (bind(listenfd, (struct sockaddr*)&tcp_addr, sizeof(tcp_addr)) != 0) {
@@ -395,6 +396,7 @@ static void usage()
 	printf("  -h, --help\t\tPrint this message.\n");
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
 	printf("  -t, --tcp\t\tCreate a TCP socket instead of a Unix socket.\n");
+	printf("  -a, --all-interfaces\tCListen on all interfaces for connections (TCP only).\n");
 	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
 	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
 	printf("  -n, --disable-hotplug\tDisables automatic discovery of devices on hotplug.\n");
@@ -426,6 +428,7 @@ static void parse_opts(int argc, char **argv)
 		{"foreground", no_argument, NULL, 'f'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"tcp", 0, no_argument, 't' },
+		{"all-interfaces", 0, no_argument, 'a' },
 		{"user", required_argument, NULL, 'U'},
 		{"disable-hotplug", no_argument, NULL, 'n'},
 		{"enable-exit", no_argument, NULL, 'z'},
@@ -445,11 +448,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVtuU:xXsnzl:p";
+	const char* opts_spec = "hfvVtauU:xXsnzl:p";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVtuU:xXnzl:p";
+	const char* opts_spec = "hfvVtauU:xXnzl:p";
 #else
-	const char* opts_spec = "hfvVtU:xXnzl:p";
+	const char* opts_spec = "hfvVtaU:xXnzl:p";
 #endif
 
 	while (1) {
@@ -470,6 +473,9 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 't':
 			tcp = 1;
+			break;
+		case 'a':
+			all_interfaces = 1;
 			break;
 		case 'V':
 			printf("%s\n", PACKAGE_STRING);
