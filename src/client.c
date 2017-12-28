@@ -617,6 +617,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					} else {
 						rval = EINVAL;
 					}
+					free(record_data);
 					if (send_result(client, hdr->tag, rval) < 0)
 						return -1;
 					return 0;
