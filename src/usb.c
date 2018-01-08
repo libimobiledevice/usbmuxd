@@ -61,7 +61,6 @@ struct usb_device {
 	int wMaxPacketSize;
 	uint64_t speed;
 	struct libusb_device_descriptor devdesc;
-	unsigned char transfer_buffer[1024 + LIBUSB_CONTROL_SETUP_SIZE];
 };
 
 static struct collection device_list;
@@ -321,6 +320,8 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 	int res;
 	struct usb_device *usbdev = transfer->user_data;
 
+	transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
+
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
 		 usbmuxd_log(LL_ERROR, "Failed to request lang ID for device %d-%d (%i)", usbdev->bus,
 				 usbdev->address, transfer->status);
@@ -333,10 +334,10 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 	usbmuxd_log(LL_INFO, "Got lang ID %u for device %d-%d", langid, usbdev->bus, usbdev->address);
 
 	/* re-use the same transfer */
-	libusb_fill_control_setup(usbdev->transfer_buffer, LIBUSB_ENDPOINT_IN, LIBUSB_REQUEST_GET_DESCRIPTOR,
+	libusb_fill_control_setup(transfer->buffer, LIBUSB_ENDPOINT_IN, LIBUSB_REQUEST_GET_DESCRIPTOR,
 			(uint16_t)((LIBUSB_DT_STRING << 8) | usbdev->devdesc.iSerialNumber),
-			langid, sizeof(usbdev->transfer_buffer));
-	libusb_fill_control_transfer(transfer, usbdev->dev, usbdev->transfer_buffer, get_serial_callback, usbdev, 1000);
+			langid, 1024 + LIBUSB_CONTROL_SETUP_SIZE);
+	libusb_fill_control_transfer(transfer, usbdev->dev, transfer->buffer, get_serial_callback, usbdev, 1000);
 
 	if((res = libusb_submit_transfer(transfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d (%d)", usbdev->bus, usbdev->address, res);
@@ -482,6 +483,16 @@ static int usb_device_add(libusb_device* dev)
 		return -1;
 	}
 
+	unsigned char *transfer_buffer = malloc(1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
+usbmuxd_log(LL_INFO, "%p", transfer_buffer);
+	if (!transfer_buffer) {
+		usbmuxd_log(LL_WARNING, "Failed to allocate transfer buffer for device %d-%d: %d", bus, address, res);
+		libusb_close(handle);
+		free(usbdev);
+		return -1;
+	}
+	memset(transfer_buffer, '\0', 1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
+
 	usbdev->serial[0] = 0;
 	usbdev->bus = bus;
 	usbdev->address = address;
@@ -522,13 +533,14 @@ static int usb_device_add(libusb_device* dev)
 	 * 	descriptor that contains all the language IDs supported by the
 	 * 	device.
 	 **/
-	libusb_fill_control_setup(usbdev->transfer_buffer, LIBUSB_ENDPOINT_IN, LIBUSB_REQUEST_GET_DESCRIPTOR, LIBUSB_DT_STRING << 8, 0, sizeof(usbdev->transfer_buffer));
-	libusb_fill_control_transfer(transfer, handle, usbdev->transfer_buffer, get_langid_callback, usbdev, 1000);
+	libusb_fill_control_setup(transfer_buffer, LIBUSB_ENDPOINT_IN, LIBUSB_REQUEST_GET_DESCRIPTOR, LIBUSB_DT_STRING << 8, 0, 1024 + LIBUSB_CONTROL_SETUP_SIZE);
+	libusb_fill_control_transfer(transfer, handle, transfer_buffer, get_langid_callback, usbdev, 1000);
 
 	if((res = libusb_submit_transfer(transfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d (%d)", usbdev->bus, usbdev->address, res);
 		libusb_free_transfer(transfer);
 		libusb_close(handle);
+		free(transfer_buffer);
 		free(usbdev);
 		return -1;
 	}
