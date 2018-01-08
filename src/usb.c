@@ -296,6 +296,7 @@ static void get_serial_callback(struct libusb_transfer *transfer)
 	for (rx_loops = NUM_RX_LOOPS; rx_loops > 0; rx_loops--) {
 		if(start_rx_loop(usbdev) < 0) {
 			usbmuxd_log(LL_WARNING, "Failed to start RX loop number %d", NUM_RX_LOOPS - rx_loops);
+			break;
 		}
 	}
 
