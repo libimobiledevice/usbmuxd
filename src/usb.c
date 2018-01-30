@@ -485,7 +485,6 @@ static int usb_device_add(libusb_device* dev)
 	}
 
 	unsigned char *transfer_buffer = malloc(1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
-usbmuxd_log(LL_INFO, "%p", transfer_buffer);
 	if (!transfer_buffer) {
 		usbmuxd_log(LL_WARNING, "Failed to allocate transfer buffer for device %d-%d: %d", bus, address, res);
 		libusb_close(handle);
