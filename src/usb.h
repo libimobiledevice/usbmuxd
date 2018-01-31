@@ -4,6 +4,7 @@
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2009 Martin Szulecki <opensuse@sukimashita.com>
+ * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,13 +50,17 @@
 
 struct usb_device;
 
-int usb_init(void);
+int usb_initialize(void);
 void usb_shutdown(void);
 const char *usb_get_serial(struct usb_device *dev);
 uint32_t usb_get_location(struct usb_device *dev);
 uint16_t usb_get_pid(struct usb_device *dev);
 uint64_t usb_get_speed(struct usb_device *dev);
+
+#ifndef WIN32
 void usb_get_fds(struct fdlist *list);
+#endif
+
 int usb_get_timeout(void);
 int usb_send(struct usb_device *dev, const unsigned char *buf, int length);
 int usb_discover(void);

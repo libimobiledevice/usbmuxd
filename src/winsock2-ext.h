@@ -1,8 +1,6 @@
 /*
- * log.h
+ * winsock2-ext.h
  *
- * Copyright (C) 2009 Hector Martin "marcan" <hector@marcansoft.com>
- * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,32 +17,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef LOG_H
-#define LOG_H
+#define nfds_t ULONG
 
-enum loglevel {
-	LL_FATAL = 0,
-	LL_ERROR,
-	LL_WARNING,
-	LL_NOTICE,
-	LL_INFO,
-	LL_DEBUG,
-	LL_SPEW,
-	LL_FLOOD,
-};
+#define POLLRDNORM 0x0100
+#define POLLRDBAND 0x0200
+#define POLLIN    (POLLRDNORM | POLLRDBAND)
 
-extern unsigned int log_level;
+#define POLLWRNORM 0x0010
+#define POLLOUT (POLLWRNORM)
 
-#ifdef WIN32
-#else
-void log_enable_syslog();
-void log_disable_syslog();
-#endif
-
-void usbmuxd_log(enum loglevel level, const char *fmt, ...) 
-#ifndef _MSC_VER
-__attribute__ ((format (printf, 2, 3)))
-#endif
-;
-
-#endif
+/* Mapping of BSD names to Windows names */
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define sockaddr_un sockaddr_in

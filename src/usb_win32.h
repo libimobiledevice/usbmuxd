@@ -1,8 +1,6 @@
 /*
- * log.h
+ * usb_win32.h
  *
- * Copyright (C) 2009 Hector Martin "marcan" <hector@marcansoft.com>
- * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,32 +17,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef LOG_H
-#define LOG_H
-
-enum loglevel {
-	LL_FATAL = 0,
-	LL_ERROR,
-	LL_WARNING,
-	LL_NOTICE,
-	LL_INFO,
-	LL_DEBUG,
-	LL_SPEW,
-	LL_FLOOD,
-};
-
-extern unsigned int log_level;
+#pragma once
 
 #ifdef WIN32
-#else
-void log_enable_syslog();
-void log_disable_syslog();
-#endif
+#include <stdint.h>
 
-void usbmuxd_log(enum loglevel level, const char *fmt, ...) 
-#ifndef _MSC_VER
-__attribute__ ((format (printf, 2, 3)))
-#endif
-;
-
+void usb_win32_init();
+void usb_win32_set_configuration(const char serial[], uint8_t configuration);
 #endif

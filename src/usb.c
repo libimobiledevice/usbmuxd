@@ -5,6 +5,7 @@
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2009 Martin Szulecki <opensuse@sukimashita.com>
  * Copyright (C) 2014 Mikkel Kamstrup Erlandsen <mikkel.kamstrup@xamarin.com>
+ * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +31,7 @@
 #include <string.h>
 
 #include <libusb.h>
+#include "usb_win32.h"
 
 #include "usb.h"
 #include "log.h"
@@ -121,7 +123,7 @@ static void reap_dead_devices(void) {
 }
 
 // Callback from write operation
-static void tx_callback(struct libusb_transfer *xfer)
+static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
 	usbmuxd_log(LL_SPEW, "TX callback dev %d-%d len %d -> %d status %d", dev->bus, dev->address, xfer->length, xfer->actual_length, xfer->status);
@@ -193,7 +195,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 // Callback from read operation
 // Under normal operation this issues a new read transfer request immediately,
 // doing a kind of read-callback loop
-static void rx_callback(struct libusb_transfer *xfer)
+static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
 	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
@@ -390,6 +392,8 @@ static int usb_device_add(libusb_device* dev)
 		return -1;
 	}
 	if (current_config != devdesc.bNumConfigurations) {
+#ifndef WIN32
+		// Detaching the kernel driver is not a Win32-concept; this functionality is not implemented on Windows.
 		struct libusb_config_descriptor *config;
 		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
 			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
@@ -410,13 +414,31 @@ static int usb_device_add(libusb_device* dev)
 			}
 			libusb_free_config_descriptor(config);
 		}
+#endif
 
 		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, devdesc.bNumConfigurations);
+#ifdef WIN32
+		char serial[40];
+		if ((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)serial, 40)) <= 0) {
+			usbmuxd_log(LL_WARNING, "Could not get the UDID for device %d-%d: %d", bus, address, res);
+			libusb_close(handle);
+			return -1;
+		}
+
+		usb_win32_set_configuration(serial, devdesc.bNumConfigurations);
+
+		// Because the change was done via libusb-win32, we need to refresh the device on libusb;
+		// otherwise, it will not pick up the new configuration and endpoints.
+		// For now, let the next loop do this for us.
+		libusb_close(handle);	
+		return -2;
+#else
 		if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
 			libusb_close(handle);
 			return -1;
 		}
+#endif
 	}
 
 	struct libusb_config_descriptor *config;
@@ -640,6 +662,7 @@ uint64_t usb_get_speed(struct usb_device *dev)
 	return dev->speed;
 }
 
+#ifndef WIN32
 void usb_get_fds(struct fdlist *list)
 {
 	const struct libusb_pollfd **usbfds;
@@ -656,6 +679,7 @@ void usb_get_fds(struct fdlist *list)
 	}
 	free(usbfds);
 }
+#endif
 
 void usb_autodiscover(int enable)
 {
@@ -754,7 +778,7 @@ int usb_process_timeout(int msec)
 #ifdef HAVE_LIBUSB_HOTPLUG_API
 static libusb_hotplug_callback_handle usb_hotplug_cb_handle;
 
-static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *user_data)
+static int LIBUSB_CALL usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *user_data)
 {
 	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
 		if (device_hotplug) {
@@ -777,15 +801,23 @@ static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hot
 }
 #endif
 
-int usb_init(void)
+int usb_initialize(void)
 {
 	int res;
-	usbmuxd_log(LL_DEBUG, "usb_init for linux / libusb 1.0");
+	usbmuxd_log(LL_DEBUG, "usb_initialize for linux / libusb 1.0");
 
 	devlist_failures = 0;
 	device_polling = 1;
 	res = libusb_init(NULL);
-	//libusb_set_debug(NULL, 3);
+
+#ifdef WIN32
+	usb_win32_init();
+#endif
+
+#if _DEBUG
+	libusb_set_debug(NULL, 6);
+#endif
+
 	if(res != 0) {
 		usbmuxd_log(LL_FATAL, "libusb_init failed: %d", res);
 		return -1;

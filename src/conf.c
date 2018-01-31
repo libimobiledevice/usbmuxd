@@ -2,6 +2,7 @@
  * conf.c
  *
  * Copyright (C) 2013 Nikias Bassen <nikias@gmx.li>
+ * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +22,11 @@
 #include <config.h>
 #endif
 
+#include <Windows.h>
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -31,12 +37,15 @@
 #endif
 
 #include <dirent.h>
+#ifndef _MSC_VER
 #include <libgen.h>
+#endif
 #include <sys/stat.h>
 #include <errno.h>
 
 #ifdef WIN32
 #include <shlobj.h>
+#include <direct.h>
 #endif
 
 #include "conf.h"

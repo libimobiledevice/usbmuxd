@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2009 Hector Martin "marcan" <hector@marcansoft.com>
  * Copyright (C) 2014 Mikkel Kamstrup Erlandsen <mikkel.kamstrup@xamarin.com>
+ * Copyright (C) 2016 Frederik Carlier <frederik.carlier@quamotion.mobi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,9 +25,21 @@
 #include <config.h>
 #endif
 
-#include <sys/time.h>
+#ifdef _MSC_VER
+#include "config_msc.h"
+#endif
+
+#ifdef WIN32
+#include <ws2tcpip.h>
+#include <winsock2.h>
+#include "winsock2-ext.h"
+#include "tcp.h"
+#else
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/time.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -937,6 +950,7 @@ int device_get_list(int include_hidden, struct device_info **devices)
 	return count;
 }
 
+#ifndef WIN32
 int device_get_timeout(void)
 {
 	uint64_t oldest = (uint64_t)-1LL;
@@ -976,6 +990,7 @@ void device_check_timeouts(void)
 	} ENDFOREACH
 	pthread_mutex_unlock(&device_list_mutex);
 }
+#endif
 
 void device_init(void)
 {
