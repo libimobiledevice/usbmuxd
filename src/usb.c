@@ -383,13 +383,17 @@ static int usb_device_add(libusb_device* dev)
 		return -1;
 	}
 
+	int desired_config = devdesc.bNumConfigurations;
+	if (desired_config > 4) {
+		desired_config = 4;
+	}
 	int current_config = 0;
 	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %d", bus, address, res);
 		libusb_close(handle);
 		return -1;
 	}
-	if (current_config != devdesc.bNumConfigurations) {
+	if (current_config != desired_config) {
 		struct libusb_config_descriptor *config;
 		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
 			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
@@ -411,9 +415,9 @@ static int usb_device_add(libusb_device* dev)
 			libusb_free_config_descriptor(config);
 		}
 
-		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, devdesc.bNumConfigurations);
-		if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
+		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, desired_config);
+		if((res = libusb_set_configuration(handle, desired_config)) != 0) {
+			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", desired_config, bus, address, res);
 			libusb_close(handle);
 			return -1;
 		}
