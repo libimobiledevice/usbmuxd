@@ -96,7 +96,7 @@ AC_TYPE_UINT8_T
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([strcasecmp strdup strerror strndup stpcpy])
-AC_CHECK_FUNCS([ppoll clock_gettime])
+AC_CHECK_FUNCS([ppoll clock_gettime localtime_r])
 
 # Check for operating system
 AC_MSG_CHECKING([whether to enable WIN32 build settings])
