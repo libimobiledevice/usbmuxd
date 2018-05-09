@@ -129,7 +129,7 @@ pthread_mutex_t device_list_mutex;
 
 static struct mux_device* get_mux_device_for_id(int device_id)
 {
-  struct mux_device *dev = NULL;
+	struct mux_device *dev = NULL;
 	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *cdev, &device_list) {
 		if(cdev->id == device_id) {
@@ -433,12 +433,12 @@ static int send_tcp_ack(struct mux_connection *conn)
 	if(send_tcp(conn, TH_ACK, NULL, 0) < 0) {
 		usbmuxd_log(LL_ERROR, "Error sending TCP ACK (%d->%d)", conn->sport, conn->dport);
 		connection_teardown(conn);
-    return -1;
+		return -1;
 	}
 
-  update_connection(conn);
+	update_connection(conn);
 
-  return 0;
+	return 0;
 }
 
 /**
@@ -534,7 +534,7 @@ static void connection_device_input(struct mux_connection *conn, unsigned char *
 
 void device_abort_connect(int device_id, struct mux_client *client)
 {
-  struct mux_connection *conn = get_mux_connection(device_id, client);
+	struct mux_connection *conn = get_mux_connection(device_id, client);
 	if (conn) {
 		connection_teardown(conn);
 	} else {
@@ -740,7 +740,7 @@ void device_data_input(struct usb_device *usbdev, unsigned char *buffer, uint32_
 			dev->pktlen = 0;
 			return;
 		}
-        memcpy(dev->pktbuf + dev->pktlen, buffer, length);
+		memcpy(dev->pktbuf + dev->pktlen, buffer, length);
 		struct mux_header *mhdr = (struct mux_header *)dev->pktbuf;
 		if((length < USB_MRU) || (ntohl(mhdr->length) == (length + dev->pktlen))) {
 			buffer = dev->pktbuf;
