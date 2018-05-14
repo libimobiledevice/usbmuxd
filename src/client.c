@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/tcp.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <pthread.h>
@@ -170,6 +171,17 @@ int client_accept(int listenfd)
 			usbmuxd_log(LL_ERROR, "ERROR: Could not set socket to non-blocking mode");
 		}
 	}
+
+	int bufsize = 0x20000;
+	if (setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) == -1) {
+		usbmuxd_log(LL_WARNING, "Could not set send buffer for client socket");
+	}
+	if (setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) == -1) {
+		usbmuxd_log(LL_WARNING, "Could not set receive buffer for client socket");
+	}
+
+	int yes = 1;
+	setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (void*)&yes, sizeof(int));
 
 	struct mux_client *client;
 	client = malloc(sizeof(struct mux_client));
