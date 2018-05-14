@@ -113,7 +113,8 @@ int client_write(struct mux_client *client, void *buffer, uint32_t len)
 	sret = send(client->fd, buffer, len, 0);
 	if (sret < 0) {
 		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-			usbmuxd_log(LL_ERROR, "ERROR: client_write: fd %d not ready for writing", client->fd);
+			usbmuxd_log(LL_DEBUG, "client_write: fd %d not ready for writing", client->fd);
+			sret = 0;
 		} else {
 			usbmuxd_log(LL_ERROR, "ERROR: client_write: sending to fd %d failed: %s", client->fd, strerror(errno));
 		}

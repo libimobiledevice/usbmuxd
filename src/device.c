@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "device.h"
 #include "client.h"
 #include "preflight.h"
@@ -314,10 +315,21 @@ static void connection_teardown(struct mux_connection *conn)
 		} else {
 			conn->state = CONN_DEAD;
 			if((conn->events & POLLOUT) && conn->ib_size > 0){
+				usbmuxd_log(LL_DEBUG, "%s: flushing buffer to client (%u bytes)", __func__, conn->ib_size);
+				uint64_t tm_last = mstime64();
 				while(1){
 					size = client_write(conn->client, conn->ib_buf, conn->ib_size);
-					if(size <= 0) {
+					if(size < 0) {
+						usbmuxd_log(LL_ERROR, "%s: aborting buffer flush to client after error.", __func__);
 						break;
+					} else if (size == 0) {
+						uint64_t tm_now = mstime64();
+						if (tm_now - tm_last > 1000) {
+							usbmuxd_log(LL_ERROR, "%s: aborting buffer flush to client after unsuccessfully attempting for %dms.", __func__, (int)(tm_now - tm_last));
+							break;
+						}
+						usleep(10000);
+						continue;
 					}
 					if(size == (int)conn->ib_size) {
 						conn->ib_size = 0;
@@ -326,6 +338,7 @@ static void connection_teardown(struct mux_connection *conn)
 						conn->ib_size -= size;
 						memmove(conn->ib_buf, conn->ib_buf + size, conn->ib_size);
 					}
+					tm_last = mstime64();
 				}
 			}
 			client_close(conn->client);
