@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -69,10 +70,13 @@ struct mux_client {
 	int connect_device;
 	enum client_state state;
 	uint32_t proto_version;
+	uint32_t number;
+	plist_t info;
 };
 
 static struct collection client_list;
 pthread_mutex_t client_list_mutex;
+static uint32_t client_number = 0;
 
 /**
  * Receive raw data from the client socket.
@@ -197,8 +201,10 @@ int client_accept(int listenfd)
 	client->ib_capacity = CMD_BUF_SIZE;
 	client->state = CLIENT_COMMAND;
 	client->events = POLLIN;
+	client->info = NULL;
 
 	pthread_mutex_lock(&client_list_mutex);
+	client->number = client_number++;
 	collection_add(&client_list, client);
 	pthread_mutex_unlock(&client_list_mutex);
 
@@ -229,10 +235,10 @@ void client_close(struct mux_client *client)
 		device_abort_connect(client->connect_device, client);
 	}
 	close(client->fd);
-	if(client->ob_buf)
-		free(client->ob_buf);
-	if(client->ib_buf)
-		free(client->ib_buf);
+	free(client->ob_buf);
+	free(client->ib_buf);
+	plist_free(client->info);
+
 	pthread_mutex_lock(&client_list_mutex);
 	collection_remove(&client_list, client);
 	pthread_mutex_unlock(&client_list_mutex);
@@ -377,6 +383,69 @@ static int send_device_list(struct mux_client *client, uint32_t tag)
 	return res;
 }
 
+static int send_listener_list(struct mux_client *client, uint32_t tag)
+{
+	int res = -1;
+
+	plist_t dict = plist_new_dict();
+	plist_t listeners = plist_new_array();
+
+	pthread_mutex_lock(&client_list_mutex);
+	FOREACH(struct mux_client *lc, &client_list) {
+		if (lc->state == CLIENT_LISTEN) {
+			plist_t n = NULL;
+			plist_t l = plist_new_dict();
+			plist_dict_set_item(l, "Blacklisted", plist_new_bool(0));
+			n = NULL;
+			if (lc->info) {
+				n = plist_dict_get_item(lc->info, "BundleID");
+			}
+			if (n) {
+				plist_dict_set_item(l, "BundleID", plist_copy(n));
+			}
+			plist_dict_set_item(l, "ConnType", plist_new_uint(0));
+
+			n = NULL;
+			char *progname = NULL;
+			if (lc->info) {
+				n = plist_dict_get_item(lc->info, "ProgName");
+			}
+			if (n) {
+				plist_get_string_val(n, &progname);
+			}
+			if (!progname) {
+				progname = strdup("unknown");
+			}
+			char *idstring = malloc(strlen(progname) + 12);
+			sprintf(idstring, "%u-%s", client->number, progname);
+
+			plist_dict_set_item(l, "ID String", plist_new_string(idstring));
+			free(idstring);
+			plist_dict_set_item(l, "ProgName", plist_new_string(progname));
+			free(progname);
+
+			n = NULL;
+			uint64_t version = 0;
+			if (lc->info) {
+				n = plist_dict_get_item(lc->info, "kLibUSBMuxVersion");
+			}
+			if (n) {
+				plist_get_uint_val(n, &version);
+			}
+			plist_dict_set_item(l, "kLibUSBMuxVersion", plist_new_uint(version));
+
+			plist_array_append_item(listeners, l);
+		}
+	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
+
+	plist_dict_set_item(dict, "ListenerList", listeners);
+	res = send_plist_pkt(client, tag, dict);
+	plist_free(dict);
+
+	return res;
+}
+
 static int send_system_buid(struct mux_client *client, uint32_t tag)
 {
 	int res = -1;
@@ -489,6 +558,43 @@ static char* plist_dict_get_string_val(plist_t dict, const char* key)
 	return str;
 }
 
+static void update_client_info(struct mux_client *client, plist_t dict)
+{
+	plist_t node = NULL;
+	char *strval = NULL;
+	uint64_t u64val = 0;
+	plist_t info = plist_new_dict();
+
+	node = plist_dict_get_item(dict, "BundleID");
+	if (node && (plist_get_node_type(node) == PLIST_STRING)) {
+		plist_get_string_val(node, &strval);
+		plist_dict_set_item(info, "BundleID", plist_new_string(strval));
+	}
+
+	strval = NULL;
+	node = plist_dict_get_item(dict, "ClientVersionString");
+	if (node && (plist_get_node_type(node) == PLIST_STRING)) {
+		plist_get_string_val(node, &strval);
+		plist_dict_set_item(info, "ClientVersionString", plist_new_string(strval));
+	}
+
+	strval = NULL;
+	node = plist_dict_get_item(dict, "ProgName");
+	if (node && (plist_get_node_type(node) == PLIST_STRING)) {
+		plist_get_string_val(node, &strval);
+		plist_dict_set_item(info, "ProgName", plist_new_string(strval));
+	}
+
+	u64val = 0;
+	node = plist_dict_get_item(dict, "kLibUSBMuxVersion");
+	if (node && (plist_get_node_type(node) == PLIST_UINT)) {
+		plist_get_uint_val(node, &u64val);
+		plist_dict_set_item(info, "kLibUSBMuxVersion", plist_new_uint(u64val));
+	}
+	plist_free(client->info);
+	client->info = info;
+}
+
 static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 {
 	int res;
@@ -536,6 +642,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					plist_free(dict);
 					return -1;
 				}
+				update_client_info(client, dict);
 				if (!strcmp(message, "Listen")) {
 					free(message);
 					plist_free(dict);
@@ -590,6 +697,12 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					free(message);
 					plist_free(dict);
 					if (send_device_list(client, hdr->tag) < 0)
+						return -1;
+					return 0;
+				} else if (!strcmp(message, "ListListeners")) {
+					free(message);
+					plist_free(dict);
+					if (send_listener_list(client, hdr->tag) < 0)
 						return -1;
 					return 0;
 				} else if (!strcmp(message, "ReadBUID")) {
