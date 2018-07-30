@@ -49,8 +49,10 @@
 #include "client.h"
 #include "conf.h"
 
-static const char *socket_path = "/var/run/usbmuxd";
-static const char *lockfile = "/var/run/usbmuxd.pid";
+static const char *default_lockfile_path = "/var/run/usbmuxd.pid";
+static const char *default_socket_path = "/var/run/usbmuxd";
+static char *socket_path = NULL;
+static char *lockfile = NULL;
 
 int should_exit;
 int should_discover;
@@ -58,7 +60,7 @@ int should_discover;
 static int verbose = 0;
 static int foreground = 0;
 static int drop_privileges = 0;
-static const char *drop_user = NULL;
+static char *drop_user = NULL;
 static int opt_disable_hotplug = 0;
 static int opt_enable_exit = 0;
 static int opt_exit = 0;
@@ -362,6 +364,8 @@ static void usage()
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
 	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
 	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
+	printf("  -l, --lockfile PATH\tPath to lockfile (/var/run/usbmuxd.pid by default).\n");
+	printf("  -k, --socket PATH\tPath to socket (/var/run/usbmuxd by default).\n");
 	printf("  -n, --disable-hotplug\tDisables automatic discovery of devices on hotplug.\n");
 	printf("                       \tStarting another instance will trigger discovery instead.\n");
 	printf("  -z, --enable-exit\tEnable \"--exit\" request from other instances and exit\n");
@@ -387,6 +391,8 @@ static void parse_opts(int argc, char **argv)
 		{"foreground", 0, NULL, 'f'},
 		{"verbose", 0, NULL, 'v'},
 		{"user", 1, NULL, 'U'},
+		{"lockfile", 1, NULL, 'l'},
+		{"socket", 1, NULL, 'k'},
 		{"disable-hotplug", 0, NULL, 'n'},
 		{"enable-exit", 0, NULL, 'z'},
 #ifdef HAVE_UDEV
@@ -401,13 +407,14 @@ static void parse_opts(int argc, char **argv)
 		{NULL, 0, NULL, 0}
 	};
 	int c;
+	int slen;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnz";
+	const char* opts_spec = "hfvVuU:l:k:c:xXsnz";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnz";
+	const char* opts_spec = "hfvVuU:l:k:c:xXnz";
 #else
-	const char* opts_spec = "hfvVU:xXnz";
+	const char* opts_spec = "hfvVU:l:k:c:xXnz";
 #endif
 
 	while (1) {
@@ -431,7 +438,37 @@ static void parse_opts(int argc, char **argv)
 			exit(0);
 		case 'U':
 			drop_privileges = 1;
-			drop_user = optarg;
+			slen = strlen(optarg)+1;
+			if (slen > 0 && slen < 240) {
+				drop_user = (char*)malloc(slen);
+				memset(drop_user, 0, slen);
+				drop_user = strncpy(drop_user, optarg, slen-1);
+			} else {
+				usage();
+				exit(-1);
+			}
+			break;
+		case 'l':
+			slen = strlen(optarg)+1;
+			if (slen > 0 && slen < 240) {
+				lockfile = (char*)malloc(slen);
+				memset(lockfile, 0, slen);
+				lockfile = strncpy(lockfile, optarg, slen-1);
+			} else {
+				usage();
+				exit(-1);
+			}
+			break;
+		case 'k':
+			slen = strlen(optarg)+1;
+			if (slen > 0 && slen < 240) {
+				socket_path = (char*)malloc(slen);
+				memset(socket_path, 0, slen);
+				socket_path = strncpy(socket_path, optarg, slen-1);
+			} else {
+				usage();
+				exit(-1);
+			}
 			break;
 #ifdef HAVE_UDEV
 		case 'u':
@@ -495,6 +532,22 @@ int main(int argc, char *argv[])
 
 	set_signal_handlers();
 	signal(SIGPIPE, SIG_IGN);
+
+	/* set socket and lockfile paths to defaults if not provided by user in parse_opts */
+	if (lockfile == NULL) {
+		lockfile = (char*)malloc(strlen(default_lockfile_path)+1);
+		memset(lockfile, 0, strlen(default_lockfile_path)+1);
+		lockfile = strncpy(lockfile, default_lockfile_path, strlen(default_lockfile_path));
+	}
+
+	if (socket_path == NULL) {
+		socket_path = (char*)malloc(strlen(default_socket_path)+1);
+		memset(socket_path, 0, strlen(default_socket_path)+1);
+		socket_path = strncpy(socket_path, default_socket_path, strlen(default_socket_path));
+	}
+
+	usbmuxd_log(LL_NOTICE, "Lockfile: %s", lockfile);
+	usbmuxd_log(LL_NOTICE, "Socket: %s", socket_path);
 
 	res = lfd = open(lockfile, O_WRONLY|O_CREAT, 0644);
 	if(res == -1) {
@@ -706,6 +759,15 @@ int main(int argc, char *argv[])
 
 terminate:
 	log_disable_syslog();
+
+	if (drop_user != NULL)
+		free(drop_user);
+
+	if (socket_path != NULL)
+		free(socket_path);
+
+	if (lockfile != NULL)
+		free(lockfile);
 
 	if (res < 0)
 		res = -res;
