@@ -524,6 +524,24 @@ static int notify_device_remove(struct mux_client *client, uint32_t device_id)
 	return res;
 }
 
+static int notify_device_paired(struct mux_client *client, uint32_t device_id)
+{
+	int res = -1;
+	if (client->proto_version == 1) {
+		/* XML plist packet */
+		plist_t dict = plist_new_dict();
+		plist_dict_set_item(dict, "MessageType", plist_new_string("Paired"));
+		plist_dict_set_item(dict, "DeviceID", plist_new_uint(device_id));
+		res = send_plist_pkt(client, 0, dict);
+		plist_free(dict);
+	}
+	else {
+		/* binary packet */
+		res = send_pkt(client, 0, MESSAGE_DEVICE_PAIRED, &device_id, sizeof(uint32_t));
+	}
+	return res;
+}
+
 static int start_listen(struct mux_client *client)
 {
 	struct device_info *devs = NULL;
@@ -738,6 +756,34 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 						res = config_set_device_record(record_id, record_data, record_size);
 						if (res < 0) {
 							rval = -res;
+						} else {
+							plist_t p_dev_id = plist_dict_get_item(dict, "DeviceID");
+							uint32_t dev_id = 0;
+							if (p_dev_id && plist_get_node_type(p_dev_id) == PLIST_UINT) {
+								uint64_t u_dev_id = 0;
+								plist_get_uint_val(p_dev_id, &u_dev_id);
+								dev_id = (uint32_t)u_dev_id;
+							}
+							if (dev_id > 0) {
+								struct device_info *devs = NULL;
+								struct device_info *dev;
+								int i;
+								int count = device_get_list(1, &devs);
+								int found = 0;
+								dev = devs;
+								for (i = 0; devs && i < count; i++, dev++) {
+									if ((uint32_t)dev->id == dev_id && (strcmp(dev->serial, record_id) == 0)) {
+										found++;
+										break;
+									}
+								}
+								if (!found) {
+									usbmuxd_log(LL_ERROR, "ERROR: SavePairRecord: DeviceID %d (%s) is not connected\n", dev_id, record_id);
+								} else {
+									client_device_paired(dev_id);
+								}
+								free(devs);
+							}
 						}
 						free(record_id);
 					} else {
@@ -933,6 +979,18 @@ void client_device_remove(int device_id)
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			notify_device_remove(client, id);
+	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
+}
+
+void client_device_paired(int device_id)
+{
+	pthread_mutex_lock(&client_list_mutex);
+	uint32_t id = device_id;
+	usbmuxd_log(LL_DEBUG, "client_device_paired: id %d", device_id);
+	FOREACH(struct mux_client *client, &client_list) {
+		if (client->state == CLIENT_LISTEN)
+			notify_device_paired(client, id);
 	} ENDFOREACH
 	pthread_mutex_unlock(&client_list_mutex);
 }
