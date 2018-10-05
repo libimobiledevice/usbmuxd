@@ -277,11 +277,18 @@ static void get_serial_callback(struct libusb_transfer *transfer)
 		else
 			usbdev->serial[di++] = data[si];
 	}
-	usbdev->serial[di] = 0;
+	usbdev->serial[di] = '\0';
 
 	usbmuxd_log(LL_INFO, "Got serial '%s' for device %d-%d", usbdev->serial, usbdev->bus, usbdev->address);
 
 	libusb_free_transfer(transfer);
+
+	/* new style UDID: add hyphen between first 8 and following 16 digits */
+	if (di == 24) {
+		memmove(&usbdev->serial[9], &usbdev->serial[8], 16);
+		usbdev->serial[8] = '-';
+		usbdev->serial[di+1] = '\0';
+	}
 
 	/* Finish setup now */
 	if(device_add(usbdev) < 0) {
