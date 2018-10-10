@@ -92,6 +92,9 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
+# Check if clock_gettime requires -lrt (old GNU systems)
+AC_SEARCH_LIBS([clock_gettime],[rt posix4])
+
 # Checks for library functions.
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
