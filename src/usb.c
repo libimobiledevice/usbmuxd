@@ -274,6 +274,8 @@ static void get_serial_callback(struct libusb_transfer *transfer)
 	for (di = 0, si = 2; si < data[0] && di < sizeof(usbdev->serial)-1; si += 2) {
 		if ((data[si] & 0x80) || (data[si + 1])) /* non-ASCII */
 			usbdev->serial[di++] = '?';
+		else if (data[si] == '\0')
+			break;
 		else
 			usbdev->serial[di++] = data[si];
 	}
