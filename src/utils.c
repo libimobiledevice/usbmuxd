@@ -245,7 +245,7 @@ int buffer_read_from_filename(const char *filename, char **buffer, uint64_t *len
 	int ret = 1;
 	if (fread(*buffer, sizeof(char), size, f) != size) {
 		usbmuxd_log(LL_ERROR, "%s: ERROR: couldn't read %d bytes from %s", __func__, (int)size, filename);
-		free(buffer);
+		free(*buffer);
 		ret = 0;
 		errno = EIO;
 	}
