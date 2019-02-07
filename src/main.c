@@ -1,9 +1,9 @@
 /*
  * main.c
  *
+ * Copyright (C) 2009-2019 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2013-2014 Martin Szulecki <m.szulecki@libimobiledevice.org>
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
- * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2009 Paul Sladen <libiphone@paul.sladen.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -54,6 +54,7 @@ static const char *lockfile = "/var/run/usbmuxd.pid";
 
 int should_exit;
 int should_discover;
+int use_logfile = 0;
 
 static int verbose = 0;
 static int foreground = 0;
@@ -376,6 +377,7 @@ static void usage()
 	printf("            \t\tconnected (sends SIGUSR1 to running instance) and exit.\n");
 	printf("  -X, --force-exit\tNotify a running instance to exit even if there are still\n");
 	printf("                  \tdevices connected (always works) and exit.\n");
+	printf("  -l, --logfile=LOGFILE\tLog (append) to LOGFILE instead of stderr or syslog.\n");
 	printf("  -V, --version\t\tPrint version information and exit.\n");
 	printf("\n");
 }
@@ -383,31 +385,32 @@ static void usage()
 static void parse_opts(int argc, char **argv)
 {
 	static struct option longopts[] = {
-		{"help", 0, NULL, 'h'},
-		{"foreground", 0, NULL, 'f'},
-		{"verbose", 0, NULL, 'v'},
-		{"user", 1, NULL, 'U'},
-		{"disable-hotplug", 0, NULL, 'n'},
-		{"enable-exit", 0, NULL, 'z'},
+		{"help", no_argument, NULL, 'h'},
+		{"foreground", no_argument, NULL, 'f'},
+		{"verbose", no_argument, NULL, 'v'},
+		{"user", required_argument, NULL, 'U'},
+		{"disable-hotplug", no_argument, NULL, 'n'},
+		{"enable-exit", no_argument, NULL, 'z'},
 #ifdef HAVE_UDEV
-		{"udev", 0, NULL, 'u'},
+		{"udev", no_argument, NULL, 'u'},
 #endif
 #ifdef HAVE_SYSTEMD
-		{"systemd", 0, NULL, 's'},
+		{"systemd", no_argument, NULL, 's'},
 #endif
-		{"exit", 0, NULL, 'x'},
-		{"force-exit", 0, NULL, 'X'},
-		{"version", 0, NULL, 'V'},
+		{"exit", no_argument, NULL, 'x'},
+		{"force-exit", no_argument, NULL, 'X'},
+		{"logfile", required_argument, NULL, 'l'},
+		{"version", no_argument, NULL, 'V'},
 		{NULL, 0, NULL, 0}
 	};
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnz";
+	const char* opts_spec = "hfvVuU:xXsnzl:";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnz";
+	const char* opts_spec = "hfvVuU:xXnzl:";
 #else
-	const char* opts_spec = "hfvVU:xXnz";
+	const char* opts_spec = "hfvVU:xXnzl:";
 #endif
 
 	while (1) {
@@ -459,6 +462,22 @@ static void parse_opts(int argc, char **argv)
 			opt_exit = 1;
 			exit_signal = SIGTERM;
 			break;
+		case 'l':
+			if (!*optarg) {
+				usbmuxd_log(LL_FATAL, "ERROR: --logfile requires a non-empty filename");
+				usage();
+				exit(2);
+			}
+			if (use_logfile) {
+				usbmuxd_log(LL_FATAL, "ERROR: --logfile cannot be used multiple times");
+				exit(2);
+			}
+			if (!freopen(optarg, "a", stderr)) {
+				usbmuxd_log(LL_FATAL, "ERROR: fdreopen: %s", strerror(errno));
+			} else {
+				use_logfile = 1;
+			}
+			break;
 		default:
 			usage();
 			exit(2);
@@ -479,7 +498,7 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (!foreground) {
+	if (!foreground && !use_logfile) {
 		verbose += LL_WARNING;
 		log_enable_syslog();
 	} else {
