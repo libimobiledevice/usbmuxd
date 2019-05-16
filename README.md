@@ -14,16 +14,16 @@ is not used for tethering data transfer which uses a dedicated USB interface as
 a virtual network device. Multiple connections to different TCP ports can happen
 in parallel. The higher-level layers are handled by libimobiledevice.
 
-When usbmuxd is running (normally started, or stopped as a result of "udev"
-auto-insertion messages or by systemd) it provides a socket interface in
+When usbmuxd is running (normally started or stopped as a result of _udev_
+auto-insertion messages, or by _systemd_) it provides a socket interface in
 `/var/run/usbmuxd` that is designed to be compatible with the socket interface
-that is provided on Mac OS X.
+that is provided on macOS.
 
-You should also create a "usbmux" user that has access to USB devices on your
-system. Alternatively, you can pass a different username using the -U argument.
+You should also create a `usbmux` user that has access to USB devices on your
+system. Alternatively, you can pass a different username using the `-U` argument.
 
-Due to iOS 7 the daemon now also manages pairing records with iOS devices and
-the host in `/var/lib/lockdown` (Linux) or `/var/db/lockdown` (macOS).
+The daemon also manages pairing records with iOS devices and the host in
+`/var/lib/lockdown` (Linux) or `/var/db/lockdown` (macOS).
 Ensure proper permissions are setup for the daemon to access the directory.
 
 ## Requirements
