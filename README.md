@@ -11,19 +11,19 @@ multiplexing connections over USB to an iOS device. To users, it means
 you can sync your music, contacts, photos, etc. over USB. To developers, it
 means you can connect to any listening localhost socket on the device. usbmuxd
 is not used for tethering data transfer which uses a dedicated USB interface as
-a virtual network device. Multiple connections to different TCP ports can happen
+a virtual network device. Multiple connections to different TCP ports can happen
 in parallel. The higher-level layers are handled by libimobiledevice.
 
 When usbmuxd is running (normally started, or stopped as a result of "udev"
 auto-insertion messages or by systemd) it provides a socket interface in
-"/var/run/usbmuxd" that is designed to be compatible with the socket interface
+`/var/run/usbmuxd` that is designed to be compatible with the socket interface
 that is provided on Mac OS X.
 
 You should also create a "usbmux" user that has access to USB devices on your
 system. Alternatively, you can pass a different username using the -U argument.
 
 Due to iOS 7 the daemon now also manages pairing records with iOS devices and
-the host in "/var/lib/lockdown" (Linux) or "/var/db/lockdown" (Mac OS X).
+the host in `/var/lib/lockdown` (Linux) or `/var/db/lockdown` (macOS).
 Ensure proper permissions are setup for the daemon to access the directory.
 
 ## Requirements
@@ -34,17 +34,17 @@ Development Packages of:
 * libusb
 
 Software:
-  make
-  autoheader
-  automake
-  autoconf
-  libtool
-  pkg-config
-  gcc
-  udev (Linux only)
+* make
+* autoheader
+* automake
+* autoconf
+* libtool
+* pkg-config
+* gcc or clang
+* udev (Linux only)
 
 Optional:
-  systemd (Linux only)
+* systemd (Linux only)
 
 ## Installation
 
@@ -60,16 +60,16 @@ The daemon is automatically started by udev or systemd depending on what you
 have configured it on hotplug of an iOS device and exits if the last device
 was unplugged.
 
-For debugging purposes it is helpful to start usbmuxd using the foreground '-f'
-argument and enable verbose mode '-v' to get suitable logs.
+For debugging purposes it is helpful to start usbmuxd using the foreground `-f`
+argument and enable verbose mode `-v` to get suitable logs.
 
 ## Who/What/Where?
 
-* Home: http://www.libimobiledevice.org/
-* Code: `git clone http://git.libimobiledevice.org/usbmuxd.git`
+* Home: https://www.libimobiledevice.org/
+* Code: `git clone https://git.libimobiledevice.org/usbmuxd.git`
 * Code (Mirror): `git clone https://github.com/libimobiledevice/usbmuxd.git`
-* Tickets: http://github.com/libimobiledevice/usbmuxd/issues
-* Mailing List: http://lists.libimobiledevice.org/mailman/listinfo/libimobiledevice-devel
+* Tickets: https://github.com/libimobiledevice/usbmuxd/issues
+* Mailing List: https://lists.libimobiledevice.org/mailman/listinfo/libimobiledevice-devel
 * IRC: irc://irc.freenode.net#libimobiledevice
 * Twitter: https://twitter.com/libimobiledev
 
@@ -81,4 +81,4 @@ Apple, iPhone, iPod, and iPod Touch are trademarks of Apple Inc.
 libimobiledevice is an independent software library and has not been
 authorized, sponsored, or otherwise approved by Apple Inc.
 
-README Updated on: 2015-12-13
+README Updated on: 2019-05-16
