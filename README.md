@@ -1,4 +1,4 @@
-# usbmud
+# usbmuxd
 
 ## About
 
