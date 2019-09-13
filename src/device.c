@@ -344,10 +344,8 @@ static void connection_teardown(struct mux_connection *conn)
 			client_close(conn->client);
 		}
 	}
-	if(conn->ib_buf)
-		free(conn->ib_buf);
-	if(conn->ob_buf)
-		free(conn->ob_buf);
+	free(conn->ib_buf);
+	free(conn->ob_buf);
 	collection_remove(&conn->dev->connections, conn);
 	free(conn);
 }
@@ -394,6 +392,8 @@ int device_start_connect(int device_id, uint16_t dport, struct mux_client *clien
 	res = send_tcp(conn, TH_SYN, NULL, 0);
 	if(res < 0) {
 		usbmuxd_log(LL_ERROR, "Error sending TCP SYN to device %d (%d->%d)", dev->id, sport, dport);
+		free(conn->ib_buf);
+		free(conn->ob_buf);
 		free(conn);
 		return -RESULT_CONNREFUSED; //bleh
 	}
