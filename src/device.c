@@ -323,12 +323,13 @@ static void connection_teardown(struct mux_connection *conn)
 						usbmuxd_log(LL_ERROR, "%s: aborting buffer flush to client after error.", __func__);
 						break;
 					} else if (size == 0) {
+						struct timespec ten = { 0, 10 * 1000 * 1000 };
 						uint64_t tm_now = mstime64();
 						if (tm_now - tm_last > 1000) {
 							usbmuxd_log(LL_ERROR, "%s: aborting buffer flush to client after unsuccessfully attempting for %dms.", __func__, (int)(tm_now - tm_last));
 							break;
 						}
-						usleep(10000);
+						nanosleep(&ten, NULL);
 						continue;
 					}
 					if(size == (int)conn->ib_size) {
