@@ -59,6 +59,7 @@ struct cb_data {
 	idevice_t dev;
 	np_client_t np;
 	int is_device_connected;
+	int is_finished;
 };
 
 static void lockdownd_set_untrusted_host_buid(lockdownd_client_t lockdown)
@@ -97,6 +98,7 @@ static void np_callback(const char* notification, void* userdata)
 		lerr = lockdownd_client_new(dev, &lockdown, "usbmuxd");
 		if (lerr != LOCKDOWN_E_SUCCESS) {
 			usbmuxd_log(LL_ERROR, "%s: ERROR: Could not connect to lockdownd on device %s, lockdown error %d", __func__, _dev->udid, lerr);
+			cbdata->is_finished = 1;
 			return;
 		}
 
@@ -104,10 +106,11 @@ static void np_callback(const char* notification, void* userdata)
 		if (lerr != LOCKDOWN_E_SUCCESS) {
 			usbmuxd_log(LL_ERROR, "%s: ERROR: Pair failed for device %s, lockdown error %d", __func__, _dev->udid, lerr);
 			lockdownd_client_free(lockdown);
+			cbdata->is_finished = 1;
 			return;
 		}
 		lockdownd_client_free(lockdown);
-		// device will reconnect by itself at this point.
+		cbdata->is_finished = 1;
 
 	} else if (strcmp(notification, "com.apple.mobile.lockdown.request_host_buid") == 0) {
 		lerr = lockdownd_client_new(cbdata->dev, &lockdown, "usbmuxd");
@@ -255,6 +258,7 @@ retry:
 		cbdata.dev = dev;
 		cbdata.np = np;
 		cbdata.is_device_connected = 1;
+		cbdata.is_finished = 0;
 
 		np_set_notify_callback(np, np_callback, (void*)&cbdata);
 		device_set_preflight_cb_data(info->id, (void*)&cbdata);
@@ -273,7 +277,7 @@ retry:
 		/* make device visible anyways */
 		client_device_add(info);
 
-		while (cbdata.np && cbdata.is_device_connected == 1) {
+		while (cbdata.np && cbdata.is_device_connected && !cbdata.is_finished) {
 			sleep(1);
 		}
 		device_set_preflight_cb_data(info->id, NULL);
