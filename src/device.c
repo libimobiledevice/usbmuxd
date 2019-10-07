@@ -933,7 +933,7 @@ int device_get_list(int include_hidden, struct device_info **devices)
 	*devices = malloc(sizeof(struct device_info) * dev_list.capacity);
 	struct device_info *p = *devices;
 
-	FOREACH(struct mux_device *dev, &device_list) {
+	FOREACH(struct mux_device *dev, &dev_list) {
 		if((dev->state == MUXDEV_ACTIVE) && (include_hidden || dev->visible)) {
 			p->id = dev->id;
 			p->serial = usb_get_serial(dev->usbdev);
