@@ -337,6 +337,7 @@ leave:
 	if (dev)
 		idevice_free(dev);
 
+	free((char*)info->serial);
 	free(info);
 
 	return NULL;
@@ -353,6 +354,9 @@ void preflight_worker_device_add(struct device_info* info)
 	struct device_info *infocopy = (struct device_info*)malloc(sizeof(struct device_info));
 
 	memcpy(infocopy, info, sizeof(struct device_info));
+	if (info->serial) {
+		infocopy->serial = strdup(info->serial);
+	}
 
 	pthread_t th;
 	pthread_attr_t attr;
@@ -362,6 +366,7 @@ void preflight_worker_device_add(struct device_info* info)
 
 	int perr = pthread_create(&th, &attr, preflight_worker_handle_device_add, infocopy);
 	if (perr != 0) {
+		free((char*)infocopy->serial);
 		free(infocopy);
 		usbmuxd_log(LL_ERROR, "ERROR: failed to start preflight worker thread for device %s: %s (%d). Invoking client_device_add() directly but things might not work as expected.", info->serial, strerror(perr), perr);
 		client_device_add(info);
