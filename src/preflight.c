@@ -43,14 +43,17 @@
 #include "log.h"
 
 #ifdef HAVE_LIBIMOBILEDEVICE
-enum connection_type {
-	CONNECTION_USBMUXD = 1
+#ifndef HAVE_ENUM_IDEVICE_CONNECTION_TYPE
+enum idevice_connection_type {
+	CONNECTION_USBMUXD = 1,
+	CONNECTION_NETWORK
 };
+#endif
 
 struct idevice_private {
 	char *udid;
 	uint32_t mux_id;
-	enum connection_type conn_type;
+	enum idevice_connection_type conn_type;
 	void *conn_data;
 	int version;
 };
