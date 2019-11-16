@@ -628,30 +628,22 @@ static char* plist_dict_get_string_val(plist_t dict, const char* key)
 	return str;
 }
 
+static void copy_plist_item(const char* key, plist_type type, plist_t src, plist_t dest)
+{
+	plist_t item = plist_dict_get_item(src, key);
+	if (item && (plist_get_node_type(item) == type)) {
+		plist_dict_set_item(dest, key, plist_copy(item));
+	}
+}
+
 static void update_client_info(struct mux_client *client, plist_t dict)
 {
-	plist_t node = NULL;
 	plist_t info = plist_new_dict();
 
-	node = plist_dict_get_item(dict, "BundleID");
-	if (node && (plist_get_node_type(node) == PLIST_STRING)) {
-		plist_dict_set_item(info, "BundleID", plist_copy(node));
-	}
-
-	node = plist_dict_get_item(dict, "ClientVersionString");
-	if (node && (plist_get_node_type(node) == PLIST_STRING)) {
-		plist_dict_set_item(info, "ClientVersionString", plist_copy(node));
-	}
-
-	node = plist_dict_get_item(dict, "ProgName");
-	if (node && (plist_get_node_type(node) == PLIST_STRING)) {
-		plist_dict_set_item(info, "ProgName", plist_copy(node));
-	}
-
-	node = plist_dict_get_item(dict, "kLibUSBMuxVersion");
-	if (node && (plist_get_node_type(node) == PLIST_UINT)) {
-		plist_dict_set_item(info, "kLibUSBMuxVersion", plist_copy(node));
-	}
+	copy_plist_item("BundleID", PLIST_STRING, dict, info);
+	copy_plist_item("ClientVersionString", PLIST_STRING, dict, info);
+	copy_plist_item("ProgName", PLIST_STRING, dict, info);
+	copy_plist_item("kLibUSBMuxVersion", PLIST_UINT, dict, info);
 	plist_free(client->info);
 	client->info = info;
 }
