@@ -380,8 +380,9 @@ static int usb_device_add(libusb_device* dev)
 	}
 	if(devdesc.idVendor != VID_APPLE)
 		return -1;
-	if((devdesc.idProduct < PID_RANGE_LOW) ||
-		(devdesc.idProduct > PID_RANGE_MAX))
+	if((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) &&
+		((devdesc.idProduct < PID_RANGE_LOW) ||
+		(devdesc.idProduct > PID_RANGE_MAX)))
 		return -1;
 	libusb_device_handle *handle;
 	usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);

@@ -46,6 +46,7 @@
 #define VID_APPLE 0x5ac
 #define PID_RANGE_LOW 0x1290
 #define PID_RANGE_MAX 0x12af
+#define PID_APPLE_T2_COPROCESSOR 0x8600
 
 struct usb_device;
 
