@@ -147,7 +147,6 @@ static struct mux_device* get_mux_device_for_id(int device_id)
 static struct mux_connection* get_mux_connection(int device_id, struct mux_client *client)
 {
 	struct mux_connection *conn = NULL;
-	pthread_mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->id == device_id) {
 			FOREACH(struct mux_connection *lconn, &dev->connections) {
@@ -159,7 +158,6 @@ static struct mux_connection* get_mux_connection(int device_id, struct mux_clien
 			break;
 		}
 	} ENDFOREACH
-	pthread_mutex_unlock(&device_list_mutex);
 
 	return conn;
 }
@@ -466,8 +464,9 @@ static int send_tcp_ack(struct mux_connection *conn)
  */
 void device_client_process(int device_id, struct mux_client *client, short events)
 {
+	pthread_mutex_lock(&device_list_mutex);
 	struct mux_connection *conn = get_mux_connection(device_id, client);
-
+	pthread_mutex_unlock(&device_list_mutex);
 	if(!conn) {
 		usbmuxd_log(LL_WARNING, "Could not find connection for device %d client %p", device_id, client);
 		return;
