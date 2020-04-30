@@ -35,12 +35,15 @@ if test "x$have_limd" = "xyes"; then
     AC_DEFINE(HAVE_LIBIMOBILEDEVICE, 1, [Define if you have libimobiledevice support])
     AC_SUBST(libimobiledevice_CFLAGS)
     AC_SUBST(libimobiledevice_LIBS)
+    CACHED_CFLAGS="$CFLAGS"
+    CFLAGS+=" $libimobiledevice_CFLAGS"
     AC_CACHE_CHECK(for enum idevice_connection_type, ac_cv_enum_idevice_connection_type,
       AC_TRY_COMPILE([
         #include <libimobiledevice/libimobiledevice.h>
       ], [
         enum idevice_connection_type conn_type = CONNECTION_USBMUXD;
       ], ac_cv_enum_idevice_connection_type=yes, ac_cv_enum_idevice_connection_type=no))
+    CFLAGS="$CACHED_CFLAGS"
     if (test "$ac_cv_enum_idevice_connection_type" = "yes"); then
       AC_DEFINE(HAVE_ENUM_IDEVICE_CONNECTION_TYPE, 1, [Define if enum idevice_connection_type is available])
     fi
