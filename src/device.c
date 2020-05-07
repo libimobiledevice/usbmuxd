@@ -224,7 +224,7 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 		mhdr->tx_seq = htons(dev->tx_seq);
 		mhdr->rx_seq = htons(dev->rx_seq);
 		dev->tx_seq++;
-	}	
+	}
 	memcpy(buffer + mux_header_size, header, hdrlen);
 	if(data && length)
 		memcpy(buffer + mux_header_size + hdrlen, data, length);
@@ -690,6 +690,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 				return;
 			}
 			conn->state = CONN_CONNECTED;
+			usbmuxd_log(LL_DEBUG, "Client connected to device %d (%d->%d)", dev->id, sport, dport);
 			if(client_notify_connect(conn->client, RESULT_OK) < 0) {
 				conn->client = NULL;
 				connection_teardown(conn);
@@ -978,8 +979,8 @@ void device_check_timeouts(void)
 	FOREACH(struct mux_device *dev, &device_list) {
 		if(dev->state == MUXDEV_ACTIVE) {
 			FOREACH(struct mux_connection *conn, &dev->connections) {
-				if((conn->state == CONN_CONNECTED) && 
-						(conn->flags & CONN_ACK_PENDING) && 
+				if((conn->state == CONN_CONNECTED) &&
+						(conn->flags & CONN_ACK_PENDING) &&
 						(ct - conn->last_ack_time) > ACK_TIMEOUT) {
 					usbmuxd_log(LL_DEBUG, "Sending ACK due to expired timeout (%" PRIu64 " -> %" PRIu64 ")", conn->last_ack_time, ct);
 					send_tcp_ack(conn);
