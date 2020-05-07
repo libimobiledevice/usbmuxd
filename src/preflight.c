@@ -41,6 +41,9 @@
 #include "client.h"
 #include "conf.h"
 #include "log.h"
+#include "usb.h"
+
+extern int no_preflight;
 
 #ifdef HAVE_LIBIMOBILEDEVICE
 #ifndef HAVE_ENUM_IDEVICE_CONNECTION_TYPE
@@ -270,7 +273,7 @@ retry:
 			"com.apple.mobile.lockdown.request_pair",
 			"com.apple.mobile.lockdown.request_host_buid",
 			NULL
-		}; 
+		};
 		np_observe_notifications(np, spec);
 
 		/* TODO send notification to user's desktop */
@@ -353,6 +356,11 @@ void preflight_device_remove_cb(void *data)
 
 void preflight_worker_device_add(struct device_info* info)
 {
+	if (info->pid == PID_APPLE_T2_COPROCESSOR || no_preflight == 1) {
+		client_device_add(info);
+		return;
+	}
+
 #ifdef HAVE_LIBIMOBILEDEVICE
 	struct device_info *infocopy = (struct device_info*)malloc(sizeof(struct device_info));
 

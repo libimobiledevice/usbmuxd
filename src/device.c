@@ -690,7 +690,7 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 				return;
 			}
 			conn->state = CONN_CONNECTED;
-			usbmuxd_log(LL_DEBUG, "Client connected to device %d (%d->%d)", dev->id, sport, dport);
+			usbmuxd_log(LL_INFO, "Client connected to device %d (%d->%d)", dev->id, sport, dport);
 			if(client_notify_connect(conn->client, RESULT_OK) < 0) {
 				conn->client = NULL;
 				connection_teardown(conn);

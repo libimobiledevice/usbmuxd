@@ -53,10 +53,13 @@
 static const char *socket_path = "/var/run/usbmuxd";
 static const char *lockfile = "/var/run/usbmuxd.pid";
 
+// Global state used in other files
 int should_exit;
 int should_discover;
 int use_logfile = 0;
+int no_preflight = 0;
 
+// Global state for main.c
 static int verbose = 0;
 static int foreground = 0;
 static int drop_privileges = 0;
@@ -151,7 +154,7 @@ static void set_signal_handlers(void)
 	sigaddset(&set, SIGUSR1);
 	sigaddset(&set, SIGUSR2);
 	sigprocmask(SIG_SETMASK, &set, NULL);
-	
+
 	memset(&sa, 0, sizeof(struct sigaction));
 	sa.sa_handler = handle_signal;
 	sigaction(SIGINT, &sa, NULL);
@@ -368,6 +371,7 @@ static void usage()
 	printf("                       \tStarting another instance will trigger discovery instead.\n");
 	printf("  -z, --enable-exit\tEnable \"--exit\" request from other instances and exit\n");
 	printf("                   \tautomatically if no device is attached.\n");
+	printf("  -p, --no-preflight\tDisable lockdownd preflight on new device.\n");
 #ifdef HAVE_UDEV
 	printf("  -u, --udev\t\tRun in udev operation mode (implies -n and -z).\n");
 #endif
@@ -392,6 +396,7 @@ static void parse_opts(int argc, char **argv)
 		{"user", required_argument, NULL, 'U'},
 		{"disable-hotplug", no_argument, NULL, 'n'},
 		{"enable-exit", no_argument, NULL, 'z'},
+		{"no-preflight", no_argument, NULL, 'p'},
 #ifdef HAVE_UDEV
 		{"udev", no_argument, NULL, 'u'},
 #endif
@@ -407,11 +412,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnzl:";
+	const char* opts_spec = "hfvVuU:xXsnzl:p";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnzl:";
+	const char* opts_spec = "hfvVuU:xXnzl:p";
 #else
-	const char* opts_spec = "hfvVU:xXnzl:";
+	const char* opts_spec = "hfvVU:xXnzl:p";
 #endif
 
 	while (1) {
@@ -436,6 +441,9 @@ static void parse_opts(int argc, char **argv)
 		case 'U':
 			drop_privileges = 1;
 			drop_user = optarg;
+			break;
+		case 'p':
+			no_preflight = 1;
 			break;
 #ifdef HAVE_UDEV
 		case 'u':
