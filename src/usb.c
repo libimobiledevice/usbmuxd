@@ -394,8 +394,8 @@ static int usb_device_add(libusb_device* dev)
 	}
 
 	int desired_config = devdesc.bNumConfigurations;
-	if (desired_config > 4) {
-		desired_config = 4;
+	if (desired_config > 5) {
+		desired_config = 5;
 	}
 	int current_config = 0;
 	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
