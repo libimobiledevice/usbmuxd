@@ -362,7 +362,10 @@ static int notify_parent(int status)
 static void usage()
 {
 	printf("Usage: %s [OPTIONS]\n", PACKAGE_NAME);
-	printf("Expose a socket to multiplex connections from and to iOS devices.\n\n");
+	printf("\n");
+	printf("Expose a socket to multiplex connections from and to iOS devices.\n");
+	printf("\n");
+	printf("OPTIONS:\n");
 	printf("  -h, --help\t\tPrint this message.\n");
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
 	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
@@ -385,6 +388,8 @@ static void usage()
 	printf("  -l, --logfile=LOGFILE\tLog (append) to LOGFILE instead of stderr or syslog.\n");
 	printf("  -V, --version\t\tPrint version information and exit.\n");
 	printf("\n");
+	printf("Homepage:    <" PACKAGE_URL ">\n");
+	printf("Bug Reports: <" PACKAGE_BUGREPORT ">\n");
 }
 
 static void parse_opts(int argc, char **argv)
