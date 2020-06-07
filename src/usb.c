@@ -97,7 +97,7 @@ static void usb_disconnect(struct usb_device *dev)
 		tv.tv_sec = 0;
 		tv.tv_usec = 1000;
 		if((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
-			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for usb_disconnect failed: %d", res);
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for usb_disconnect failed: %s", libusb_error_name(res));
 			break;
 		}
 	}
@@ -169,7 +169,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_out, (void*)buf, length, tx_callback, dev, 0);
 	if((res = libusb_submit_transfer(xfer)) < 0) {
-		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %d", buf, length, dev->bus, dev->address, res);
+		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %s", buf, length, dev->bus, dev->address, libusb_error_name(res));
 		libusb_free_transfer(xfer);
 		return res;
 	}
@@ -181,7 +181,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 		void *buffer = malloc(1);
 		libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_out, buffer, 0, tx_callback, dev, 0);
 		if((res = libusb_submit_transfer(xfer)) < 0) {
-			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %d", dev->bus, dev->address, res);
+			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
 			libusb_free_transfer(xfer);
 			return res;
 		}
@@ -248,7 +248,7 @@ static int start_rx_loop(struct usb_device *dev)
 	buf = malloc(USB_MRU);
 	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_in, buf, USB_MRU, rx_callback, dev, 0);
 	if((res = libusb_submit_transfer(xfer)) != 0) {
-		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device %d-%d: %d", dev->bus, dev->address, res);
+		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
 		libusb_free_transfer(xfer);
 		return res;
 	}
@@ -350,7 +350,7 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 	libusb_fill_control_transfer(transfer, usbdev->dev, transfer->buffer, get_serial_callback, usbdev, 1000);
 
 	if((res = libusb_submit_transfer(transfer)) < 0) {
-		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d (%d)", usbdev->bus, usbdev->address, res);
+		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d: %s", usbdev->bus, usbdev->address, libusb_error_name(res));
 		libusb_free_transfer(transfer);
 	}
 }
@@ -375,7 +375,7 @@ static int usb_device_add(libusb_device* dev)
 		return 0; //device already found
 
 	if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %d", bus, address, res);
+		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
 		return -1;
 	}
 	if(devdesc.idVendor != VID_APPLE)
@@ -389,7 +389,7 @@ static int usb_device_add(libusb_device* dev)
 	// No blocking operation can follow: it may be run in the libusb hotplug callback and libusb will refuse any
 	// blocking call
 	if((res = libusb_open(dev, &handle)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %d", bus, address, res);
+		usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %s", bus, address, libusb_error_name(res));
 		return -1;
 	}
 
@@ -399,25 +399,25 @@ static int usb_device_add(libusb_device* dev)
 	}
 	int current_config = 0;
 	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %d", bus, address, res);
+		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %s", bus, address, libusb_error_name(res));
 		libusb_close(handle);
 		return -1;
 	}
 	if (current_config != desired_config) {
 		struct libusb_config_descriptor *config;
 		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
+			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
 		} else {
 			for(j=0; j<config->bNumInterfaces; j++) {
 				const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
 				if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
-					usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %d", intf->bInterfaceNumber, bus, address, res);
+					usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %s", intf->bInterfaceNumber, bus, address, libusb_error_name(res));
 					continue;
 				}
 				if(res == 1) {
 					usbmuxd_log(LL_INFO, "Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
 					if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
-						usbmuxd_log(LL_WARNING, "Could not detach kernel driver (%d), configuration change will probably fail!", res);
+						usbmuxd_log(LL_WARNING, "Could not detach kernel driver, configuration change will probably fail! %s", libusb_error_name(res));
 						continue;
 					}
 				}
@@ -427,7 +427,7 @@ static int usb_device_add(libusb_device* dev)
 
 		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, desired_config);
 		if((res = libusb_set_configuration(handle, desired_config)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %d", desired_config, bus, address, res);
+			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %s", desired_config, bus, address, libusb_error_name(res));
 			libusb_close(handle);
 			return -1;
 		}
@@ -435,7 +435,7 @@ static int usb_device_add(libusb_device* dev)
 
 	struct libusb_config_descriptor *config;
 	if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
+		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
 		libusb_close(handle);
 		return -1;
 	}
@@ -484,7 +484,7 @@ static int usb_device_add(libusb_device* dev)
 	libusb_free_config_descriptor(config);
 
 	if((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %d", usbdev->interface, bus, address, res);
+		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %s", usbdev->interface, bus, address, libusb_error_name(res));
 		libusb_close(handle);
 		free(usbdev);
 		return -1;
@@ -492,7 +492,7 @@ static int usb_device_add(libusb_device* dev)
 
 	transfer = libusb_alloc_transfer(0);
 	if(!transfer) {
-		usbmuxd_log(LL_WARNING, "Failed to allocate transfer for device %d-%d: %d", bus, address, res);
+		usbmuxd_log(LL_WARNING, "Failed to allocate transfer for device %d-%d: %s", bus, address, libusb_error_name(res));
 		libusb_close(handle);
 		free(usbdev);
 		return -1;
@@ -500,7 +500,7 @@ static int usb_device_add(libusb_device* dev)
 
 	unsigned char *transfer_buffer = malloc(1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
 	if (!transfer_buffer) {
-		usbmuxd_log(LL_WARNING, "Failed to allocate transfer buffer for device %d-%d: %d", bus, address, res);
+		usbmuxd_log(LL_WARNING, "Failed to allocate transfer buffer for device %d-%d: %s", bus, address, libusb_error_name(res));
 		libusb_close(handle);
 		free(usbdev);
 		return -1;
@@ -551,7 +551,7 @@ static int usb_device_add(libusb_device* dev)
 	libusb_fill_control_transfer(transfer, handle, transfer_buffer, get_langid_callback, usbdev, 1000);
 
 	if((res = libusb_submit_transfer(transfer)) < 0) {
-		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d (%d)", usbdev->bus, usbdev->address, res);
+		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d: %s", usbdev->bus, usbdev->address, libusb_error_name(res));
 		libusb_free_transfer(transfer);
 		libusb_close(handle);
 		free(transfer_buffer);
@@ -703,7 +703,7 @@ int usb_get_timeout(void)
 	if(res == 0)
 		return pollrem;
 	if(res < 0) {
-		usbmuxd_log(LL_ERROR, "libusb_get_next_timeout failed: %d", res);
+		usbmuxd_log(LL_ERROR, "libusb_get_next_timeout failed: %s", libusb_error_name(res));
 		return pollrem;
 	}
 	msec = tv.tv_sec * 1000;
@@ -720,7 +720,7 @@ int usb_process(void)
 	tv.tv_sec = tv.tv_usec = 0;
 	res = libusb_handle_events_timeout(NULL, &tv);
 	if(res < 0) {
-		usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %d", res);
+		usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %s", libusb_error_name(res));
 		return res;
 	}
 
@@ -730,7 +730,7 @@ int usb_process(void)
 	if(dev_poll_remain_ms() <= 0) {
 		res = usb_discover();
 		if(res < 0) {
-			usbmuxd_log(LL_ERROR, "usb_discover failed: %d", res);
+			usbmuxd_log(LL_ERROR, "usb_discover failed: %s", libusb_error_name(res));
 			return res;
 		}
 	}
@@ -755,7 +755,7 @@ int usb_process_timeout(int msec)
 		}
 		res = libusb_handle_events_timeout(NULL, &tleft);
 		if(res < 0) {
-			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %d", res);
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %s", libusb_error_name(res));
 			return res;
 		}
 		// reap devices marked dead due to an RX error
@@ -804,7 +804,7 @@ int usb_init(void)
 	libusb_set_debug(NULL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG: (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING: LIBUSB_LOG_LEVEL_NONE)));
 
 	if(res != 0) {
-		usbmuxd_log(LL_FATAL, "libusb_init failed: %d", res);
+		usbmuxd_log(LL_FATAL, "libusb_init failed: %s", libusb_error_name(res));
 		return -1;
 	}
 
@@ -817,7 +817,7 @@ int usb_init(void)
 		if (res == LIBUSB_SUCCESS) {
 			device_polling = 0;
 		} else {
-			usbmuxd_log(LL_ERROR, "ERROR: Could not register for libusb hotplug events (%d)", res);
+			usbmuxd_log(LL_ERROR, "ERROR: Could not register for libusb hotplug events. %s", libusb_error_name(res));
 		}
 	} else {
 		usbmuxd_log(LL_ERROR, "libusb does not support hotplug events");
