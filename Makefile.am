@@ -5,7 +5,8 @@ SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB) docs
 EXTRA_DIST = \
 	docs \
 	COPYING.GPLv2 \
-	COPYING.GPLv3
+	COPYING.GPLv3 \
+	README.md
 
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-udevrulesdir=$$dc_install_base/$(udevrulesdir) \
