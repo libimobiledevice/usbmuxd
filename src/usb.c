@@ -795,7 +795,7 @@ int usb_init(void)
 {
 	int res;
 	const struct libusb_version* libusb_version_info = libusb_get_version();
-	usbmuxd_log(LL_DEBUG, "Using libusb %d.%d", libusb_version_info->major, libusb_version_info->minor);
+	usbmuxd_log(LL_NOTICE, "Using libusb %d.%d.%d", libusb_version_info->major, libusb_version_info->minor, libusb_version_info->micro);
 
 	devlist_failures = 0;
 	device_polling = 1;
