@@ -611,9 +611,12 @@ static void device_control_input(struct mux_device *dev, unsigned char *payload,
 				buf[payload_length-1] = '\0';
 				usbmuxd_log(LL_INFO, "%s: %s", __func__, buf);
 				free(buf);
+			} else {
+				usbmuxd_log(LL_WARNING, "%s: Got payload type 7 with empty message", __func__);
 			}
 			break;
 		default:
+			usbmuxd_log(LL_WARNING, "%s: Got unhandled payload type %d", __func__, payload[0]);
 			break;
 		}
 	} else {
