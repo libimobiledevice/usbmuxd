@@ -598,10 +598,10 @@ static void device_control_input(struct mux_device *dev, unsigned char *payload,
 				char* buf = malloc(payload_length);
 				strncpy(buf, (char*)payload+1, payload_length-1);
 				buf[payload_length-1] = '\0';
-				usbmuxd_log(LL_ERROR, "%s: ERROR: %s", __func__, buf);
+				usbmuxd_log(LL_ERROR, "%s: ERROR (on device): %s", __func__, buf);
 				free(buf);
 			} else {
-				usbmuxd_log(LL_ERROR, "%s: Error occurred, but empty error message", __func__);
+				usbmuxd_log(LL_ERROR, "%s: Got device error payload with empty message", __func__);
 			}
 			break;
 		case 7:
@@ -617,7 +617,7 @@ static void device_control_input(struct mux_device *dev, unsigned char *payload,
 			break;
 		}
 	} else {
-		usbmuxd_log(LL_WARNING, "%s: got a type 1 packet without payload", __func__);
+		usbmuxd_log(LL_WARNING, "%s: Got a type 1 packet without payload", __func__);
 	}
 }
 

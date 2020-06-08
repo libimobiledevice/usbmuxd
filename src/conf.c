@@ -140,7 +140,7 @@ const char *config_get_config_dir()
 
 	free(base_config_dir);
 
-	usbmuxd_log(LL_DEBUG, "initialized config_dir to %s", __config_dir);
+	usbmuxd_log(LL_DEBUG, "Initialized config_dir to %s", __config_dir);
 
 	return __config_dir;
 }
@@ -247,11 +247,11 @@ static int internal_set_value(const char *config_file, const char *key, plist_t 
 	char *value_string = NULL;
 	if (plist_get_node_type(value) == PLIST_STRING) {
 		plist_get_string_val(value, &value_string);
-		usbmuxd_log(LL_DEBUG, "setting key %s to %s in config_file %s", key, value_string, config_file);
+		usbmuxd_log(LL_DEBUG, "Setting key %s to %s in config file %s", key, value_string, config_file);
 		if (value_string)
 			free(value_string);
 	} else {
-		usbmuxd_log(LL_DEBUG, "setting key %s in config_file %s", key, config_file);
+		usbmuxd_log(LL_DEBUG, "Setting key %s in config file %s", key, config_file);
 	}
 
 	int res = plist_write_to_filename(config, config_file, PLIST_FORMAT_XML);
@@ -289,7 +289,7 @@ static int internal_get_value(const char* config_file, const char *key, plist_t 
 	/* now parse file to get the SystemBUID */
 	plist_t config = NULL;
 	if (plist_read_from_filename(&config, config_file)) {
-		usbmuxd_log(LL_DEBUG, "reading key %s from config_file %s", key, config_file);
+		usbmuxd_log(LL_DEBUG, "Reading key %s from config file %s", key, config_file);
 		plist_t n = plist_dict_get_item(config, key);
 		if (n) {
 			*value = plist_copy(n);
@@ -371,7 +371,7 @@ void config_get_system_buid(char **system_buid)
 
 	if (value && (plist_get_node_type(value) == PLIST_STRING)) {
 		plist_get_string_val(value, system_buid);
-		usbmuxd_log(LL_DEBUG, "got %s %s", CONFIG_SYSTEM_BUID_KEY, *system_buid);
+		usbmuxd_log(LL_DEBUG, "Got %s %s", CONFIG_SYSTEM_BUID_KEY, *system_buid);
 	}
 
 	if (value)
@@ -379,14 +379,14 @@ void config_get_system_buid(char **system_buid)
 
 	if (!*system_buid) {
 		/* no config, generate system_buid */
-		usbmuxd_log(LL_DEBUG, "no previous %s found", CONFIG_SYSTEM_BUID_KEY);
+		usbmuxd_log(LL_DEBUG, "No previous %s found", CONFIG_SYSTEM_BUID_KEY);
 		*system_buid = config_generate_system_buid();
 		if (!config_set_system_buid(*system_buid)) {
 			usbmuxd_log(LL_WARNING, "WARNING: Failed to store SystemBUID, this might be a problem");
 		}
 	}
 
-	usbmuxd_log(LL_DEBUG, "using %s as %s", *system_buid, CONFIG_SYSTEM_BUID_KEY);
+	usbmuxd_log(LL_DEBUG, "Using %s as %s", *system_buid, CONFIG_SYSTEM_BUID_KEY);
 }
 
 /**
@@ -429,7 +429,7 @@ int config_set_device_record(const char *udid, char* record_data, uint64_t recor
 
 	/* store file */
 	if (!plist_write_to_filename(plist, device_record_file, PLIST_FORMAT_XML)) {
-		usbmuxd_log(LL_DEBUG, "could not open '%s' for writing: %s", device_record_file, strerror(errno));
+		usbmuxd_log(LL_DEBUG, "Could not open '%s' for writing: %s", device_record_file, strerror(errno));
 		res = -ENOENT;
 	}
 	free(device_record_file);
@@ -464,7 +464,7 @@ int config_get_device_record(const char *udid, char **record_data, uint64_t *rec
 	/* read file */
 	buffer_read_from_filename(device_record_file, record_data, record_size);
 	if (!*record_data) {
-		usbmuxd_log(LL_ERROR, "%s: failed to read '%s': %s", __func__, device_record_file, strerror(errno));
+		usbmuxd_log(LL_ERROR, "ERROR: Failed to read '%s': %s", device_record_file, strerror(errno));
 		res = -ENOENT;
 	}
 	free(device_record_file);
@@ -490,7 +490,7 @@ int config_remove_device_record(const char *udid)
 	/* remove file */
 	if (remove(device_record_file) != 0) {
 		res = -errno;
-		usbmuxd_log(LL_DEBUG, "could not remove %s: %s", device_record_file, strerror(errno));
+		usbmuxd_log(LL_DEBUG, "Could not remove %s: %s", device_record_file, strerror(errno));
 	}
 
 	free(device_record_file);
@@ -527,6 +527,6 @@ void config_device_record_get_host_id(const char *udid, char **host_id)
 		plist_free(value);
 
 	if (!*host_id) {
-		usbmuxd_log(LL_ERROR, "%s: ERROR couldn't get HostID from pairing record for udid %s", __func__, udid);
+		usbmuxd_log(LL_ERROR, "ERROR: Could not get HostID from pairing record for udid %s", udid);
 	}
 }

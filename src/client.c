@@ -300,7 +300,7 @@ static int send_pkt(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtyp
 	hdr.length = sizeof(hdr) + payload_length;
 	hdr.message = msg;
 	hdr.tag = tag;
-	usbmuxd_log(LL_DEBUG, "send_pkt fd %d tag %d msg %d payload_length %d", client->fd, tag, msg, payload_length);
+	usbmuxd_log(LL_DEBUG, "Client %d output buffer got tag %d msg %d payload_length %d", client->fd, tag, msg, payload_length);
 
 	uint32_t available = client->ob_capacity - client->ob_size;
 	/* the output buffer _should_ be large enough, but just in case */
@@ -646,10 +646,10 @@ static void update_client_info(struct mux_client *client, plist_t dict)
 static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 {
 	int res;
-	usbmuxd_log(LL_DEBUG, "Client command in fd %d len %d ver %d msg %d tag %d", client->fd, hdr->length, hdr->version, hdr->message, hdr->tag);
+	usbmuxd_log(LL_DEBUG, "Client %d command len %d ver %d msg %d tag %d", client->fd, hdr->length, hdr->version, hdr->message, hdr->tag);
 
 	if(client->state != CLIENT_COMMAND) {
-		usbmuxd_log(LL_ERROR, "Client %d command received in the wrong state", client->fd);
+		usbmuxd_log(LL_ERROR, "Client %d command received in the wrong state, got %d but want %d", client->fd, client->state, CLIENT_COMMAND);
 		if(send_result(client, hdr->tag, RESULT_BADCOMMAND) < 0)
 			return -1;
 		client_close(client);
@@ -730,7 +730,7 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 					portnum = (uint16_t)val;
 					plist_free(dict);
 
-					usbmuxd_log(LL_DEBUG, "Client %d connection request to device %d port %d", client->fd, device_id, ntohs(portnum));
+					usbmuxd_log(LL_DEBUG, "Client %d requesting connection to device %d port %d", client->fd, device_id, ntohs(portnum));
 					res = device_start_connect(device_id, ntohs(portnum), client);
 					if(res < 0) {
 						if (send_result(client, hdr->tag, -res) < 0)
@@ -888,7 +888,7 @@ static void process_send(struct mux_client *client)
 	}
 	res = send(client->fd, client->ob_buf, client->ob_size, 0);
 	if(res <= 0) {
-		usbmuxd_log(LL_ERROR, "Send to client fd %d failed: %d %s", client->fd, res, strerror(errno));
+		usbmuxd_log(LL_ERROR, "Sending to client fd %d failed: %d %s", client->fd, res, strerror(errno));
 		client_close(client);
 		return;
 	}
