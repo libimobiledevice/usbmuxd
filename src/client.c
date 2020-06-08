@@ -78,6 +78,27 @@ static struct collection client_list;
 pthread_mutex_t client_list_mutex;
 static uint32_t client_number = 0;
 
+#ifdef SO_PEERCRED
+static char* _get_process_name_by_pid(const int pid)
+{
+	char* name = (char*)calloc(1024, sizeof(char));
+	if(name) {
+		sprintf(name, "/proc/%d/cmdline", pid);
+		FILE* f = fopen(name, "r");
+		if(f) {
+			size_t size;
+			size = fread(name, sizeof(char), 1024, f);
+			if(size > 0) {
+				if('\n' == name[size-1])
+					name[size-1]='\0';
+			}
+			fclose(f);
+		}
+	}
+	return name;
+}
+#endif
+
 /**
  * Receive raw data from the client socket.
  *
@@ -212,23 +233,41 @@ int client_accept(int listenfd)
 	if (log_level >= LL_INFO) {
 		struct ucred cr;
 		len = sizeof(struct ucred);
-		getsockopt(cfd, SOL_SOCKET, SO_PEERCRED, &cr, &len);
+		getsockopt(client->fd, SOL_SOCKET, SO_PEERCRED, &cr, &len);
 
 		if (getpid() == cr.pid) {
-			usbmuxd_log(LL_INFO, "New client on fd %d (self)", client->fd);
+			usbmuxd_log(LL_INFO, "Client %d accepted: %s[%d]", client->fd, PACKAGE_NAME, cr.pid);
 		} else {
-			usbmuxd_log(LL_INFO, "New client on fd %d (pid %d)", client->fd, cr.pid);
+			char* process_name = _get_process_name_by_pid(cr.pid);
+			usbmuxd_log(LL_INFO, "Client %d accepted: %s[%d]", client->fd, process_name, cr.pid);
+			free(process_name);
 		}
 	}
 #else
-	usbmuxd_log(LL_INFO, "New client on fd %d", client->fd);
+	usbmuxd_log(LL_INFO, "Client %d accepted", client->fd);
 #endif
 	return client->fd;
 }
 
 void client_close(struct mux_client *client)
 {
-	usbmuxd_log(LL_INFO, "Disconnecting client fd %d", client->fd);
+#ifdef SO_PEERCRED
+	if (log_level >= LL_INFO) {
+		struct ucred cr;
+		socklen_t len = sizeof(struct ucred);
+		getsockopt(client->fd, SOL_SOCKET, SO_PEERCRED, &cr, &len);
+
+		if (getpid() == cr.pid) {
+			usbmuxd_log(LL_INFO, "Client %d is going to be disconnected: %s[%d]", client->fd, PACKAGE_NAME, cr.pid);
+		} else {
+			char* process_name = _get_process_name_by_pid(cr.pid);
+			usbmuxd_log(LL_INFO, "Client %d is going to be disconnected: %s[%d]", client->fd, process_name, cr.pid);
+			free(process_name);
+		}
+	}
+#else
+	usbmuxd_log(LL_INFO, "Client %d is going to be disconnected", client->fd);
+#endif
 	if(client->state == CLIENT_CONNECTING1 || client->state == CLIENT_CONNECTING2) {
 		usbmuxd_log(LL_INFO, "Client died mid-connect, aborting device %d connection", client->connect_device);
 		client->state = CLIENT_DEAD;
