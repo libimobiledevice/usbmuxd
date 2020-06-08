@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Nikias Bassen <nikias@gmx.li>
- * Copyright (C) 2009 Martin Szulecki <opensuse@sukimashita.com>
+ * Copyright (C) 2009-2020 Martin Szulecki <martin.szulecki@libimobiledevice.org>
  * Copyright (C) 2014 Mikkel Kamstrup Erlandsen <mikkel.kamstrup@xamarin.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -801,7 +801,11 @@ int usb_init(void)
 	device_polling = 1;
 	res = libusb_init(NULL);
 
+#if LIBUSB_API_VERSION >= 0x01000106
+	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG: (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING: LIBUSB_LOG_LEVEL_NONE)));
+#else
 	libusb_set_debug(NULL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG: (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING: LIBUSB_LOG_LEVEL_NONE)));
+#endif
 
 	if(res != 0) {
 		usbmuxd_log(LL_FATAL, "libusb_init failed: %s", libusb_error_name(res));
