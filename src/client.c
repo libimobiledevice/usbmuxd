@@ -511,7 +511,7 @@ static int send_pair_record(struct mux_client *client, uint32_t tag, const char*
 	}
 
 	config_get_device_record(record_id, &record_data, &record_size);
-	
+
 	if (record_data) {
 		plist_t dict = plist_new_dict();
 		plist_dict_set_item(dict, "PairRecordData", plist_new_data(record_data, record_size));

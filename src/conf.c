@@ -132,7 +132,7 @@ const char *config_get_config_dir()
 	__config_dir = string_concat(base_config_dir, DIR_SEP_S, CONFIG_DIR, NULL);
 
 	if (__config_dir) {
-		int i = strlen(__config_dir)-1;	
+		int i = strlen(__config_dir)-1;
 		while ((i > 0) && (__config_dir[i] == DIR_SEP)) {
 			__config_dir[i--] = '\0';
 		}
@@ -160,7 +160,7 @@ static int mkdir_with_parents(const char *dir, int mode)
 	if (__mkdir(dir, mode) == 0) {
 		return 0;
 	} else {
-		if (errno == EEXIST) return 0;	
+		if (errno == EEXIST) return 0;
 	}
 	int res;
 	char *parent = strdup(dir);
