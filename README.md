@@ -7,17 +7,26 @@
 usbmuxd stands for "USB multiplexing daemon". This daemon is in charge of
 multiplexing connections over USB to an iOS device.
 
-To users, it means you can sync your music, contacts, photos, etc. over USB.
-
-To developers, it means you can connect to any listening localhost socket on the
+To users, it means you can use various applications to interact with your
 device.
 
-usbmuxd is not used for tethering data transfer which uses a dedicated USB
-interface as a virtual network device.
+To developers, it means you can connect to any listening localhost socket on
+the device.
 
-Multiple connections to different TCP ports can happen in parallel.
+Some key features are:
 
-The higher-level layers are handled by [libimobiledevice](https://github.com/libimobiledevice/libimobiledevice.git).
+- **Implementation**: Open-Source implementation of proprietary usbmuxd daemon
+- **Cross-Platform:** Tested on Linux, macOS, Windows and Android platforms
+- **Linux**: Supports udev and systemd for automatic activation
+- **Compatibility**: Supports latest device firmware releases
+- **Scalability**: Supports multiple connections to different ports in parallel
+
+usbmuxd is not used for tethering data transfers which uses a dedicated USB
+interface to act as a virtual network device.
+
+The higher-level layers, especially if you want to write an application to
+interact with the device, are handled by [libimobiledevice](https://github.com/libimobiledevice/libimobiledevice.git).
+
 The low-level layer is handled by [libusbmuxd](https://github.com/libimobiledevice/libusbmuxd.git).
 
 ## Installation / Getting started
