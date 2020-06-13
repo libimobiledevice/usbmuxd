@@ -127,7 +127,8 @@ also included in the repository in the `COPYING.GPLv3` file.
 
 The initial usbmuxd daemon implementation was authored by Hector Martin.
 
-Apple, iPhone, iPod, and iPod Touch are trademarks of Apple Inc.
+Apple, iPhone, iPad, iPod, iPod Touch, Apple TV, Apple Watch, Mac, iOS,
+iPadOS, tvOS, watchOS, and macOS are trademarks of Apple Inc.
 
 usbmuxd is an independent software application and has not been
 authorized, sponsored, or otherwise approved by Apple Inc.
