@@ -28,7 +28,7 @@ Version 1.1.1
   - Fix USB reconnection issues on virtual machines with iOS 11+ devices
   - Add support for connecting with T2 chip
   - Various memory leak, deadlock and invalid free fixes
-  - Show actualy libusb version in debug message on startup
+  - Show actual libusb version in debug message on startup
   - Enable libusb debugging output
   - Log client process name alongside pid if possible on Linux
   - Unify and improve log message output
