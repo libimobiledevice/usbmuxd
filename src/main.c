@@ -105,7 +105,7 @@ static int create_socket(void) {
 	}
 
 	// Start listening
-	if (listen(listenfd, 5) != 0) {
+	if (listen(listenfd, 256) != 0) {
 		usbmuxd_log(LL_FATAL, "listen() failed: %s", strerror(errno));
 		return -1;
 	}
