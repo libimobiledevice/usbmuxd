@@ -600,6 +600,13 @@ static void device_control_input(struct mux_device *dev, unsigned char *payload,
 				usbmuxd_log(LL_ERROR, "%s: Device %d: Got device error payload with empty message", __func__, dev->id);
 			}
 			break;
+		case 5:
+			if (payload_length > 1) {
+				usbmuxd_log(LL_WARNING, "Device %d: WARNING: %.*s", dev->id, payload_length-1, payload+1);
+			} else {
+				usbmuxd_log(LL_WARNING, "%s: Device %d: Got payload type %d with empty message", __func__, dev->id, payload[0]);
+			}
+			break;
 		case 7:
 			if (payload_length > 1) {
 				usbmuxd_log(LL_INFO, "Device %d: %.*s", dev->id, payload_length-1, payload+1);
