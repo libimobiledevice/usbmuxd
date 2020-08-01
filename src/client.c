@@ -251,6 +251,20 @@ int client_accept(int listenfd)
 
 void client_close(struct mux_client *client)
 {
+	int found = 0;
+	pthread_mutex_lock(&client_list_mutex);
+	FOREACH(struct mux_client *lc, &client_list) {
+		if (client == lc) {
+			found = 1;
+			break;
+		}
+	} ENDFOREACH
+	if (!found) {
+		// in case we get called again but client was already freed
+		usbmuxd_log(LL_DEBUG, "%s: ignoring for non-existing client %p", __func__, client);
+		pthread_mutex_unlock(&client_list_mutex);
+		return;
+	}
 #ifdef SO_PEERCRED
 	if (log_level >= LL_INFO) {
 		struct ucred cr;
@@ -278,7 +292,6 @@ void client_close(struct mux_client *client)
 	free(client->ib_buf);
 	plist_free(client->info);
 
-	pthread_mutex_lock(&client_list_mutex);
 	collection_remove(&client_list, client);
 	pthread_mutex_unlock(&client_list_mutex);
 	free(client);
