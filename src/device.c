@@ -595,24 +595,24 @@ static void device_control_input(struct mux_device *dev, unsigned char *payload,
 		switch (payload[0]) {
 		case 3:
 			if (payload_length > 1) {
-				usbmuxd_log(LL_ERROR, "%s: ERROR (on device): %.*s", __func__, payload_length-1, payload+1);
+				usbmuxd_log(LL_ERROR, "Device %d: ERROR: %.*s", dev->id, payload_length-1, payload+1);
 			} else {
-				usbmuxd_log(LL_ERROR, "%s: Got device error payload with empty message", __func__);
+				usbmuxd_log(LL_ERROR, "%s: Device %d: Got device error payload with empty message", __func__, dev->id);
 			}
 			break;
 		case 7:
 			if (payload_length > 1) {
-				usbmuxd_log(LL_INFO, "%s: %.*s", __func__, payload_length-1, payload+1);
+				usbmuxd_log(LL_INFO, "Device %d: %.*s", dev->id, payload_length-1, payload+1);
 			} else {
-				usbmuxd_log(LL_WARNING, "%s: Got payload type %d with empty message", __func__, payload[0]);
+				usbmuxd_log(LL_WARNING, "%s: Device %d: Got payload type %d with empty message", __func__, dev->id, payload[0]);
 			}
 			break;
 		default:
-			usbmuxd_log(LL_WARNING, "%s: Got unhandled payload type %d: %.*s", __func__, payload[0], payload_length-1, payload+1);
+			usbmuxd_log(LL_WARNING, "%s: Device %d: Got unhandled payload type %d: %.*s", __func__, dev->id, payload[0], payload_length-1, payload+1);
 			break;
 		}
 	} else {
-		usbmuxd_log(LL_WARNING, "%s: Got a type 1 packet without payload", __func__);
+		usbmuxd_log(LL_WARNING, "%s: Got a type 1 packet without payload for device %d", __func__, dev->id);
 	}
 }
 
