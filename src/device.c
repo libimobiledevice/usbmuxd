@@ -549,6 +549,7 @@ void device_abort_connect(int device_id, struct mux_client *client)
 {
 	struct mux_connection *conn = get_mux_connection(device_id, client);
 	if (conn) {
+		conn->client = NULL;
 		connection_teardown(conn);
 	} else {
 		usbmuxd_log(LL_WARNING, "Attempted to abort for nonexistent connection for device %d", device_id);
