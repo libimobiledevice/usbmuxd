@@ -395,7 +395,31 @@ static int usb_device_add(libusb_device* dev)
 
 	int desired_config = devdesc.bNumConfigurations;
 	if (desired_config > 4) {
-		desired_config = 4;
+		if (desired_config > 5) {
+			usbmuxd_log(LL_ERROR, "Device %d-%d has more than 5 configurations, but usbmuxd doesn't support that. Choosing configuration 5 instead.", bus, address);
+			desired_config = 5;
+		}
+		/* verify if the configuration 5 is actually usable */
+		do {
+			struct libusb_config_descriptor *config;
+			const struct libusb_interface_descriptor *intf;
+			if (libusb_get_config_descriptor_by_value(dev, 5, &config) != 0) {
+				usbmuxd_log(LL_WARNING, "Device %d-%d: Failed to get config descriptor for configuration 5, choosing configuration 4 instead.", bus, address);
+				desired_config = 4;
+				break;
+			}
+			if (config->bNumInterfaces != 3) {
+				usbmuxd_log(LL_WARNING, "Device %d-%d: Ignoring possibly bad configuration 5, choosing configuration 4 instead.", bus, address);
+				desired_config = 4;
+				break;
+			}
+			intf = &config->interface[2].altsetting[0];
+			if (intf->bInterfaceClass != 0xFF || intf->bInterfaceSubClass != 0x2A || intf->bInterfaceProtocol != 0xFF) {
+				usbmuxd_log(LL_WARNING, "Device %d-%d: Ignoring possibly bad configuration 5, choosing configuration 4 instead.", bus, address);
+				desired_config = 4;
+				break;
+			}
+		} while (0);
 	}
 	int current_config = 0;
 	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
