@@ -19,7 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-/* Protocol defintion for usbmuxd proxy protocol */
+/* Protocol definition for usbmuxd proxy protocol */
 #ifndef USBMUXD_PROTO_H
 #define USBMUXD_PROTO_H
 
