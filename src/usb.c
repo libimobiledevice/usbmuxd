@@ -429,7 +429,9 @@ static int usb_device_add(libusb_device* dev)
 	}
 	if (current_config != desired_config) {
 		struct libusb_config_descriptor *config;
-		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+		if (current_config == 0) {
+			usbmuxd_log(LL_DEBUG, "Device %d-%d is unconfigured", bus, address);
+		} else if ((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
 			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
 		} else {
 			for(j=0; j<config->bNumInterfaces; j++) {
