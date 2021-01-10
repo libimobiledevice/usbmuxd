@@ -1,7 +1,7 @@
 /*
  * main.c
  *
- * Copyright (C) 2009-2019 Nikias Bassen <nikias@gmx.li>
+ * Copyright (C) 2009-2021 Nikias Bassen <nikias@gmx.li>
  * Copyright (C) 2013-2014 Martin Szulecki <m.szulecki@libimobiledevice.org>
  * Copyright (C) 2009 Hector Martin <hector@marcansoft.com>
  * Copyright (C) 2009 Paul Sladen <libiphone@paul.sladen.org>
@@ -36,6 +36,9 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/resource.h>
@@ -69,22 +72,162 @@ static int opt_enable_exit = 0;
 static int opt_exit = 0;
 static int exit_signal = 0;
 static int daemon_pipe;
+static const char *listen_addr = NULL;
 
 static int report_to_parent = 0;
 
-static int create_socket(void) {
-	struct sockaddr_un bind_addr;
+static int create_socket(void)
+{
 	int listenfd;
+	const char* socket_addr = socket_path;
+	const char* tcp_port;
+	char listen_addr_str[256];
 
-	if(unlink(socket_path) == -1 && errno != ENOENT) {
-		usbmuxd_log(LL_FATAL, "unlink(%s) failed: %s", socket_path, strerror(errno));
-		return -1;
+	if (listen_addr) {
+		socket_addr = listen_addr;
 	}
+	tcp_port = strrchr(socket_addr, ':');
+	if (tcp_port) {
+		tcp_port++;
+		size_t nlen = tcp_port - socket_addr;
+		char* hostname = malloc(nlen);
+		struct addrinfo hints;
+		struct addrinfo *result, *rp;
+		int yes = 1;
+		int res;
 
-	listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (listenfd == -1) {
-		usbmuxd_log(LL_FATAL, "socket() failed: %s", strerror(errno));
-		return -1;
+		strncpy(hostname, socket_addr, nlen-1);
+		hostname[nlen-1] = '\0';
+
+		memset(&hints, '\0', sizeof(struct addrinfo));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
+		hints.ai_protocol = IPPROTO_TCP;
+
+		res = getaddrinfo(hostname, tcp_port, &hints, &result);
+		free(hostname);
+		if (res != 0) {
+			usbmuxd_log(LL_FATAL, "%s: getaddrinfo() failed: %s\n", __func__, gai_strerror(res));
+			return -1;
+		}
+
+		for (rp = result; rp != NULL; rp = rp->ai_next) {
+			listenfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+			if (listenfd == -1) {
+				listenfd = -1;
+				continue;
+			}
+
+			if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(int)) == -1) {
+				usbmuxd_log(LL_ERROR, "%s: setsockopt(): %s", __func__, strerror(errno));
+				close(listenfd);
+				listenfd = -1;
+				continue;
+			}
+
+#ifdef SO_NOSIGPIPE
+			if (setsockopt(listenfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&yes, sizeof(int)) == -1) {
+				usbmuxd_log(LL_ERROR, "%s: setsockopt(): %s", __func__, strerror(errno));
+				close(listenfd);
+				listenfd = -1;
+				continue;
+			}
+#endif
+
+#if defined(AF_INET6) && defined(IPV6_V6ONLY)
+			if (rp->ai_family == AF_INET6) {
+				if (setsockopt(listenfd, IPPROTO_IPV6, IPV6_V6ONLY, (void*)&yes, sizeof(int)) == -1) {
+					usbmuxd_log(LL_ERROR, "%s: setsockopt() IPV6_V6ONLY: %s", __func__, strerror(errno));
+				}
+			}
+#endif
+
+			if (bind(listenfd, rp->ai_addr, rp->ai_addrlen) < 0) {
+				usbmuxd_log(LL_FATAL, "%s: bind() failed: %s", __func__, strerror(errno));
+				close(listenfd);
+				listenfd = -1;
+				continue;
+			}
+
+			const void *addrdata = NULL;
+			if (rp->ai_family == AF_INET) {
+				addrdata = &((struct sockaddr_in*)rp->ai_addr)->sin_addr;
+			}
+#ifdef AF_INET6
+			else if (rp->ai_family == AF_INET6) {
+				addrdata = &((struct sockaddr_in6*)rp->ai_addr)->sin6_addr;
+			}
+#endif
+			if (addrdata) {
+				char* endp = NULL;
+				uint16_t listen_port = 0;
+				if (rp->ai_family == AF_INET) {
+					listen_port = ntohs(((struct sockaddr_in*)rp->ai_addr)->sin_port);
+					if (inet_ntop(AF_INET, addrdata, listen_addr_str, sizeof(listen_addr_str)-6)) {
+						endp = &listen_addr_str[0] + strlen(listen_addr_str);
+					}
+				}
+#ifdef AF_INET6
+				else if (rp->ai_family == AF_INET6) {
+					listen_port = ntohs(((struct sockaddr_in6*)rp->ai_addr)->sin6_port);
+					listen_addr_str[0] = '[';
+					if (inet_ntop(AF_INET6, addrdata, listen_addr_str+1, sizeof(listen_addr_str)-8)) {
+						endp = &listen_addr_str[0] + strlen(listen_addr_str);
+					}
+					if (endp) {
+						*endp = ']';
+						endp++;
+					}
+				}
+#endif
+				if (endp) {
+					sprintf(endp, ":%u", listen_port);
+				}
+			}
+			break;
+		}
+		freeaddrinfo(result);
+		if (listenfd == -1) {
+			usbmuxd_log(LL_FATAL, "%s: Failed to create listening socket", __func__);
+			return -1;
+		}
+	} else {
+		struct sockaddr_un bind_addr;
+
+		if (strcmp(socket_addr, socket_path) != 0) {
+			struct stat fst;
+			if (stat(socket_addr, &fst) == 0) {
+				if (!S_ISSOCK(fst.st_mode)) {
+					usbmuxd_log(LL_FATAL, "FATAL: File '%s' already exists and is not a socket file. Refusing to continue.", socket_addr);
+					return -1;
+				}
+			}
+		}
+
+		if (unlink(socket_addr) == -1 && errno != ENOENT) {
+			usbmuxd_log(LL_FATAL, "%s: unlink(%s) failed: %s", __func__, socket_addr, strerror(errno));
+			return -1;
+		}
+
+		listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
+		if (listenfd == -1) {
+			usbmuxd_log(LL_FATAL, "socket() failed: %s", strerror(errno));
+			return -1;
+		}
+
+		bzero(&bind_addr, sizeof(bind_addr));
+		bind_addr.sun_family = AF_UNIX;
+		strncpy(bind_addr.sun_path, socket_addr, sizeof(bind_addr.sun_path));
+		bind_addr.sun_path[sizeof(bind_addr.sun_path) - 1] = '\0';
+
+		if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
+			usbmuxd_log(LL_FATAL, "bind() failed: %s", strerror(errno));
+			return -1;
+		}
+		chmod(socket_addr, 0666);
+
+		snprintf(listen_addr_str, sizeof(listen_addr_str), "%s", socket_addr);
 	}
 
 	int flags = fcntl(listenfd, F_GETFL, 0);
@@ -96,21 +239,13 @@ static int create_socket(void) {
 		}
 	}
 
-	bzero(&bind_addr, sizeof(bind_addr));
-	bind_addr.sun_family = AF_UNIX;
-	strcpy(bind_addr.sun_path, socket_path);
-	if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
-		usbmuxd_log(LL_FATAL, "bind() failed: %s", strerror(errno));
-		return -1;
-	}
-
 	// Start listening
 	if (listen(listenfd, 256) != 0) {
 		usbmuxd_log(LL_FATAL, "listen() failed: %s", strerror(errno));
 		return -1;
 	}
 
-	chmod(socket_path, 0666);
+	usbmuxd_log(LL_INFO, "Listening on %s", listen_addr_str);
 
 	return listenfd;
 }
@@ -381,6 +516,9 @@ static void usage()
 #ifdef HAVE_SYSTEMD
 	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
 #endif
+	printf("  -S, --socket ADDR:PORT | PATH   Specify source ADDR and PORT or a UNIX\n");
+	printf("            \t\tsocket PATH to use for the listening socket.\n");
+	printf("            \t\tDefault: %s\n", socket_path);
 	printf("  -x, --exit\t\tNotify a running instance to exit if there are no devices\n");
 	printf("            \t\tconnected (sends SIGUSR1 to running instance) and exit.\n");
 	printf("  -X, --force-exit\tNotify a running instance to exit even if there are still\n");
@@ -408,6 +546,7 @@ static void parse_opts(int argc, char **argv)
 #ifdef HAVE_SYSTEMD
 		{"systemd", no_argument, NULL, 's'},
 #endif
+		{"socket", required_argument, NULL, 'S'},
 		{"exit", no_argument, NULL, 'x'},
 		{"force-exit", no_argument, NULL, 'X'},
 		{"logfile", required_argument, NULL, 'l'},
@@ -467,6 +606,14 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 'z':
 			opt_enable_exit = 1;
+			break;
+		case 'S':
+			if (!*optarg || *optarg == '-') {
+				usbmuxd_log(LL_FATAL, "ERROR: --socket requires an argument");
+				usage();
+				exit(2);
+			}
+			listen_addr = optarg;
 			break;
 		case 'x':
 			opt_exit = 1;
