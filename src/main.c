@@ -54,7 +54,8 @@
 #include "conf.h"
 
 static const char *socket_path = "/var/run/usbmuxd";
-static const char *lockfile = "/var/run/usbmuxd.pid";
+#define DEFAULT_LOCKFILE "/var/run/usbmuxd.pid"
+static const char *lockfile = DEFAULT_LOCKFILE;
 
 // Global state used in other files
 int should_exit;
@@ -519,6 +520,8 @@ static void usage()
 	printf("  -S, --socket ADDR:PORT | PATH   Specify source ADDR and PORT or a UNIX\n");
 	printf("            \t\tsocket PATH to use for the listening socket.\n");
 	printf("            \t\tDefault: %s\n", socket_path);
+	printf("  -P, --pidfile PATH\tSpecify a different location for the pid file, or pass\n");
+	printf("            \t\tNONE to disable. Default: %s\n", DEFAULT_LOCKFILE);
 	printf("  -x, --exit\t\tNotify a running instance to exit if there are no devices\n");
 	printf("            \t\tconnected (sends SIGUSR1 to running instance) and exit.\n");
 	printf("  -X, --force-exit\tNotify a running instance to exit even if there are still\n");
@@ -547,6 +550,7 @@ static void parse_opts(int argc, char **argv)
 		{"systemd", no_argument, NULL, 's'},
 #endif
 		{"socket", required_argument, NULL, 'S'},
+		{"pidfile", required_argument, NULL, 'P'},
 		{"exit", no_argument, NULL, 'x'},
 		{"force-exit", no_argument, NULL, 'X'},
 		{"logfile", required_argument, NULL, 'l'},
@@ -556,11 +560,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnzl:pS:";
+	const char* opts_spec = "hfvVuU:xXsnzl:pS:P:";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnzl:pS:";
+	const char* opts_spec = "hfvVuU:xXnzl:pS:P:";
 #else
-	const char* opts_spec = "hfvVU:xXnzl:pS:";
+	const char* opts_spec = "hfvVU:xXnzl:pS:P:";
 #endif
 
 	while (1) {
@@ -614,6 +618,18 @@ static void parse_opts(int argc, char **argv)
 				exit(2);
 			}
 			listen_addr = optarg;
+			break;
+		case 'P':
+			if (!*optarg || *optarg == '-') {
+				usbmuxd_log(LL_FATAL, "ERROR: --pidfile requires an argument");
+				usage();
+				exit(2);
+			}
+			if (!strcmp(optarg, "NONE")) {
+				lockfile = NULL;
+			} else {
+				lockfile = optarg;
+			}
 			break;
 		case 'x':
 			opt_exit = 1;
@@ -676,19 +692,21 @@ int main(int argc, char *argv[])
 	set_signal_handlers();
 	signal(SIGPIPE, SIG_IGN);
 
-	res = lfd = open(lockfile, O_WRONLY|O_CREAT, 0644);
-	if(res == -1) {
-		usbmuxd_log(LL_FATAL, "Could not open lockfile");
-		goto terminate;
+	if (lockfile) {
+		res = lfd = open(lockfile, O_WRONLY|O_CREAT, 0644);
+		if(res == -1) {
+			usbmuxd_log(LL_FATAL, "Could not open lockfile");
+			goto terminate;
+		}
+		lock.l_type = F_WRLCK;
+		lock.l_whence = SEEK_SET;
+		lock.l_start = 0;
+		lock.l_len = 0;
+		lock.l_pid = 0;
+		fcntl(lfd, F_GETLK, &lock);
+		close(lfd);
 	}
-	lock.l_type = F_WRLCK;
-	lock.l_whence = SEEK_SET;
-	lock.l_start = 0;
-	lock.l_len = 0;
-	lock.l_pid = 0;
-	fcntl(lfd, F_GETLK, &lock);
-	close(lfd);
-	if (lock.l_type != F_UNLCK) {
+	if (lockfile && lock.l_type != F_UNLCK) {
 		if (opt_exit) {
 			if (lock.l_pid && !kill(lock.l_pid, 0)) {
 				usbmuxd_log(LL_NOTICE, "Sending signal %d to instance with pid %d", exit_signal, lock.l_pid);
@@ -724,7 +742,9 @@ int main(int argc, char *argv[])
 			goto terminate;
 		}
 	}
-	unlink(lockfile);
+	if (lockfile) {
+		unlink(lockfile);
+	}
 
 	if (opt_exit) {
 		usbmuxd_log(LL_NOTICE, "No running instance found, none killed. Exiting.");
@@ -739,26 +759,28 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// now open the lockfile and place the lock
-	res = lfd = open(lockfile, O_WRONLY|O_CREAT|O_TRUNC|O_EXCL, 0644);
-	if(res < 0) {
-		usbmuxd_log(LL_FATAL, "Could not open lockfile");
-		goto terminate;
-	}
-	lock.l_type = F_WRLCK;
-	lock.l_whence = SEEK_SET;
-	lock.l_start = 0;
-	lock.l_len = 0;
-	if ((res = fcntl(lfd, F_SETLK, &lock)) < 0) {
-		usbmuxd_log(LL_FATAL, "Lockfile locking failed!");
-		goto terminate;
-	}
-	sprintf(pids, "%d", getpid());
-	if ((size_t)(res = write(lfd, pids, strlen(pids))) != strlen(pids)) {
-		usbmuxd_log(LL_FATAL, "Could not write pidfile!");
-		if(res >= 0)
-			res = -2;
-		goto terminate;
+	if (lockfile) {
+		// now open the lockfile and place the lock
+		res = lfd = open(lockfile, O_WRONLY|O_CREAT|O_TRUNC|O_EXCL, 0644);
+		if(res < 0) {
+			usbmuxd_log(LL_FATAL, "Could not open pidfile '%s'", lockfile);
+			goto terminate;
+		}
+		lock.l_type = F_WRLCK;
+		lock.l_whence = SEEK_SET;
+		lock.l_start = 0;
+		lock.l_len = 0;
+		if ((res = fcntl(lfd, F_SETLK, &lock)) < 0) {
+			usbmuxd_log(LL_FATAL, "Locking pidfile '%s' failed!", lockfile);
+			goto terminate;
+		}
+		sprintf(pids, "%d", getpid());
+		if ((size_t)(res = write(lfd, pids, strlen(pids))) != strlen(pids)) {
+			usbmuxd_log(LL_FATAL, "Could not write pidfile!");
+			if(res >= 0)
+				res = -2;
+			goto terminate;
+		}
 	}
 
 	// set number of file descriptors to higher value
