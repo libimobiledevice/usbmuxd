@@ -556,11 +556,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnzl:p";
+	const char* opts_spec = "hfvVuU:xXsnzl:pS:";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnzl:p";
+	const char* opts_spec = "hfvVuU:xXnzl:pS:";
 #else
-	const char* opts_spec = "hfvVU:xXnzl:p";
+	const char* opts_spec = "hfvVU:xXnzl:pS:";
 #endif
 
 	while (1) {
