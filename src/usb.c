@@ -381,7 +381,8 @@ static int usb_device_add(libusb_device* dev)
 	if(devdesc.idVendor != VID_APPLE)
 		return -1;
 	if((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) &&
-		((devdesc.idProduct < PID_RANGE_LOW) ||
+	   (devdesc.idProduct != PID_APPLE_SILICON_RESTORE) &&
+	   ((devdesc.idProduct < PID_RANGE_LOW) ||
 		(devdesc.idProduct > PID_RANGE_MAX)))
 		return -1;
 	libusb_device_handle *handle;
