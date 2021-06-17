@@ -54,6 +54,10 @@ If systemd is not installed and should control spawning the daemon use:
 sudo apt-get install \
 	systemd
 ```
+### Arch Linux
+```shell
+sudo pacman -S --noconfirm base-devel git usbmuxd
+```
 
 Then clone the actual project repository:
 ```shell
