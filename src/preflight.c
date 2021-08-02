@@ -59,6 +59,7 @@ struct idevice_private {
 	enum idevice_connection_type conn_type;
 	void *conn_data;
 	int version;
+	int device_class;
 };
 
 struct cb_data {
@@ -138,6 +139,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	_dev->conn_type = CONNECTION_USBMUXD;
 	_dev->conn_data = NULL;
 	_dev->version = 0;
+	_dev->device_class = 0;
 
 	idevice_t dev = (idevice_t)_dev;
 
