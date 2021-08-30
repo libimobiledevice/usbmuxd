@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.64)
+AC_PREREQ(2.68)
 AC_INIT([usbmuxd], [1.1.2], [https://github.com/libimobiledevice/usbmuxd/issues],, [https://libimobiledevice.org])
 AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip check-news])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
@@ -11,9 +11,8 @@ AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for programs.
 AC_PROG_CC
-AC_PROG_CXX
 AM_PROG_CC_C_O
-AC_PROG_LIBTOOL
+LT_INIT
 
 # Checks for libraries.
 PKG_CHECK_MODULES(libusb, libusb-1.0 >= 1.0.9)
@@ -38,11 +37,11 @@ if test "x$have_limd" = "xyes"; then
     CACHED_CFLAGS="$CFLAGS"
     CFLAGS+=" $libimobiledevice_CFLAGS"
     AC_CACHE_CHECK(for enum idevice_connection_type, ac_cv_enum_idevice_connection_type,
-      AC_TRY_COMPILE([
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
         #include <libimobiledevice/libimobiledevice.h>
       ], [
         enum idevice_connection_type conn_type = CONNECTION_USBMUXD;
-      ], ac_cv_enum_idevice_connection_type=yes, ac_cv_enum_idevice_connection_type=no))
+      ])], ac_cv_enum_idevice_connection_type=yes, ac_cv_enum_idevice_connection_type=no))
     CFLAGS="$CACHED_CFLAGS"
     if (test "$ac_cv_enum_idevice_connection_type" = "yes"); then
       AC_DEFINE(HAVE_ENUM_IDEVICE_CONNECTION_TYPE, 1, [Define if enum idevice_connection_type is available])
@@ -93,7 +92,6 @@ fi
 AC_SUBST(udev_activation_rule)
 
 # Checks for header files.
-AC_HEADER_STDC
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -155,13 +153,14 @@ AC_SUBST(GLOBAL_CFLAGS)
 
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
-AC_OUTPUT([
+AC_CONFIG_FILES([
 Makefile
 src/Makefile
 udev/Makefile
 systemd/Makefile
 docs/Makefile
 ])
+AC_OUTPUT
 
 echo "
 Configuration for $PACKAGE $VERSION:
