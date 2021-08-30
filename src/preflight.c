@@ -148,6 +148,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 
 	plist_t value = NULL;
 	char* version_str = NULL;
+	char* platform_str = NULL;
 
 	usbmuxd_log(LL_INFO, "%s: Starting preflight on device %s...", __func__, _dev->udid);
 
@@ -220,16 +221,35 @@ retry:
 	if (value && plist_get_node_type(value) == PLIST_STRING) {
 		plist_get_string_val(value, &version_str);
 	}
+	plist_free(value);
 
 	if (!version_str) {
 		usbmuxd_log(LL_ERROR, "%s: Could not get ProductVersion string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
 		goto leave;
 	}
 
+	lerr = lockdownd_get_value(lockdown, NULL, "ProductName", &value);
+	if (lerr != LOCKDOWN_E_SUCCESS) {
+		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not get ProductName from device %s, lockdown error %d", __func__, _dev->udid, lerr);
+		goto leave;
+	}
+	if (value && plist_get_node_type(value) == PLIST_STRING) {
+		plist_get_string_val(value, &platform_str);
+	}
+	plist_free(value);
+
+	if (!platform_str) {
+		usbmuxd_log(LL_ERROR, "%s: Could not get ProductName string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
+		goto leave;
+	}
+
 	int version_major = strtol(version_str, NULL, 10);
-	if (version_major >= 7) {
-		/* iOS 7.0 and later */
-		usbmuxd_log(LL_INFO, "%s: Found ProductVersion %s device %s", __func__, version_str, _dev->udid);
+	if ((!strcmp(platform_str, "iPhone OS") && version_major >= 7)
+	    || ((!strcmp(platform_str, "watchOS") || !strcmp(platform_str, "Watch OS")) && version_major >= 2)
+	    || (!strcmp(platform_str, "Apple TVOS") && version_major >= 9)
+	) {
+		/* iOS 7.0 / watchOS 2.0 / tvOS 9.0 and later */
+		usbmuxd_log(LL_INFO, "%s: Found %s %s device %s", __func__, platform_str, version_str, _dev->udid);
 
 		lockdownd_set_untrusted_host_buid(lockdown);
 
@@ -336,10 +356,8 @@ retry:
 	}
 
 leave:
-	if (value)
-		plist_free(value);
-	if (version_str)
-		free(version_str);
+	free(platform_str);
+	free(version_str);
 	if (lockdown)
 		lockdownd_client_free(lockdown);
 	if (dev)
