@@ -31,6 +31,8 @@
 
 #include <libusb.h>
 
+#include <libimobiledevice-glue/collection.h>
+
 #include "usb.h"
 #include "log.h"
 #include "device.h"

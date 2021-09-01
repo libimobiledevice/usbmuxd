@@ -45,6 +45,7 @@ sudo apt-get install \
 	libplist-dev \
 	libusbmuxd-dev \
 	libimobiledevice-dev \
+	libimobiledevice-glue-dev \
 	libusb-1.0-0-dev \
 	udev
 ```
@@ -152,4 +153,4 @@ iPadOS, tvOS, watchOS, and macOS are trademarks of Apple Inc.
 usbmuxd is an independent software application and has not been
 authorized, sponsored, or otherwise approved by Apple Inc.
 
-README Updated on: 2020-06-13
+README Updated on: 2021-08-30

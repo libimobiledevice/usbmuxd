@@ -18,7 +18,7 @@ LT_INIT
 PKG_CHECK_MODULES(libusb, libusb-1.0 >= 1.0.9)
 PKG_CHECK_MODULES(libplist, libplist-2.0 >= 2.2.0)
 PKG_CHECK_MODULES(libimobiledevice, libimobiledevice-1.0 >= 1.3.0, have_limd=yes, have_limd=no)
-AC_CHECK_LIB(pthread, [pthread_create, pthread_mutex_lock], [AC_SUBST(libpthread_LIBS,[-lpthread])], [AC_MSG_ERROR([libpthread is required to build usbmuxd])])
+PKG_CHECK_MODULES(limd_glue, libimobiledevice-glue-1.0 >= 1.0.0)
 
 AC_ARG_WITH([preflight],
             [AS_HELP_STRING([--without-preflight],
@@ -106,7 +106,7 @@ AC_TYPE_UINT8_T
 AC_SEARCH_LIBS([clock_gettime],[rt posix4])
 
 # Checks for library functions.
-AC_CHECK_FUNCS([strcasecmp strdup strerror strndup stpcpy malloc realloc])
+AC_CHECK_FUNCS([strcasecmp strdup strerror strndup malloc realloc])
 AC_CHECK_FUNCS([ppoll clock_gettime localtime_r])
 
 # Check for operating system

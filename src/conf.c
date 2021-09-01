@@ -39,6 +39,8 @@
 #include <shlobj.h>
 #endif
 
+#include <libimobiledevice-glue/utils.h>
+
 #include "conf.h"
 #include "utils.h"
 #include "log.h"

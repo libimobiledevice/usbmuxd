@@ -34,10 +34,11 @@
 #include <netinet/tcp.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
-#include <pthread.h>
 #include <fcntl.h>
 
 #include <plist/plist.h>
+#include <libimobiledevice-glue/collection.h>
+#include <libimobiledevice-glue/thread.h>
 
 #include "log.h"
 #include "usb.h"
@@ -75,7 +76,7 @@ struct mux_client {
 };
 
 static struct collection client_list;
-pthread_mutex_t client_list_mutex;
+mutex_t client_list_mutex;
 static uint32_t client_number = 0;
 
 #ifdef SO_PEERCRED
@@ -224,10 +225,10 @@ int client_accept(int listenfd)
 	client->events = POLLIN;
 	client->info = NULL;
 
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	client->number = client_number++;
 	collection_add(&client_list, client);
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 
 #ifdef SO_PEERCRED
 	if (log_level >= LL_INFO) {
@@ -252,7 +253,7 @@ int client_accept(int listenfd)
 void client_close(struct mux_client *client)
 {
 	int found = 0;
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	FOREACH(struct mux_client *lc, &client_list) {
 		if (client == lc) {
 			found = 1;
@@ -262,7 +263,7 @@ void client_close(struct mux_client *client)
 	if (!found) {
 		// in case we get called again but client was already freed
 		usbmuxd_log(LL_DEBUG, "%s: ignoring for non-existing client %p", __func__, client);
-		pthread_mutex_unlock(&client_list_mutex);
+		mutex_unlock(&client_list_mutex);
 		return;
 	}
 #ifdef SO_PEERCRED
@@ -293,17 +294,17 @@ void client_close(struct mux_client *client)
 	plist_free(client->info);
 
 	collection_remove(&client_list, client);
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 	free(client);
 }
 
 void client_get_fds(struct fdlist *list)
 {
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	FOREACH(struct mux_client *client, &client_list) {
 		fdlist_add(list, FD_CLIENT, client->fd, client->events);
 	} ENDFOREACH
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 }
 
 static int output_buffer_add_message(struct mux_client *client, uint32_t tag, enum usbmuxd_msgtype msg, void *payload, int payload_length)
@@ -442,7 +443,7 @@ static int send_listener_list(struct mux_client *client, uint32_t tag)
 	plist_t dict = plist_new_dict();
 	plist_t listeners = plist_new_array();
 
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	FOREACH(struct mux_client *lc, &client_list) {
 		if (lc->state == CLIENT_LISTEN) {
 			plist_t n = NULL;
@@ -489,7 +490,7 @@ static int send_listener_list(struct mux_client *client, uint32_t tag)
 			plist_array_append_item(listeners, l);
 		}
 	} ENDFOREACH
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 
 	plist_dict_set_item(dict, "ListenerList", listeners);
 	res = send_plist(client, tag, dict);
@@ -975,14 +976,14 @@ static void input_buffer_process(struct mux_client *client)
 void client_process(int fd, short events)
 {
 	struct mux_client *client = NULL;
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	FOREACH(struct mux_client *lc, &client_list) {
 		if(lc->fd == fd) {
 			client = lc;
 			break;
 		}
 	} ENDFOREACH
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 
 	if(!client) {
 		usbmuxd_log(LL_INFO, "client_process: fd %d not found in client list", fd);
@@ -1004,45 +1005,45 @@ void client_process(int fd, short events)
 
 void client_device_add(struct device_info *dev)
 {
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	usbmuxd_log(LL_DEBUG, "client_device_add: id %d, location 0x%x, serial %s", dev->id, dev->location, dev->serial);
 	device_set_visible(dev->id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			send_device_add(client, dev);
 	} ENDFOREACH
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 }
 
 void client_device_remove(int device_id)
 {
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	uint32_t id = device_id;
 	usbmuxd_log(LL_DEBUG, "client_device_remove: id %d", device_id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if(client->state == CLIENT_LISTEN)
 			send_device_remove(client, id);
 	} ENDFOREACH
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 }
 
 void client_device_paired(int device_id)
 {
-	pthread_mutex_lock(&client_list_mutex);
+	mutex_lock(&client_list_mutex);
 	uint32_t id = device_id;
 	usbmuxd_log(LL_DEBUG, "client_device_paired: id %d", device_id);
 	FOREACH(struct mux_client *client, &client_list) {
 		if (client->state == CLIENT_LISTEN)
 			send_device_paired(client, id);
 	} ENDFOREACH
-	pthread_mutex_unlock(&client_list_mutex);
+	mutex_unlock(&client_list_mutex);
 }
 
 void client_init(void)
 {
 	usbmuxd_log(LL_DEBUG, "client_init");
 	collection_init(&client_list);
-	pthread_mutex_init(&client_list_mutex, NULL);
+	mutex_init(&client_list_mutex);
 }
 
 void client_shutdown(void)
@@ -1051,6 +1052,6 @@ void client_shutdown(void)
 	FOREACH(struct mux_client *client, &client_list) {
 		client_close(client);
 	} ENDFOREACH
-	pthread_mutex_destroy(&client_list_mutex);
+	mutex_destroy(&client_list_mutex);
 	collection_free(&client_list);
 }
