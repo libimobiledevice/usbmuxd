@@ -19,13 +19,13 @@ jobs:
         workflow: build.yml
         name: libplist-latest_${{env.target_triplet}}
         repo: libimobiledevice/libplist
-    - name: fetch libimobiledevice
+    - name: fetch libusbmuxd
       uses: dawidd6/action-download-artifact@v2
       with:
         github_token: ${{secrets.GITHUB_TOKEN}}
         workflow: build.yml
-        name: libimobiledevice-latest_${{env.target_triplet}}
-        repo: libimobiledevice/libimobiledevice
+        name: libusbmuxd-latest_${{env.target_triplet}}
+        repo: libimobiledevice/libusbmuxd
     - name: fetch libimobiledevice-glue
       uses: dawidd6/action-download-artifact@v2
       with:
@@ -33,6 +33,13 @@ jobs:
         workflow: build.yml
         name: libimobiledevice-glue-latest_${{env.target_triplet}}
         repo: libimobiledevice/libimobiledevice-glue
+    - name: fetch libimobiledevice
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        workflow: build.yml
+        name: libimobiledevice-latest_${{env.target_triplet}}
+        repo: libimobiledevice/libimobiledevice
     - name: install external dependencies
       run: |
           mkdir extract
