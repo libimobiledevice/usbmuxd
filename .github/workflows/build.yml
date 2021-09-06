@@ -1,0 +1,62 @@
+name: build
+
+on: [push]
+
+jobs:
+  build-linux-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+    - name: install dependencies
+      run: |
+          sudo apt-get install libusb-1.0-0-dev
+    - name: prepare environment
+      run: |
+          echo "target_triplet=`gcc -dumpmachine`" >> $GITHUB_ENV
+    - name: fetch libplist
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        workflow: build.yml
+        name: libplist-latest_${{env.target_triplet}}
+        repo: libimobiledevice/libplist
+    - name: fetch libimobiledevice
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        workflow: build.yml
+        name: libimobiledevice-latest_${{env.target_triplet}}
+        repo: libimobiledevice/libimobiledevice
+    - name: fetch libimobiledevice-glue
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        workflow: build.yml
+        name: libimobiledevice-glue-latest_${{env.target_triplet}}
+        repo: libimobiledevice/libimobiledevice-glue
+    - name: install external dependencies
+      run: |
+          mkdir extract
+          for I in *.tar; do
+            tar -C extract -xvf $I
+          done
+          sudo cp -r extract/* /
+          sudo ldconfig
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: autogen
+      run: ./autogen.sh PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+    - name: make
+      run: make
+    - name: make install
+      run: sudo make install
+    - name: prepare artifact
+      run: |
+          mkdir -p dest
+          DESTDIR=`pwd`/dest make install
+          tar -C dest -cf usbmuxd.tar usr lib
+    - name: publish artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: usbmuxd-latest_${{env.target_triplet}}
+        path: usbmuxd.tar
