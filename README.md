@@ -2,6 +2,8 @@
 
 *A socket daemon to multiplex connections from and to iOS devices.*
 
+![build](https://github.com/libimobiledevice/usbmuxd/actions/workflows/build.yml/badge.svg)
+
 ## Features
 
 usbmuxd stands for "USB multiplexing daemon". This daemon is in charge of
