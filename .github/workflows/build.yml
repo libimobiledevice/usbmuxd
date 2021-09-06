@@ -46,6 +46,9 @@ jobs:
         fetch-depth: 0
     - name: autogen
       run: ./autogen.sh PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+    - name: print config.log
+      if: ${{ failure() }}
+      run: cat config.log
     - name: make
       run: make
     - name: make install
