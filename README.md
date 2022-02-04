@@ -84,6 +84,23 @@ To output a list of available configure options use:
 ./autogen.sh --help
 ```
 
+### OS X
+
+There are two ways:
+
+#### Using Macports
+
+```
+sudo port install libimobiledevice
+```
+
+#### Using Home Brew
+
+```
+brew install libimobiledevice
+```
+
+
 ## Usage
 
 The daemon is automatically started by udev or systemd depending on what you
