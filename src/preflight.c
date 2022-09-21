@@ -148,7 +148,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 
 	plist_t value = NULL;
 	char* version_str = NULL;
-	char* platform_str = NULL;
+	char* deviceclass_str = NULL;
 
 	usbmuxd_log(LL_INFO, "%s: Starting preflight on device %s...", __func__, _dev->udid);
 
@@ -235,22 +235,22 @@ retry:
 		goto leave;
 	}
 	if (value && plist_get_node_type(value) == PLIST_STRING) {
-		plist_get_string_val(value, &platform_str);
+		plist_get_string_val(value, &deviceclass_str);
 	}
 	plist_free(value);
 
-	if (!platform_str) {
+	if (!deviceclass_str) {
 		usbmuxd_log(LL_ERROR, "%s: Could not get DeviceClass string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
 		goto leave;
 	}
 
 	int version_major = strtol(version_str, NULL, 10);
-	if (((!strcmp(platform_str, "iPhone") || !strcmp(platform_str, "iPad")) && version_major >= 7)
-	    || (!strcmp(platform_str, "Watch") && version_major >= 2)
-	    || (!strcmp(platform_str, "AppleTV") && version_major >= 9)
+	if (((!strcmp(deviceclass_str, "iPhone") || !strcmp(deviceclass_str, "iPad")) && version_major >= 7)
+	    || (!strcmp(deviceclass_str, "Watch") && version_major >= 2)
+	    || (!strcmp(deviceclass_str, "AppleTV") && version_major >= 9)
 	) {
 		/* iOS 7.0 / watchOS 2.0 / tvOS 9.0 and later */
-		usbmuxd_log(LL_INFO, "%s: Found %s %s device %s", __func__, platform_str, version_str, _dev->udid);
+		usbmuxd_log(LL_INFO, "%s: Found %s %s device %s", __func__, deviceclass_str, version_str, _dev->udid);
 
 		lockdownd_set_untrusted_host_buid(lockdown);
 
@@ -357,7 +357,7 @@ retry:
 	}
 
 leave:
-	free(platform_str);
+	free(deviceclass_str);
 	free(version_str);
 	if (lockdown)
 		lockdownd_client_free(lockdown);
