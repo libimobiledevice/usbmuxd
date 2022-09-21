@@ -153,6 +153,7 @@ static void* preflight_worker_handle_device_add(void* userdata)
 	usbmuxd_log(LL_INFO, "%s: Starting preflight on device %s...", __func__, _dev->udid);
 
 retry:
+//	idevice_set_debug_level(1);
 	lerr = lockdownd_client_new(dev, &lockdown, "usbmuxd");
 	if (lerr != LOCKDOWN_E_SUCCESS) {
 		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not connect to lockdownd on device %s, lockdown error %d", __func__, _dev->udid, lerr);
@@ -228,9 +229,9 @@ retry:
 		goto leave;
 	}
 
-	lerr = lockdownd_get_value(lockdown, NULL, "ProductName", &value);
+	lerr = lockdownd_get_value(lockdown, NULL, "DeviceClass", &value);
 	if (lerr != LOCKDOWN_E_SUCCESS) {
-		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not get ProductName from device %s, lockdown error %d", __func__, _dev->udid, lerr);
+		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not get DeviceClass from device %s, lockdown error %d", __func__, _dev->udid, lerr);
 		goto leave;
 	}
 	if (value && plist_get_node_type(value) == PLIST_STRING) {
@@ -239,14 +240,14 @@ retry:
 	plist_free(value);
 
 	if (!platform_str) {
-		usbmuxd_log(LL_ERROR, "%s: Could not get ProductName string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
+		usbmuxd_log(LL_ERROR, "%s: Could not get DeviceClass string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
 		goto leave;
 	}
 
 	int version_major = strtol(version_str, NULL, 10);
-	if ((!strcmp(platform_str, "iPhone OS") && version_major >= 7)
-	    || ((!strcmp(platform_str, "watchOS") || !strcmp(platform_str, "Watch OS")) && version_major >= 2)
-	    || (!strcmp(platform_str, "Apple TVOS") && version_major >= 9)
+	if (((!strcmp(platform_str, "iPhone") || !strcmp(platform_str, "iPad")) && version_major >= 7)
+	    || (!strcmp(platform_str, "Watch") && version_major >= 2)
+	    || (!strcmp(platform_str, "AppleTV") && version_major >= 9)
 	) {
 		/* iOS 7.0 / watchOS 2.0 / tvOS 9.0 and later */
 		usbmuxd_log(LL_INFO, "%s: Found %s %s device %s", __func__, platform_str, version_str, _dev->udid);
