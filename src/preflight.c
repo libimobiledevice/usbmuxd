@@ -214,18 +214,19 @@ retry:
 
 	lerr = lockdownd_get_value(lockdown, NULL, "ProductVersion", &value);
 	if (lerr != LOCKDOWN_E_SUCCESS) {
-		usbmuxd_log(LL_ERROR, "%s: ERROR: Could not get ProductVersion from device %s, lockdown error %d", __func__, _dev->udid, lerr);
-		goto leave;
-	}
+		usbmuxd_log(LL_WARNING, "%s: Could not get ProductVersion from device %s, lockdown error %d", __func__, _dev->udid, lerr);
+		/* assume old iOS version */
+		version_str = strdup("1.0");
+	} else {
+		if (value && plist_get_node_type(value) == PLIST_STRING) {
+			plist_get_string_val(value, &version_str);
+		}
+		plist_free(value);
 
-	if (value && plist_get_node_type(value) == PLIST_STRING) {
-		plist_get_string_val(value, &version_str);
-	}
-	plist_free(value);
-
-	if (!version_str) {
-		usbmuxd_log(LL_ERROR, "%s: Could not get ProductVersion string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
-		goto leave;
+		if (!version_str) {
+			usbmuxd_log(LL_ERROR, "%s: Could not get ProductVersion string from device %s handle %d", __func__, _dev->udid, (int)(long)_dev->conn_data);
+			goto leave;
+		}
 	}
 
 	lerr = lockdownd_get_value(lockdown, NULL, "DeviceClass", &value);
