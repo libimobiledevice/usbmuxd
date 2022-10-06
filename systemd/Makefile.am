@@ -1,7 +1,7 @@
 edit = \
 	$(SED) -r \
 	-e 's|@sbindir[@]|$(sbindir)|g' \
-	-e 's|@localstatedir[@]|$(localstatedir)|g' \
+	-e 's|@runstatedir[@]|$(runstatedir)|g' \
 	< $< > $@ || rm $@
 
 if WANT_SYSTEMD
