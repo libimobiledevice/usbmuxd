@@ -366,7 +366,8 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 	}
 }
 
-static int submit_vendor_specific(struct libusb_device_handle *handle, struct mode_user_data *user_data, libusb_transfer_cb_fn callback) {
+static int submit_vendor_specific(struct libusb_device_handle *handle, struct mode_user_data *user_data, libusb_transfer_cb_fn callback) 
+{
 	struct libusb_transfer* ctrl_transfer = libusb_alloc_transfer(0);
 	unsigned char* buffer = malloc(LIBUSB_CONTROL_SETUP_SIZE);
 	uint8_t bRequestType = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN | LIBUSB_RECIPIENT_DEVICE;
@@ -378,7 +379,8 @@ static int submit_vendor_specific(struct libusb_device_handle *handle, struct mo
 	return libusb_submit_transfer(ctrl_transfer);
 }
 
-static void switch_mode_cb(struct libusb_transfer* transfer) {
+static void switch_mode_cb(struct libusb_transfer* transfer) 
+{
 	struct mode_user_data* user_data = transfer->user_data;
 
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
@@ -393,7 +395,8 @@ static void switch_mode_cb(struct libusb_transfer* transfer) {
 	free(transfer->user_data);
 }
 
-static void get_mode_cb(struct libusb_transfer* transfer) {
+static void get_mode_cb(struct libusb_transfer* transfer) 
+{
 	struct mode_user_data* user_data = transfer->user_data;
 	int res;
 
@@ -406,19 +409,19 @@ static void get_mode_cb(struct libusb_transfer* transfer) {
 	unsigned char *data = libusb_control_transfer_get_data(transfer);
 
 	char* desired_mode = getenv(ENV_DEVICE_MODE);
-	if (!desired_mode) {
+	if(!desired_mode) {
 		user_data->wIndex = 0x1;
 	}
-	else if (!strncmp(desired_mode, "2", 1)) {
+	else if(!strncmp(desired_mode, "2", 1)) {
 		user_data->wIndex = 0x2;
 	} 
-	else if (!strncmp(desired_mode, "3", 1)) {
+	else if(!strncmp(desired_mode, "3", 1)) {
 		user_data->wIndex = 0x3;
 	}
 	// Response is 3:3:3 for initial mode, 5:3:3 otherwise.
 	// In later commit, should infer the mode from available configurations and interfaces. 
 	usbmuxd_log(LL_INFO, "Received response %i:%i:%i for get_mode request for device %i-%i", data[0], data[1], data[2], user_data->bus, user_data->address);
-	if (user_data->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3) {
+	if(user_data->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3) {
 		// 3:3:3 means the initial mode
 		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", user_data->bus, user_data->address, user_data->wIndex);
 		
@@ -426,7 +429,7 @@ static void get_mode_cb(struct libusb_transfer* transfer) {
 		user_data->wValue = 0;
 		user_data->wLength = 1;
 
-		if ((res = submit_vendor_specific(transfer->dev_handle, user_data, switch_mode_cb)) != 0) {
+		if((res = submit_vendor_specific(transfer->dev_handle, user_data, switch_mode_cb)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not request to switch mode %i for device %i-%i (%i)", user_data->wIndex, user_data->bus, user_data->address, res);
 		}
 	} 
@@ -492,13 +495,13 @@ static int usb_device_add(libusb_device* dev)
 	user_data->wLength = 4;
 	user_data->timeout = 1000;
 
-	if (submit_vendor_specific(handle, user_data, get_mode_cb) != 0) {
+	if(submit_vendor_specific(handle, user_data, get_mode_cb) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not request current mode from device %d-%d", bus, address);
 	}
 	// Potentially, the rest of this function can be factored out and called from get_mode_callback/switch_mode_callback (where desired mode is known)
 	int desired_config = devdesc.bNumConfigurations;
-	if (desired_config > 4) {
-		if (desired_config > 5) {
+	if(desired_config > 4) {
+		if(desired_config > 5) {
 			usbmuxd_log(LL_ERROR, "Device %d-%d has more than 5 configurations, but usbmuxd doesn't support that. Choosing configuration 5 instead.", bus, address);
 			desired_config = 5;
 		}
@@ -516,10 +519,9 @@ static int usb_device_add(libusb_device* dev)
 			// Otherwize, 0 is expected to be of a different class.
 			int usbmux_intf_index = config->bNumInterfaces == 3 ? 2 : config->bNumInterfaces == 4 ? 1 : 0;
 			intf = &config->interface[usbmux_intf_index].altsetting[0];
-			if (
-					intf->bInterfaceClass != INTERFACE_CLASS || 
-					intf->bInterfaceSubClass != INTERFACE_SUBCLASS || 
-					intf->bInterfaceProtocol != INTERFACE_PROTOCOL) {
+			if(intf->bInterfaceClass != INTERFACE_CLASS || 
+			   intf->bInterfaceSubClass != INTERFACE_SUBCLASS || 
+			   intf->bInterfaceProtocol != INTERFACE_PROTOCOL) {
 				usbmuxd_log(LL_WARNING, "Device %d-%d: can't find usbmux interface in configuration 5, choosing configuration 4 instead.", bus, address);
 				desired_config = 4;
 				break;
