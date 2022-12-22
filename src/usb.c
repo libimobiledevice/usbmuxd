@@ -65,12 +65,12 @@ struct usb_device {
 	struct libusb_device_descriptor devdesc;
 };
 
-struct mode_user_data {
+struct mode_context {
+	struct libusb_device* dev;
+	struct libusb_device_descriptor devdesc;
 	uint8_t bus, address;
 	uint8_t bRequest;
-	uint16_t wValue;
-	uint16_t wIndex;
-	uint16_t wLength;
+	uint16_t wValue, wIndex, wLength;
 	unsigned int timeout;
 };
 
@@ -366,140 +366,31 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 	}
 }
 
-static int submit_vendor_specific(struct libusb_device_handle *handle, struct mode_user_data *user_data, libusb_transfer_cb_fn callback) 
+static int submit_vendor_specific(struct libusb_device_handle *handle, struct mode_context *context, libusb_transfer_cb_fn callback) 
 {
 	struct libusb_transfer* ctrl_transfer = libusb_alloc_transfer(0);
-	unsigned char* buffer = malloc(LIBUSB_CONTROL_SETUP_SIZE);
+	int ret = 0; 
+	unsigned char* buffer = malloc(LIBUSB_CONTROL_SETUP_SIZE + context->wLength);
 	uint8_t bRequestType = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN | LIBUSB_RECIPIENT_DEVICE;
-	libusb_fill_control_setup(buffer, bRequestType, user_data->bRequest, user_data->wValue, user_data->wIndex, user_data->wLength);
+	libusb_fill_control_setup(buffer, bRequestType, context->bRequest, context->wValue, context->wIndex, context->wLength);
 	
-	ctrl_transfer->flags = LIBUSB_TRANSFER_FREE_BUFFER | LIBUSB_TRANSFER_FREE_TRANSFER;
-	libusb_fill_control_transfer(ctrl_transfer, handle, buffer, callback, user_data, user_data->timeout);
+	ctrl_transfer->flags = LIBUSB_TRANSFER_FREE_TRANSFER | LIBUSB_TRANSFER_FREE_TRANSFER;
+	libusb_fill_control_transfer(ctrl_transfer, handle, buffer, callback, context, context->timeout);
 	
-	return libusb_submit_transfer(ctrl_transfer);
+	ret = libusb_submit_transfer(ctrl_transfer);
+	return ret;
 }
 
-static void switch_mode_cb(struct libusb_transfer* transfer) 
+static int device_complete_initialization(struct mode_context *context, struct libusb_device_handle *handle) 
 {
-	struct mode_user_data* user_data = transfer->user_data;
-
-	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-		usbmuxd_log(LL_ERROR, "Failed to request mode switch for device %i-%i (%i)", user_data->bus, user_data->address, transfer->status);
-		free(transfer->user_data);
-		return;
-	}
-
-	unsigned char *data = libusb_control_transfer_get_data(transfer);
-
-	usbmuxd_log(LL_INFO, "Received response %i for switch mode %i for device %i-%i", data[0], user_data->wIndex, user_data->bus, user_data->address);
-	free(transfer->user_data);
-}
-
-static void get_mode_cb(struct libusb_transfer* transfer) 
-{
-	struct mode_user_data* user_data = transfer->user_data;
-	int res;
-
-	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-		usbmuxd_log(LL_ERROR, "Failed to request get mode for device %i-%i (%i)", user_data->bus, user_data->address, transfer->status);
-		free(transfer->user_data);
-		return;
-	}
-
-	unsigned char *data = libusb_control_transfer_get_data(transfer);
-
-	char* desired_mode = getenv(ENV_DEVICE_MODE);
-	if(!desired_mode) {
-		user_data->wIndex = 0x1;
-	}
-	else if(!strncmp(desired_mode, "2", 1)) {
-		user_data->wIndex = 0x2;
-	} 
-	else if(!strncmp(desired_mode, "3", 1)) {
-		user_data->wIndex = 0x3;
-	}
-	// Response is 3:3:3 for initial mode, 5:3:3 otherwise.
-	// In later commit, should infer the mode from available configurations and interfaces. 
-	usbmuxd_log(LL_INFO, "Received response %i:%i:%i for get_mode request for device %i-%i", data[0], data[1], data[2], user_data->bus, user_data->address);
-	if(user_data->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3) {
-		// 3:3:3 means the initial mode
-		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", user_data->bus, user_data->address, user_data->wIndex);
-		
-		user_data->bRequest = APPLE_VEND_SPECIFIC_SET_MODE;
-		user_data->wValue = 0;
-		user_data->wLength = 1;
-
-		if((res = submit_vendor_specific(transfer->dev_handle, user_data, switch_mode_cb)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not request to switch mode %i for device %i-%i (%i)", user_data->wIndex, user_data->bus, user_data->address, res);
-		}
-	} 
-	else {
-		// in other modes, usually 5:3:3
-		usbmuxd_log(LL_WARNING, "Skipping switch device %i-%i mode", user_data->bus, user_data->address);
-		free(transfer->user_data);
-	}
-}
-
-static int usb_device_add(libusb_device* dev)
-{
-	int j, res;
-	// the following are non-blocking operations on the device list
-	uint8_t bus = libusb_get_bus_number(dev);
-	uint8_t address = libusb_get_device_address(dev);
-	struct libusb_device_descriptor devdesc;
-	struct libusb_transfer *transfer;
-	int found = 0;
-	FOREACH(struct usb_device *usbdev, &device_list) {
-		if(usbdev->bus == bus && usbdev->address == address) {
-			usbdev->alive = 1;
-			found = 1;
-			break;
-		}
-	} ENDFOREACH
-	if(found)
-		return 0; //device already found
-
-	if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
-		return -1;
-	}
-	if(devdesc.idVendor != VID_APPLE)
-		return -1;
-	if((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) &&
-	   ((devdesc.idProduct < PID_APPLE_SILICON_RESTORE_LOW) ||
-		(devdesc.idProduct > PID_APPLE_SILICON_RESTORE_MAX)) &&
-	   ((devdesc.idProduct < PID_RANGE_LOW) ||
-		(devdesc.idProduct > PID_RANGE_MAX)))
-		return -1;
-	libusb_device_handle *handle;
-	usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
-	// No blocking operation can follow: it may be run in the libusb hotplug callback and libusb will refuse any
-	// blocking call
-	if((res = libusb_open(dev, &handle)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %s", bus, address, libusb_error_name(res));
-		return -1;
-	}
-
-	// On top of configurations, Apple have multiple "modes" for devices, namely:
-	// 1: An "initial" mode with 4 configurations
-	// 2: "Valeria" mode, where configuration 5 is included with interface for H.265 video capture (activated when recording screen with QuickTime in macOS)
-	// 3: "CDC NCM" mode, where configuration 5 is included with interface for Ethernet/USB (activated using internet-sharing feature in macOS)
-	// Request current mode asynchroniously, so it can be changed in callback if needed
-	usbmuxd_log(LL_INFO, "Requesting current mode from device %i-%i", bus, address);
-	struct mode_user_data* user_data = malloc(sizeof(struct mode_user_data));
-	user_data->bus = bus;
-	user_data->address = address;
-	user_data->bRequest = APPLE_VEND_SPECIFIC_GET_MODE;
-	user_data->wValue = 0;
-	user_data->wIndex = 0;
-	user_data->wLength = 4;
-	user_data->timeout = 1000;
-
-	if(submit_vendor_specific(handle, user_data, get_mode_cb) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not request current mode from device %d-%d", bus, address);
-	}
-	// Potentially, the rest of this function can be factored out and called from get_mode_callback/switch_mode_callback (where desired mode is known)
+	struct libusb_device *dev = context->dev;
+	struct libusb_device_descriptor devdesc = context->devdesc;
+	int bus = context->bus;
+	int address = context->address;
 	int desired_config = devdesc.bNumConfigurations;
+	int j, res;
+	struct libusb_transfer *transfer;
+
 	if(desired_config > 4) {
 		if(desired_config > 5) {
 			usbmuxd_log(LL_ERROR, "Device %d-%d has more than 5 configurations, but usbmuxd doesn't support that. Choosing configuration 5 instead.", bus, address);
@@ -697,6 +588,129 @@ static int usb_device_add(libusb_device* dev)
 
 	collection_add(&device_list, usbdev);
 
+	return 0;
+}
+
+static void switch_mode_cb(struct libusb_transfer* transfer) 
+{
+	struct mode_context* context = transfer->user_data;
+
+	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+		usbmuxd_log(LL_ERROR, "Failed to request mode switch for device %i-%i (%i)", context->bus, context->address, transfer->status);
+	}
+	else {
+		unsigned char *data = libusb_control_transfer_get_data(transfer);
+		usbmuxd_log(LL_INFO, "Received response %i for switch mode %i for device %i-%i", data[0], context->wIndex, context->bus, context->address);
+	}
+	free(transfer->user_data);
+}
+
+static void get_mode_cb(struct libusb_transfer* transfer) 
+{
+	struct mode_context* context = transfer->user_data;
+	int res;
+
+	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+		usbmuxd_log(LL_ERROR, "Failed to request get mode for device %i-%i (%i)", context->bus, context->address, transfer->status);
+		free(context);
+		return;
+	}
+
+	unsigned char *data = libusb_control_transfer_get_data(transfer);
+
+	char* desired_mode = getenv(ENV_DEVICE_MODE);
+	if(!desired_mode) {
+		context->wIndex = 0x1;
+	}
+	else if(!strncmp(desired_mode, "2", 1)) {
+		context->wIndex = 0x2;
+	} 
+	else if(!strncmp(desired_mode, "3", 1)) {
+		context->wIndex = 0x3;
+	}
+	// Response is 3:3:3 for initial mode, 5:3:3 otherwise.
+	// In later commit, should infer the mode from available configurations and interfaces. 
+	usbmuxd_log(LL_INFO, "Received response %i:%i:%i for get_mode request for device %i-%i", data[0], data[1], data[2], context->bus, context->address);
+	if(context->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3) {
+		// 3:3:3 means the initial mode
+		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", context->bus, context->address, context->wIndex);
+		
+		context->bRequest = APPLE_VEND_SPECIFIC_SET_MODE;
+		context->wValue = 0;
+		context->wLength = 1;
+
+		if((res = submit_vendor_specific(transfer->dev_handle, context, switch_mode_cb)) != 0) {
+			usbmuxd_log(LL_WARNING, "Could not request to switch mode %i for device %i-%i (%i)", context->wIndex, context->bus, context->address, res);
+		}
+	} 
+	else {
+		// in other modes, usually 5:3:3
+		usbmuxd_log(LL_WARNING, "Skipping switch device %i-%i mode", context->bus, context->address);
+		device_complete_initialization(context, transfer->dev_handle);
+		free(context);
+	}
+}
+
+static int usb_device_add(libusb_device* dev)
+{
+	int res;
+	// the following are non-blocking operations on the device list
+	uint8_t bus = libusb_get_bus_number(dev);
+	uint8_t address = libusb_get_device_address(dev);
+	struct libusb_device_descriptor devdesc;
+	int found = 0;
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		if(usbdev->bus == bus && usbdev->address == address) {
+			usbdev->alive = 1;
+			found = 1;
+			break;
+		}
+	} ENDFOREACH
+	if(found)
+		return 0; //device already found
+
+	if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
+		return -1;
+	}
+	if(devdesc.idVendor != VID_APPLE)
+		return -1;
+	if((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) &&
+	   ((devdesc.idProduct < PID_APPLE_SILICON_RESTORE_LOW) ||
+		(devdesc.idProduct > PID_APPLE_SILICON_RESTORE_MAX)) &&
+	   ((devdesc.idProduct < PID_RANGE_LOW) ||
+		(devdesc.idProduct > PID_RANGE_MAX)))
+		return -1;
+	libusb_device_handle *handle;
+	usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
+	// No blocking operation can follow: it may be run in the libusb hotplug callback and libusb will refuse any
+	// blocking call
+	if((res = libusb_open(dev, &handle)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %s", bus, address, libusb_error_name(res));
+		return -1;
+	}
+
+	// On top of configurations, Apple have multiple "modes" for devices, namely:
+	// 1: An "initial" mode with 4 configurations
+	// 2: "Valeria" mode, where configuration 5 is included with interface for H.265 video capture (activated when recording screen with QuickTime in macOS)
+	// 3: "CDC NCM" mode, where configuration 5 is included with interface for Ethernet/USB (activated using internet-sharing feature in macOS)
+	// Request current mode asynchroniously, so it can be changed in callback if needed
+	usbmuxd_log(LL_INFO, "Requesting current mode from device %i-%i", bus, address);
+	struct mode_context* context = malloc(sizeof(struct mode_context));
+	context->dev = dev;
+	context->devdesc = devdesc;
+	context->bus = bus;
+	context->address = address;
+	context->bRequest = APPLE_VEND_SPECIFIC_GET_MODE;
+	context->wValue = 0;
+	context->wIndex = 0;
+	context->wLength = 4;
+	context->timeout = 1000;
+
+	if(submit_vendor_specific(handle, context, get_mode_cb) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not request current mode from device %d-%d", bus, address);
+		return -1;
+	}
 	return 0;
 }
 
