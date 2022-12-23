@@ -451,7 +451,7 @@ static int set_valid_configuration(struct libusb_device* dev, struct usb_device 
 			usbmuxd_log(LL_DEBUG, "Device %d-%d is unconfigured", bus, address);
 		}
 		if(current_config == 0 || config->bConfigurationValue != current_config) {
-			usbmuxd_log(LL_NOTICE, "Changing configuration of device %i-%i: %i -> %i", bus, address, config->bConfigurationValue, current_config);
+			usbmuxd_log(LL_NOTICE, "Changing configuration of device %i-%i: %i -> %i", bus, address, current_config, config->bConfigurationValue);
 			for(k=0 ; k < config->bNumInterfaces ; k++) {
 				const struct libusb_interface_descriptor *intf1 = &config->interface[k].altsetting[0];
 				if((res = libusb_kernel_driver_active(handle, intf1->bInterfaceNumber)) < 0) {
