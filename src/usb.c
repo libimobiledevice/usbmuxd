@@ -591,28 +591,47 @@ static void device_complete_initialization(struct mode_context *context, struct 
 
 static void switch_mode_cb(struct libusb_transfer* transfer) 
 {
+	// For old devices not supporting mode swtich, if anything goes wrong - continue in current mode
 	struct mode_context* context = transfer->user_data;
-
+	struct usb_device *dev = find_device(context->bus, context->address);
+	if(!dev) {
+		usbmuxd_log(LL_WARNING, "Device %d-%d is missing from device list", context->bus, context->address);
+	}
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-		usbmuxd_log(LL_ERROR, "Failed to request mode switch for device %i-%i (%i)", context->bus, context->address, transfer->status);
+		usbmuxd_log(LL_ERROR, "Failed to request mode switch for device %i-%i (%i). Completing initialization in current mode", 
+			context->bus, context->address, transfer->status);
+		device_complete_initialization(context, transfer->dev_handle);
 	}
 	else {
 		unsigned char *data = libusb_control_transfer_get_data(transfer);
-		usbmuxd_log(LL_INFO, "Received response %i for switch mode %i for device %i-%i", data[0], context->wIndex, context->bus, context->address);
+		if(data[0] != 0) {
+			usbmuxd_log(LL_INFO, "Received unexpected response for device %i-%i mode switch (%i). Completing initialization in current mode", 
+				context->bus, context->address, data[0]);
+			device_complete_initialization(context, transfer->dev_handle);
+		}
 	}
-	free(transfer->user_data);
+	free(context);
 	if(transfer->buffer)
 		free(transfer->buffer);
 }
 
 static void get_mode_cb(struct libusb_transfer* transfer) 
 {
-	struct mode_context* context = transfer->user_data;
+	// For old devices not supporting mode swtich, if anything goes wrong - continue in current mode
 	int res;
+	struct mode_context* context = transfer->user_data;
+	struct usb_device *dev = find_device(context->bus, context->address);
+	if(!dev) {
+		usbmuxd_log(LL_ERROR, "Device %d-%d is missing from device list, aborting mode switch", context->bus, context->address);
+		free(context);
+		return;
+	}
 
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-		usbmuxd_log(LL_ERROR, "Failed to request get mode for device %i-%i (%i)", context->bus, context->address, transfer->status);
+		usbmuxd_log(LL_ERROR, "Failed to request get mode for device %i-%i (%i). Completing initialization in current mode", 
+			context->bus, context->address, transfer->status);
 		free(context);
+		device_complete_initialization(context, transfer->dev_handle);
 		return;
 	}
 
@@ -641,10 +660,12 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 
 		if((res = submit_vendor_specific(transfer->dev_handle, context, switch_mode_cb)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not request to switch mode %i for device %i-%i (%i)", context->wIndex, context->bus, context->address, res);
+			dev->alive = 0;
+			free(context);
 		}
 	} 
 	else {
-		// in other modes, usually 5:3:3:0
+		// in other modes, usually 5:3:3:0 (but in any other unexpected case as well), complete init:
 		usbmuxd_log(LL_WARNING, "Skipping switch device %i-%i mode", context->bus, context->address);
 		device_complete_initialization(context, transfer->dev_handle);
 		free(context);
