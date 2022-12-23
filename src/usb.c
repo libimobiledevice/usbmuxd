@@ -390,6 +390,101 @@ static struct usb_device* find_device(int bus, int address)
 	return NULL;
 }
 
+/// @brief Finds and sets the valid configuration, interface and endpoints on the usb_device
+static int set_valid_configuration(struct libusb_device* dev, struct usb_device *usbdev, struct libusb_device_handle *handle)
+{
+	int j, k, res, found = 0;
+	struct libusb_config_descriptor *config;
+	const struct libusb_interface_descriptor *intf;
+	struct libusb_device_descriptor devdesc = usbdev->devdesc;
+	int bus = usbdev->bus;
+	int address = usbdev->address;
+	int current_config = 0;
+
+	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not get current configuration for device %d-%d: %s", bus, address, libusb_error_name(res));
+		return -1;
+	}
+
+	for(j = devdesc.bNumConfigurations ; j > 0  ; j--) {
+		if((res = libusb_get_config_descriptor_by_value(dev, j, &config)) != 0) {
+			usbmuxd_log(LL_NOTICE, "Could not get configuration %i descriptor for device %i-%i: %s", j, bus, address, libusb_error_name(res));
+			continue;
+		}
+		for(k = 0 ; k < config->bNumInterfaces ; k++) {
+			intf = &config->interface[k].altsetting[0];
+			if(intf->bInterfaceClass == INTERFACE_CLASS || 
+			   intf->bInterfaceSubClass == INTERFACE_SUBCLASS || 
+			   intf->bInterfaceProtocol == INTERFACE_PROTOCOL) {
+				usbmuxd_log(LL_NOTICE, "Found usbmux interface for device %i-%i: %i", bus, address, intf->bInterfaceNumber);
+				if(intf->bNumEndpoints != 2) {
+					usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %i of device %i-%i", intf->bInterfaceNumber, bus, address);
+					continue;
+				}
+				if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+				   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+					usbdev->interface = intf->bInterfaceNumber;
+					usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
+					usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
+					usbmuxd_log(LL_INFO, "Found interface %i with endpoints %02x/%02x for device %i-%i", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+					found = 1;
+					break;
+				} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+						  (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+					usbdev->interface = intf->bInterfaceNumber;
+					usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
+					usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
+					usbmuxd_log(LL_INFO, "Found interface %i with swapped endpoints %02x/%02x for device %i-%i", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+					found = 1;
+					break;
+				} else {
+					usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %i of device %i-%i", intf->bInterfaceNumber, bus, address);
+				}
+			}
+		}
+		if(!found) {
+			libusb_free_config_descriptor(config);
+			continue;
+		}
+		// If set configuration is required, try to first detach all kernel drivers
+		if (current_config == 0) {
+			usbmuxd_log(LL_DEBUG, "Device %d-%d is unconfigured", bus, address);
+		}
+		if(current_config == 0 || config->bConfigurationValue != current_config) {
+			usbmuxd_log(LL_NOTICE, "Changing configuration of device %i-%i: %i -> %i", bus, address, config->bConfigurationValue, current_config);
+			for(k=0 ; k < config->bNumInterfaces ; k++) {
+				const struct libusb_interface_descriptor *intf1 = &config->interface[k].altsetting[0];
+				if((res = libusb_kernel_driver_active(handle, intf1->bInterfaceNumber)) < 0) {
+					usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %s", intf1->bInterfaceNumber, bus, address, libusb_error_name(res));
+					continue;
+				}
+				if(res == 1) {
+					usbmuxd_log(LL_INFO, "Detaching kernel driver for device %d-%d, interface %d", bus, address, intf1->bInterfaceNumber);
+					if((res = libusb_detach_kernel_driver(handle, intf1->bInterfaceNumber)) < 0) {
+						usbmuxd_log(LL_WARNING, "Could not detach kernel driver, configuration change will probably fail! %s", libusb_error_name(res));
+						continue;
+					}
+				}
+			}
+			if((res = libusb_set_configuration(handle, j)) != 0) {
+				usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %s", j, bus, address, libusb_error_name(res));
+				libusb_free_config_descriptor(config);
+				continue;
+			}
+		}
+		
+		libusb_free_config_descriptor(config);
+		break;
+	}
+
+	if(!found) {
+		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %i-%i", bus, address);
+		return -1;
+	}
+
+	return 0;
+}
+
 static void device_complete_initialization(struct mode_context *context, struct libusb_device_handle *handle) 
 {
 	struct usb_device *usbdev = find_device(context->bus, context->address);
@@ -401,120 +496,13 @@ static void device_complete_initialization(struct mode_context *context, struct 
 	struct libusb_device_descriptor devdesc = usbdev->devdesc;
 	int bus = context->bus;
 	int address = context->address;
-	int desired_config = devdesc.bNumConfigurations;
-	int j, res;
+	int res;
 	struct libusb_transfer *transfer;
 
-	if(desired_config > 4) {
-		if(desired_config > 5) {
-			usbmuxd_log(LL_ERROR, "Device %d-%d has more than 5 configurations, but usbmuxd doesn't support that. Choosing configuration 5 instead.", bus, address);
-			desired_config = 5;
-		}
-		/* verify if the configuration 5 is actually usable */
-		do {
-			struct libusb_config_descriptor *config;
-			const struct libusb_interface_descriptor *intf;
-			if (libusb_get_config_descriptor_by_value(dev, 5, &config) != 0) {
-				usbmuxd_log(LL_WARNING, "Device %d-%d: Failed to get config descriptor for configuration 5, choosing configuration 4 instead.", bus, address);
-				desired_config = 4;
-				break;
-			}
-			// In Valeria mode, there are 3 interfaces and usbmuxd is at 2
-			// In CDC NCM mode, there are 4 interfaces and usbmuxd is at 1
-			// Otherwize, 0 is expected to be of a different class.
-			int usbmux_intf_index = config->bNumInterfaces == 3 ? 2 : config->bNumInterfaces == 4 ? 1 : 0;
-			intf = &config->interface[usbmux_intf_index].altsetting[0];
-			if(intf->bInterfaceClass != INTERFACE_CLASS || 
-			   intf->bInterfaceSubClass != INTERFACE_SUBCLASS || 
-			   intf->bInterfaceProtocol != INTERFACE_PROTOCOL) {
-				usbmuxd_log(LL_WARNING, "Device %d-%d: can't find usbmux interface in configuration 5, choosing configuration 4 instead.", bus, address);
-				desired_config = 4;
-			}
-			libusb_free_config_descriptor(config);
-		} while (0);
-	}
-	int current_config = 0;
-	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %s", bus, address, libusb_error_name(res));
+	if((res = set_valid_configuration(dev, usbdev, handle)) != 0) {
 		usbdev->alive = 0;
 		return;
 	}
-	if (current_config != desired_config) {
-		struct libusb_config_descriptor *config;
-		if (current_config == 0) {
-			usbmuxd_log(LL_DEBUG, "Device %d-%d is unconfigured", bus, address);
-		} else if ((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-			usbmuxd_log(LL_NOTICE, "Could not get old configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
-		} else {
-			for(j=0; j<config->bNumInterfaces; j++) {
-				const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
-				if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
-					usbmuxd_log(LL_NOTICE, "Could not check kernel ownership of interface %d for device %d-%d: %s", intf->bInterfaceNumber, bus, address, libusb_error_name(res));
-					continue;
-				}
-				if(res == 1) {
-					usbmuxd_log(LL_INFO, "Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
-					if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
-						usbmuxd_log(LL_WARNING, "Could not detach kernel driver, configuration change will probably fail! %s", libusb_error_name(res));
-						continue;
-					}
-				}
-			}
-			libusb_free_config_descriptor(config);
-		}
-
-		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, desired_config);
-		if((res = libusb_set_configuration(handle, desired_config)) != 0) {
-			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %s", desired_config, bus, address, libusb_error_name(res));
-			usbdev->alive = 0;
-			return;
-		}
-	}
-
-	struct libusb_config_descriptor *config;
-	if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
-		usbdev->alive = 0;
-		return;
-	}
-
-	for(j=0; j<config->bNumInterfaces; j++) {
-		const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
-		if(intf->bInterfaceClass != INTERFACE_CLASS ||
-		   intf->bInterfaceSubClass != INTERFACE_SUBCLASS ||
-		   intf->bInterfaceProtocol != INTERFACE_PROTOCOL)
-			continue;
-		if(intf->bNumEndpoints != 2) {
-			usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
-			continue;
-		}
-		if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
-		   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-			usbdev->interface = intf->bInterfaceNumber;
-			usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
-			usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
-			usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
-			break;
-		} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
-		          (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-			usbdev->interface = intf->bInterfaceNumber;
-			usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
-			usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
-			usbmuxd_log(LL_INFO, "Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
-			break;
-		} else {
-			usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
-		}
-	}
-
-	if(j == config->bNumInterfaces) {
-		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
-		libusb_free_config_descriptor(config);
-		usbdev->alive = 0;
-		return;
-	}
-
-	libusb_free_config_descriptor(config);
 
 	if((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %s", usbdev->interface, bus, address, libusb_error_name(res));
