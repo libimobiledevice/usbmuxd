@@ -67,7 +67,6 @@ struct usb_device {
 
 struct mode_context {
 	struct libusb_device* dev;
-	struct libusb_device_descriptor devdesc;
 	uint8_t bus, address;
 	uint8_t bRequest;
 	uint16_t wValue, wIndex, wLength;
@@ -374,17 +373,32 @@ static int submit_vendor_specific(struct libusb_device_handle *handle, struct mo
 	uint8_t bRequestType = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN | LIBUSB_RECIPIENT_DEVICE;
 	libusb_fill_control_setup(buffer, bRequestType, context->bRequest, context->wValue, context->wIndex, context->wLength);
 	
-	ctrl_transfer->flags = LIBUSB_TRANSFER_FREE_TRANSFER | LIBUSB_TRANSFER_FREE_TRANSFER;
+	ctrl_transfer->flags = LIBUSB_TRANSFER_FREE_TRANSFER;
 	libusb_fill_control_transfer(ctrl_transfer, handle, buffer, callback, context, context->timeout);
 	
 	ret = libusb_submit_transfer(ctrl_transfer);
 	return ret;
 }
 
-static int device_complete_initialization(struct mode_context *context, struct libusb_device_handle *handle) 
+static struct usb_device* find_device(int bus, int address)
 {
+	FOREACH(struct usb_device *usbdev, &device_list) {
+		if(usbdev->bus == bus && usbdev->address == address) {
+			return usbdev;
+		}
+	} ENDFOREACH
+	return NULL;
+}
+
+static void device_complete_initialization(struct mode_context *context, struct libusb_device_handle *handle) 
+{
+	struct usb_device *usbdev = find_device(context->bus, context->address);
+	if(!usbdev) {
+		usbmuxd_log(LL_ERROR, "Device %d-%d is missing from device list, aborting initialization", context->bus, context->address);
+		return;
+	}
 	struct libusb_device *dev = context->dev;
-	struct libusb_device_descriptor devdesc = context->devdesc;
+	struct libusb_device_descriptor devdesc = usbdev->devdesc;
 	int bus = context->bus;
 	int address = context->address;
 	int desired_config = devdesc.bNumConfigurations;
@@ -415,15 +429,15 @@ static int device_complete_initialization(struct mode_context *context, struct l
 			   intf->bInterfaceProtocol != INTERFACE_PROTOCOL) {
 				usbmuxd_log(LL_WARNING, "Device %d-%d: can't find usbmux interface in configuration 5, choosing configuration 4 instead.", bus, address);
 				desired_config = 4;
-				break;
 			}
+			libusb_free_config_descriptor(config);
 		} while (0);
 	}
 	int current_config = 0;
 	if((res = libusb_get_configuration(handle, &current_config)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
-		return -1;
+		usbdev->alive = 0;
+		return;
 	}
 	if (current_config != desired_config) {
 		struct libusb_config_descriptor *config;
@@ -452,21 +466,17 @@ static int device_complete_initialization(struct mode_context *context, struct l
 		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, desired_config);
 		if((res = libusb_set_configuration(handle, desired_config)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %s", desired_config, bus, address, libusb_error_name(res));
-			libusb_close(handle);
-			return -1;
+			usbdev->alive = 0;
+			return;
 		}
 	}
 
 	struct libusb_config_descriptor *config;
 	if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
-		return -1;
+		usbdev->alive = 0;
+		return;
 	}
-
-	struct usb_device *usbdev;
-	usbdev = malloc(sizeof(struct usb_device));
-	memset(usbdev, 0, sizeof(*usbdev));
 
 	for(j=0; j<config->bNumInterfaces; j++) {
 		const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
@@ -500,34 +510,30 @@ static int device_complete_initialization(struct mode_context *context, struct l
 	if(j == config->bNumInterfaces) {
 		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
 		libusb_free_config_descriptor(config);
-		libusb_close(handle);
-		free(usbdev);
-		return -1;
+		usbdev->alive = 0;
+		return;
 	}
 
 	libusb_free_config_descriptor(config);
 
 	if((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %s", usbdev->interface, bus, address, libusb_error_name(res));
-		libusb_close(handle);
-		free(usbdev);
-		return -1;
+		usbdev->alive = 0;
+		return;
 	}
 
 	transfer = libusb_alloc_transfer(0);
 	if(!transfer) {
 		usbmuxd_log(LL_WARNING, "Failed to allocate transfer for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
-		free(usbdev);
-		return -1;
+		usbdev->alive = 0;
+		return;
 	}
 
 	unsigned char *transfer_buffer = malloc(1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
 	if (!transfer_buffer) {
 		usbmuxd_log(LL_WARNING, "Failed to allocate transfer buffer for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
-		free(usbdev);
-		return -1;
+		usbdev->alive = 0;
+		return;
 	}
 	memset(transfer_buffer, '\0', 1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
 
@@ -577,18 +583,10 @@ static int device_complete_initialization(struct mode_context *context, struct l
 	if((res = libusb_submit_transfer(transfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d: %s", usbdev->bus, usbdev->address, libusb_error_name(res));
 		libusb_free_transfer(transfer);
-		libusb_close(handle);
 		free(transfer_buffer);
-		free(usbdev);
-		return -1;
+		usbdev->alive = 0;
+		return;	
 	}
-
-	collection_init(&usbdev->tx_xfers);
-	collection_init(&usbdev->rx_xfers);
-
-	collection_add(&device_list, usbdev);
-
-	return 0;
 }
 
 static void switch_mode_cb(struct libusb_transfer* transfer) 
@@ -603,6 +601,8 @@ static void switch_mode_cb(struct libusb_transfer* transfer)
 		usbmuxd_log(LL_INFO, "Received response %i for switch mode %i for device %i-%i", data[0], context->wIndex, context->bus, context->address);
 	}
 	free(transfer->user_data);
+	if(transfer->buffer)
+		free(transfer->buffer);
 }
 
 static void get_mode_cb(struct libusb_transfer* transfer) 
@@ -628,11 +628,11 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 	else if(!strncmp(desired_mode, "3", 1)) {
 		context->wIndex = 0x3;
 	}
-	// Response is 3:3:3 for initial mode, 5:3:3 otherwise.
+	// Response is 3:3:3:0 for initial mode, 5:3:3:0 otherwise.
 	// In later commit, should infer the mode from available configurations and interfaces. 
-	usbmuxd_log(LL_INFO, "Received response %i:%i:%i for get_mode request for device %i-%i", data[0], data[1], data[2], context->bus, context->address);
-	if(context->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3) {
-		// 3:3:3 means the initial mode
+	usbmuxd_log(LL_INFO, "Received response %i:%i:%i:%i for get_mode request for device %i-%i", data[0], data[1], data[2], data[3], context->bus, context->address);
+	if(context->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3 && data[3] == 0) {
+		// 3:3:3:0 means the initial mode
 		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", context->bus, context->address, context->wIndex);
 		
 		context->bRequest = APPLE_VEND_SPECIFIC_SET_MODE;
@@ -644,11 +644,13 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 		}
 	} 
 	else {
-		// in other modes, usually 5:3:3
+		// in other modes, usually 5:3:3:0
 		usbmuxd_log(LL_WARNING, "Skipping switch device %i-%i mode", context->bus, context->address);
 		device_complete_initialization(context, transfer->dev_handle);
 		free(context);
 	}
+	if(transfer->buffer)
+		free(transfer->buffer);
 }
 
 static int usb_device_add(libusb_device* dev)
@@ -658,16 +660,11 @@ static int usb_device_add(libusb_device* dev)
 	uint8_t bus = libusb_get_bus_number(dev);
 	uint8_t address = libusb_get_device_address(dev);
 	struct libusb_device_descriptor devdesc;
-	int found = 0;
-	FOREACH(struct usb_device *usbdev, &device_list) {
-		if(usbdev->bus == bus && usbdev->address == address) {
-			usbdev->alive = 1;
-			found = 1;
-			break;
-		}
-	} ENDFOREACH
-	if(found)
+	struct usb_device *usbdev = find_device(bus, address);
+	if(usbdev) {
+		usbdev->alive = 1;
 		return 0; //device already found
+	}
 
 	if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
@@ -690,6 +687,23 @@ static int usb_device_add(libusb_device* dev)
 		return -1;
 	}
 
+	// Add the created handle to the device list, so we can close it in case of failure/disconnection
+	usbdev = malloc(sizeof(struct usb_device));
+	memset(usbdev, 0, sizeof(*usbdev));
+
+	usbdev->serial[0] = 0;
+	usbdev->bus = bus;
+	usbdev->address = address;
+	usbdev->devdesc = devdesc;
+	usbdev->speed = 0;
+	usbdev->dev = handle;
+	usbdev->alive = 1;
+
+	collection_init(&usbdev->tx_xfers);
+	collection_init(&usbdev->rx_xfers);
+
+	collection_add(&device_list, usbdev);
+
 	// On top of configurations, Apple have multiple "modes" for devices, namely:
 	// 1: An "initial" mode with 4 configurations
 	// 2: "Valeria" mode, where configuration 5 is included with interface for H.265 video capture (activated when recording screen with QuickTime in macOS)
@@ -698,7 +712,6 @@ static int usb_device_add(libusb_device* dev)
 	usbmuxd_log(LL_INFO, "Requesting current mode from device %i-%i", bus, address);
 	struct mode_context* context = malloc(sizeof(struct mode_context));
 	context->dev = dev;
-	context->devdesc = devdesc;
 	context->bus = bus;
 	context->address = address;
 	context->bRequest = APPLE_VEND_SPECIFIC_GET_MODE;
@@ -709,6 +722,8 @@ static int usb_device_add(libusb_device* dev)
 
 	if(submit_vendor_specific(handle, context, get_mode_cb) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not request current mode from device %d-%d", bus, address);
+		// Schedule device for close and cleanup
+		usbdev->alive = 0;
 		return -1;
 	}
 	return 0;
