@@ -390,6 +390,71 @@ static struct usb_device* find_device(int bus, int address)
 	return NULL;
 }
 
+/// @brief guess the current mode
+/// @param dev 
+/// @param usbdev 
+/// @param handle 
+/// @return 0 - undetermined, 1 - initial, 2 - valeria, 3 - cdc_ncm
+static int guess_mode(struct libusb_device* dev, struct usb_device *usbdev)
+{
+	int res, j;
+	int has_valeria = 0, has_cdc_ncm = 0, has_usbmux = 0;
+	struct libusb_device_descriptor devdesc = usbdev->devdesc;
+	struct libusb_config_descriptor *config;
+	int bus = usbdev->bus;
+	int address = usbdev->address;
+
+	if(devdesc.bNumConfigurations <= 4) {
+		// Assume this is initial mode
+		return 1;
+	}
+
+	if(devdesc.bNumConfigurations != 5) {
+		// No known modes with more then 5 configurations
+		return 0;
+	}
+
+	if((res = libusb_get_config_descriptor_by_value(dev, 5, &config)) != 0) {
+		usbmuxd_log(LL_NOTICE, "Could not get configuration 5 descriptor for device %i-%i: %s", bus, address, libusb_error_name(res));
+		return 0;
+	}
+
+	// Require both usbmux and one of the other interfaces to determine this is a valid configuration
+	for(j = 0 ; j < config->bNumInterfaces ; j++) {
+		const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+		if(intf->bInterfaceClass == INTERFACE_CLASS &&
+		   intf->bInterfaceSubClass == 42 &&
+		   intf->bInterfaceProtocol == 255) {
+			has_valeria = 1;
+		}
+		// https://github.com/torvalds/linux/blob/72a85e2b0a1e1e6fb4ee51ae902730212b2de25c/include/uapi/linux/usb/cdc.h#L22
+		// 2 for Communication class, 0xd for CDC NCM subclass
+		if(intf->bInterfaceClass == 2 &&
+		   intf->bInterfaceSubClass == 0xd) {
+			has_cdc_ncm = 1;
+		}
+		if(intf->bInterfaceClass == INTERFACE_CLASS &&
+		   intf->bInterfaceSubClass == INTERFACE_SUBCLASS &&
+		   intf->bInterfaceProtocol == INTERFACE_PROTOCOL) {
+			has_usbmux = 1;
+		}
+	}
+
+	libusb_free_config_descriptor(config);
+
+	if(has_valeria && has_usbmux) {
+		usbmuxd_log(LL_NOTICE, "Found Valeria and Apple USB Multiplexor in device %i-%i configuration 5", bus, address);
+		return 2;
+	}
+
+	if(has_cdc_ncm && has_usbmux) {
+		usbmuxd_log(LL_NOTICE, "Found CDC-NCM and Apple USB Multiplexor in device %i-%i configuration 5", bus, address);
+		return 3;
+	}
+
+	return 0;
+}
+
 /// @brief Finds and sets the valid configuration, interface and endpoints on the usb_device
 static int set_valid_configuration(struct libusb_device* dev, struct usb_device *usbdev, struct libusb_device_handle *handle)
 {
@@ -625,25 +690,19 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 
 	unsigned char *data = libusb_control_transfer_get_data(transfer);
 
-	char* desired_mode = getenv(ENV_DEVICE_MODE);
-	if(!desired_mode) {
-		context->wIndex = 0x1;
-	}
-	else if(!strncmp(desired_mode, "2", 1)) {
-		context->wIndex = 0x2;
-	} 
-	else if(!strncmp(desired_mode, "3", 1)) {
-		context->wIndex = 0x3;
-	}
+	int desired_mode = atoi(getenv(ENV_DEVICE_MODE));
+	int guessed_mode = guess_mode(context->dev, dev);
+
 	// Response is 3:3:3:0 for initial mode, 5:3:3:0 otherwise.
-	// In later commit, should infer the mode from available configurations and interfaces. 
 	usbmuxd_log(LL_INFO, "Received response %i:%i:%i:%i for get_mode request for device %i-%i", data[0], data[1], data[2], data[3], context->bus, context->address);
-	if(context->wIndex > 1 && data[0] == 3 && data[1] == 3 && data[2] == 3 && data[3] == 0) {
-		// 3:3:3:0 means the initial mode
+	if(desired_mode >= 1 && desired_mode <= 3 && 
+	   guessed_mode > 0 && // do not switch mode if guess failed
+	   guessed_mode != desired_mode) {
 		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", context->bus, context->address, context->wIndex);
 		
 		context->bRequest = APPLE_VEND_SPECIFIC_SET_MODE;
 		context->wValue = 0;
+		context->wIndex = desired_mode;
 		context->wLength = 1;
 
 		if((res = submit_vendor_specific(transfer->dev_handle, context, switch_mode_cb)) != 0) {
@@ -653,8 +712,7 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 		}
 	} 
 	else {
-		// in other modes, usually 5:3:3:0 (but in any other unexpected case as well), complete init:
-		usbmuxd_log(LL_WARNING, "Skipping switch device %i-%i mode", context->bus, context->address);
+		usbmuxd_log(LL_WARNING, "Skipping switch device %i-%i mode from %i to %i", context->bus, context->address, guessed_mode, desired_mode);
 		device_complete_initialization(context, transfer->dev_handle);
 		free(context);
 	}
