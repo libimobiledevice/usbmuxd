@@ -683,8 +683,8 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
 		usbmuxd_log(LL_ERROR, "Failed to request get mode for device %i-%i (%i). Completing initialization in current mode", 
 			context->bus, context->address, transfer->status);
-		free(context);
 		device_complete_initialization(context, transfer->dev_handle);
+		free(context);
 		return;
 	}
 
