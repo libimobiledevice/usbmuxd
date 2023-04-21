@@ -40,6 +40,7 @@
 #endif
 
 #include <libimobiledevice-glue/utils.h>
+#include <plist/plist.h>
 
 #include "conf.h"
 #include "utils.h"
@@ -232,7 +233,7 @@ static int internal_set_value(const char *config_file, const char *key, plist_t 
 	/* read file into plist */
 	plist_t config = NULL;
 
-	plist_read_from_filename(&config, config_file);
+	plist_read_from_file(config_file, &config, NULL);
 	if (!config) {
 		config = plist_new_dict();
 		plist_dict_set_item(config, key, value);
@@ -256,7 +257,7 @@ static int internal_set_value(const char *config_file, const char *key, plist_t 
 		usbmuxd_log(LL_DEBUG, "Setting key %s in config file %s", key, config_file);
 	}
 
-	int res = plist_write_to_filename(config, config_file, PLIST_FORMAT_XML);
+	int res = plist_write_to_file(config, config_file, PLIST_FORMAT_XML, 0);
 
 	plist_free(config);
 
@@ -290,7 +291,7 @@ static int internal_get_value(const char* config_file, const char *key, plist_t 
 
 	/* now parse file to get the SystemBUID */
 	plist_t config = NULL;
-	if (plist_read_from_filename(&config, config_file)) {
+	if (plist_read_from_file(config_file, &config, NULL)) {
 		usbmuxd_log(LL_DEBUG, "Reading key %s from config file %s", key, config_file);
 		plist_t n = plist_dict_get_item(config, key);
 		if (n) {
@@ -430,7 +431,7 @@ int config_set_device_record(const char *udid, char* record_data, uint64_t recor
 	remove(device_record_file);
 
 	/* store file */
-	if (!plist_write_to_filename(plist, device_record_file, PLIST_FORMAT_XML)) {
+	if (!plist_write_to_file(plist, device_record_file, PLIST_FORMAT_XML, 0)) {
 		usbmuxd_log(LL_DEBUG, "Could not open '%s' for writing: %s", device_record_file, strerror(errno));
 		res = -ENOENT;
 	}
