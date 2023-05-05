@@ -257,7 +257,7 @@ static int internal_set_value(const char *config_file, const char *key, plist_t 
 		usbmuxd_log(LL_DEBUG, "Setting key %s in config file %s", key, config_file);
 	}
 
-	int res = plist_write_to_file(config, config_file, PLIST_FORMAT_XML, 0);
+	int res = (plist_write_to_file(config, config_file, PLIST_FORMAT_XML, 0) == PLIST_ERR_SUCCESS);
 
 	plist_free(config);
 
@@ -277,7 +277,7 @@ static int config_set_value(const char *key, plist_t value)
 
 	int result = internal_set_value(config_file, key, value);
 	if (!result) {
-		usbmuxd_log(LL_ERROR, "ERROR: Failed to write to '%s': %s", config_file, strerror(errno));
+		usbmuxd_log(LL_ERROR, "ERROR: Failed to write to '%s'", config_file);
 	}
 
 	free(config_file);
@@ -291,7 +291,7 @@ static int internal_get_value(const char* config_file, const char *key, plist_t 
 
 	/* now parse file to get the SystemBUID */
 	plist_t config = NULL;
-	if (plist_read_from_file(config_file, &config, NULL)) {
+	if (plist_read_from_file(config_file, &config, NULL) == PLIST_ERR_SUCCESS) {
 		usbmuxd_log(LL_DEBUG, "Reading key %s from config file %s", key, config_file);
 		plist_t n = plist_dict_get_item(config, key);
 		if (n) {
