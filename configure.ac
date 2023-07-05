@@ -24,7 +24,9 @@ AC_CHECK_LIB(pthread, [pthread_create, pthread_mutex_lock], [AC_SUBST(libpthread
 AC_ARG_WITH([preflight],
             [AS_HELP_STRING([--without-preflight],
             [do not build with preflight worker support @<:@default=yes@:>@])],
-            [with_preflight=no],
+            [if test "x$with_preflight" != "xno"; then
+                with_preflight="yes"
+            fi],
             [with_preflight=yes])
 
 if test "x$have_limd" = "xyes"; then
