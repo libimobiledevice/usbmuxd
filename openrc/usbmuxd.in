@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+# Copyright 2023 Gentoo Authors
+# Distributed under the terms of the GNU General Public License v2
+
+name="USB multiplexing daemon"
+description="Socket daemon for the usbmux protocol used by Apple devices"
+command="@sbindir@/usbmuxd"
+command_args="--user usbmux"
+pidfile="/run/${RC_SVCNAME}.pid"
