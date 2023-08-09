@@ -1,7 +1,9 @@
 edit = \
 	$(SED) -r \
 	-e 's|@udev_activation_rule[@]|$(udev_activation_rule)|g' \
+	-e 's|@udev_deactivation_rule[@]|$(udev_deactivation_rule)|g' \
 	-e 's|@sbindir[@]|$(sbindir)|g' \
+	-e 's|@rcservicedir[@]|$(rcservicedir)|g' \
 	< $< > $@ || rm $@
 
 udevrules_DATA = \
