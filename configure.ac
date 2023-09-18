@@ -28,7 +28,7 @@ PKG_CHECK_MODULES(limd_glue, libimobiledevice-glue-1.0 >= 1.0.0)
 AC_ARG_WITH([preflight],
             [AS_HELP_STRING([--without-preflight],
             [do not build with preflight worker support @<:@default=yes@:>@])],
-            [with_preflight=no],
+            [with_preflight=$withval],
             [with_preflight=yes])
 
 if test "x$have_limd" = "xyes"; then
@@ -75,7 +75,7 @@ fi
 AC_ARG_WITH([systemd],
             [AS_HELP_STRING([--without-systemd],
             [do not build with systemd support @<:@default=yes@:>@])],
-            [],
+            [with_systemd=$withval],
             [with_systemd=yes])
 
 AC_ARG_WITH([systemdsystemunitdir],
