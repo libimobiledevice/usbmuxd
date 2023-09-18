@@ -49,7 +49,7 @@ jobs:
           done
           sudo cp -r extract/* /
           sudo ldconfig
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
     - name: autogen
@@ -67,7 +67,7 @@ jobs:
           DESTDIR=`pwd`/dest make install
           tar -C dest -cf usbmuxd.tar usr lib
     - name: publish artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: usbmuxd-latest_${{env.target_triplet}}
         path: usbmuxd.tar
