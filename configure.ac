@@ -158,6 +158,11 @@ AC_SUBST(GLOBAL_CFLAGS)
 
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
+# workaround for older autoconf versions
+if test "x$runstatedir" == "x"; then
+  runstatedir=$localstatedir/run
+fi
+
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
