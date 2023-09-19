@@ -691,7 +691,7 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 	unsigned char *data = libusb_control_transfer_get_data(transfer);
 
 	char* desired_mode_char = getenv(ENV_DEVICE_MODE);
-	int desired_mode = desired_mode_char ? atoi(desired_mode_char) : 1;
+	int desired_mode = desired_mode_char ? atoi(desired_mode_char) : 3;
 	int guessed_mode = guess_mode(context->dev, dev);
 
 	// Response is 3:3:3:0 for initial mode, 5:3:3:0 otherwise.
@@ -699,7 +699,7 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 	if(desired_mode >= 1 && desired_mode <= 3 && 
 	   guessed_mode > 0 && // do not switch mode if guess failed
 	   guessed_mode != desired_mode) {
-		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", context->bus, context->address, context->wIndex);
+		usbmuxd_log(LL_WARNING, "Switching device %i-%i mode to %i", context->bus, context->address, desired_mode);
 		
 		context->bRequest = APPLE_VEND_SPECIFIC_SET_MODE;
 		context->wValue = 0;
