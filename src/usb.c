@@ -369,7 +369,7 @@ static int submit_vendor_specific(struct libusb_device_handle *handle, struct mo
 {
 	struct libusb_transfer* ctrl_transfer = libusb_alloc_transfer(0);
 	int ret = 0; 
-	unsigned char* buffer = malloc(LIBUSB_CONTROL_SETUP_SIZE + context->wLength);
+	unsigned char* buffer = calloc(LIBUSB_CONTROL_SETUP_SIZE + context->wLength, 1);
 	uint8_t bRequestType = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN | LIBUSB_RECIPIENT_DEVICE;
 	libusb_fill_control_setup(buffer, bRequestType, context->bRequest, context->wValue, context->wIndex, context->wLength);
 	
