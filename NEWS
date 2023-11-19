@@ -34,6 +34,8 @@ Version 1.1.1
   - Unify and improve log message output
   - Improve README.md with project description, installation, contributing and
     usage sections
+  - The "--foreground" flag has been removed; usbmuxd now runs in foreground by
+    default.
 
 Version 1.1.0
 ~~~~~~~~~~~~~
