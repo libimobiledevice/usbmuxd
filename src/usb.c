@@ -691,7 +691,7 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 	unsigned char *data = libusb_control_transfer_get_data(transfer);
 
 	char* desired_mode_char = getenv(ENV_DEVICE_MODE);
-	int desired_mode = desired_mode_char ? atoi(desired_mode_char) : 3;
+	int desired_mode = desired_mode_char ? atoi(desired_mode_char) : 1;
 	int guessed_mode = guess_mode(context->dev, dev);
 
 	// Response is 3:3:3:0 for initial mode, 5:3:3:0 otherwise.
