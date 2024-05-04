@@ -40,7 +40,7 @@ if test "x$have_limd" = "xyes"; then
     AC_SUBST(libimobiledevice_CFLAGS)
     AC_SUBST(libimobiledevice_LIBS)
     CACHED_CFLAGS="$CFLAGS"
-    CFLAGS+=" $libimobiledevice_CFLAGS"
+    CFLAGS="$CFLAGS $libimobiledevice_CFLAGS"
     AC_CACHE_CHECK(for enum idevice_connection_type, ac_cv_enum_idevice_connection_type,
       AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
         #include <libimobiledevice/libimobiledevice.h>
