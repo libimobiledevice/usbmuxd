@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB) docs
+SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB) $(OPENRC_SUB) docs
 
 EXTRA_DIST = \
 	docs \
