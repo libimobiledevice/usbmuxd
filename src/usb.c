@@ -615,6 +615,9 @@ static void device_complete_initialization(struct mode_context *context, struct 
 		case LIBUSB_SPEED_SUPER:
 			usbdev->speed = 5000000000;
 			break;
+		case LIBUSB_SPEED_SUPER_PLUS:
+			usbdev->speed = 10000000000;
+			break;
 		case LIBUSB_SPEED_HIGH:
 		case LIBUSB_SPEED_UNKNOWN:
 		default:
