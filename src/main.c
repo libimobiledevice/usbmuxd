@@ -584,7 +584,7 @@ static void parse_opts(int argc, char **argv)
 			++verbose;
 			break;
 		case 'V':
-			printf("%s\n", PACKAGE_STRING);
+			printf("%s %s\n", PACKAGE_NAME, PACKAGE_VERSION);
 			exit(0);
 		case 'U':
 			drop_privileges = 1;
