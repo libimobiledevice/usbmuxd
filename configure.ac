@@ -153,7 +153,7 @@ AM_CONDITIONAL(WIN32, test x$win32 = xtrue)
 AC_SUBST([UDEV_SUB])
 AC_SUBST([SYSTEMD_SUB])
 
-AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-g -Wall -Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter")
+AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-Wall -Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter")
 AC_SUBST(GLOBAL_CFLAGS)
 
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
