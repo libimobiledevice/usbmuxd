@@ -431,7 +431,7 @@ int config_set_device_record(const char *udid, char* record_data, uint64_t recor
 	remove(device_record_file);
 
 	/* store file */
-	if (!plist_write_to_file(plist, device_record_file, PLIST_FORMAT_XML, 0)) {
+	if (plist_write_to_file(plist, device_record_file, PLIST_FORMAT_XML, 0) != PLIST_ERR_SUCCESS) {
 		usbmuxd_log(LL_DEBUG, "Could not open '%s' for writing: %s", device_record_file, strerror(errno));
 		res = -ENOENT;
 	}
