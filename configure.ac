@@ -21,7 +21,7 @@ LT_INIT
 
 # Checks for libraries.
 PKG_CHECK_MODULES(libusb, libusb-1.0 >= 1.0.9)
-PKG_CHECK_MODULES(libplist, libplist-2.0 >= 2.3.0)
+PKG_CHECK_MODULES(libplist, libplist-2.0 >= 2.6.0)
 PKG_CHECK_MODULES(libimobiledevice, libimobiledevice-1.0 >= 1.3.0, have_limd=yes, have_limd=no)
 PKG_CHECK_MODULES(limd_glue, libimobiledevice-glue-1.0 >= 1.0.0)
 
