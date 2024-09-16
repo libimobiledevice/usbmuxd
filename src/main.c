@@ -65,7 +65,6 @@ int no_preflight = 0;
 
 // Global state for main.c
 static int verbose = 0;
-static int foreground = 0;
 static int drop_privileges = 0;
 static const char *drop_user = NULL;
 static int opt_disable_hotplug = 0;
@@ -393,88 +392,6 @@ static int main_loop(int listenfd)
 	return 0;
 }
 
-/**
- * make this program run detached from the current console
- */
-static int daemonize(void)
-{
-	pid_t pid;
-	pid_t sid;
-	int pfd[2];
-	int res;
-
-	// already a daemon
-	if (getppid() == 1)
-		return 0;
-
-	if((res = pipe(pfd)) < 0) {
-		usbmuxd_log(LL_FATAL, "pipe() failed.");
-		return res;
-	}
-
-	pid = fork();
-	if (pid < 0) {
-		usbmuxd_log(LL_FATAL, "fork() failed.");
-		return pid;
-	}
-
-	if (pid > 0) {
-		// exit parent process
-		int status;
-		close(pfd[1]);
-
-		if((res = read(pfd[0],&status,sizeof(int))) != sizeof(int)) {
-			fprintf(stderr, "usbmuxd: ERROR: Failed to get init status from child, check syslog for messages.\n");
-			exit(1);
-		}
-		if(status != 0)
-			fprintf(stderr, "usbmuxd: ERROR: Child process exited with error %d, check syslog for messages.\n", status);
-		exit(status);
-	}
-	// At this point we are executing as the child process
-	// but we need to do one more fork
-
-	daemon_pipe = pfd[1];
-	close(pfd[0]);
-	report_to_parent = 1;
-
-	// Create a new SID for the child process
-	sid = setsid();
-	if (sid < 0) {
-		usbmuxd_log(LL_FATAL, "setsid() failed.");
-		return -1;
-	}
-
-	pid = fork();
-	if (pid < 0) {
-		usbmuxd_log(LL_FATAL, "fork() failed (second).");
-		return pid;
-	}
-
-	if (pid > 0) {
-		// exit parent process
-		close(daemon_pipe);
-		exit(0);
-	}
-
-	// Change the current working directory.
-	if ((chdir("/")) < 0) {
-		usbmuxd_log(LL_FATAL, "chdir() failed");
-		return -2;
-	}
-	// Redirect standard files to /dev/null
-	if (!freopen("/dev/null", "r", stdin)) {
-		usbmuxd_log(LL_FATAL, "Redirection of stdin failed.");
-		return -3;
-	}
-	if (!freopen("/dev/null", "w", stdout)) {
-		usbmuxd_log(LL_FATAL, "Redirection of stdout failed.");
-		return -3;
-	}
-
-	return 0;
-}
-
 static int notify_parent(int status)
 {
 	int res;
@@ -504,7 +421,6 @@ static void usage()
 	printf("OPTIONS:\n");
 	printf("  -h, --help\t\tPrint this message.\n");
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
-	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
 	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
 	printf("  -n, --disable-hotplug\tDisables automatic discovery of devices on hotplug.\n");
 	printf("                       \tStarting another instance will trigger discovery instead.\n");
@@ -537,7 +453,6 @@ static void parse_opts(int argc, char **argv)
 {
 	static struct option longopts[] = {
 		{"help", no_argument, NULL, 'h'},
-		{"foreground", no_argument, NULL, 'f'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"user", required_argument, NULL, 'U'},
 		{"disable-hotplug", no_argument, NULL, 'n'},
@@ -577,9 +492,6 @@ static void parse_opts(int argc, char **argv)
 		case 'h':
 			usage();
 			exit(0);
-		case 'f':
-			foreground = 1;
-			break;
 		case 'v':
 			++verbose;
 			break;
@@ -602,7 +514,6 @@ static void parse_opts(int argc, char **argv)
 #ifdef HAVE_SYSTEMD
 		case 's':
 			opt_enable_exit = 1;
-			foreground = 1;
 			break;
 #endif
 		case 'n':
@@ -675,12 +586,7 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (!foreground && !use_logfile) {
-		verbose += LL_WARNING;
-		log_enable_syslog();
-	} else {
-		verbose += LL_NOTICE;
-	}
+	verbose += LL_WARNING;
 
 	/* set log level to specified verbosity */
 	log_level = verbose;
@@ -749,14 +655,6 @@ int main(int argc, char *argv[])
 	if (opt_exit) {
 		usbmuxd_log(LL_NOTICE, "No running instance found, none killed. Exiting.");
 		goto terminate;
-	}
-
-	if (!foreground) {
-		if ((res = daemonize()) < 0) {
-			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
-			usbmuxd_log(LL_FATAL, "Could not daemonize!");
-			goto terminate;
-		}
 	}
 
 	if (lockfile) {
