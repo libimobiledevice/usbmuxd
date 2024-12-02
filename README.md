@@ -135,8 +135,8 @@ We are still working on the guidelines so bear with us!
 ## Links
 
 * Homepage: https://libimobiledevice.org/
-* Repository: https://git.libimobiledevice.org/usbmuxd.git
-* Repository (Mirror): https://github.com/libimobiledevice/usbmuxd.git
+* Repository: https://github.com/libimobiledevice/usbmuxd.git
+* Repository (Mirror): https://git.libimobiledevice.org/usbmuxd.git
 * Issue Tracker: https://github.com/libimobiledevice/usbmuxd/issues
 * Mailing List: https://lists.libimobiledevice.org/mailman/listinfo/libimobiledevice-devel
 * Twitter: https://twitter.com/libimobiledev
@@ -156,4 +156,4 @@ iPadOS, tvOS, watchOS, and macOS are trademarks of Apple Inc.
 usbmuxd is an independent software application and has not been
 authorized, sponsored, or otherwise approved by Apple Inc.
 
-README Updated on: 2022-04-04
+README Updated on: 2024-12-02
