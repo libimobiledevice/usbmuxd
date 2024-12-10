@@ -32,8 +32,8 @@ Ensure proper permissions are setup for the daemon to access the directory.
 .B \-U, \-\-user USER
 Change to this user after startup (needs USB privileges).
 .TP
-.B \-f, \-\-foreground
-Do not daemonize (implies one -v).
+.B \-f, \-\-background
+Daemonize (double fork and run in background).
 .TP
 .B \-n, \-\-disable-hotplug
 Disables automatic discovery of devices on hotplug. Starting another instance
@@ -44,7 +44,7 @@ Enable "--exit" request from other instances and exit automatically if no
 device is attached.
 .TP
 .B \-u, \-\-udev
-Run in udev operation mode (implies -n and -z).
+Run in udev operation mode (implies -n, -b and -z).
 .TP
 .B \-s, \-\-systemd
 Run in systemd operation mode (implies -z and -f).
