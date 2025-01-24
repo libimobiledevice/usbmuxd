@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component>
+  <id>org.libimobiledevice.usbmuxd</id>
+  <metadata_license>MIT</metadata_license>
+  <name>usbmuxd</name>
+  <summary>Socket daemon to multiplex connections from and to iOS devices</summary>
+  <description>
+    <p>
+      usbmuxd stands for "USB multiplexing daemon". This daemon is in charge of
+      multiplexing connections over USB to an iOS device.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/libimobiledevice/usbmuxd</url>
+  <provides>
+    <modalias>usb:v05ACp129*d*</modalias>
+    <modalias>usb:v05ACp12a*d*</modalias>
+    <modalias>usb:v05ACp8600d*</modalias>
+  </provides>
+</component>
