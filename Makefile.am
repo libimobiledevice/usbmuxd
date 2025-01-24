@@ -6,8 +6,12 @@ EXTRA_DIST = \
 	docs \
 	COPYING.GPLv2 \
 	COPYING.GPLv3 \
+	org.libimobiledevice.usbmuxd.metainfo.xml \
 	README.md
 
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-udevrulesdir=$$dc_install_base/$(udevrulesdir) \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
+
+dist_metainfo_DATA = org.libimobiledevice.usbmuxd.metainfo.xml
+metainfodir = $(datarootdir)/metainfo
