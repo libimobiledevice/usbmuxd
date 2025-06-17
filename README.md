@@ -42,7 +42,7 @@ First install all required dependencies and build tools:
 ```shell
 sudo apt-get install \
 	build-essential \
-	xpkg-config \
+	pkg-config \
 	checkinstall \
 	git \
 	autoconf \
