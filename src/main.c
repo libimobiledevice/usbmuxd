@@ -65,7 +65,7 @@ int no_preflight = 0;
 
 // Global state for main.c
 static int verbose = 0;
-static int foreground = 0;
+static int background = 0;
 static int drop_privileges = 0;
 static const char *drop_user = NULL;
 static int opt_disable_hotplug = 0;
@@ -504,7 +504,7 @@ static void usage()
 	printf("OPTIONS:\n");
 	printf("  -h, --help\t\tPrint this message.\n");
 	printf("  -v, --verbose\t\tBe verbose (use twice or more to increase).\n");
-	printf("  -f, --foreground\tDo not daemonize (implies one -v).\n");
+	printf("  -b, --background\tDaemonize (double fork immediately).\n");
 	printf("  -U, --user USER\tChange to this user after startup (needs USB privileges).\n");
 	printf("  -n, --disable-hotplug\tDisables automatic discovery of devices on hotplug.\n");
 	printf("                       \tStarting another instance will trigger discovery instead.\n");
@@ -512,7 +512,7 @@ static void usage()
 	printf("                   \tautomatically if no device is attached.\n");
 	printf("  -p, --no-preflight\tDisable lockdownd preflight on new device.\n");
 #ifdef HAVE_UDEV
-	printf("  -u, --udev\t\tRun in udev operation mode (implies -n and -z).\n");
+	printf("  -u, --udev\t\tRun in udev operation mode (implies -n, -b and -z).\n");
 #endif
 #ifdef HAVE_SYSTEMD
 	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
@@ -537,7 +537,7 @@ static void parse_opts(int argc, char **argv)
 {
 	static struct option longopts[] = {
 		{"help", no_argument, NULL, 'h'},
-		{"foreground", no_argument, NULL, 'f'},
+		{"background", no_argument, NULL, 'b'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"user", required_argument, NULL, 'U'},
 		{"disable-hotplug", no_argument, NULL, 'n'},
@@ -577,8 +577,8 @@ static void parse_opts(int argc, char **argv)
 		case 'h':
 			usage();
 			exit(0);
-		case 'f':
-			foreground = 1;
+		case 'b':
+			background = 1;
 			break;
 		case 'v':
 			++verbose;
@@ -597,12 +597,13 @@ static void parse_opts(int argc, char **argv)
 		case 'u':
 			opt_disable_hotplug = 1;
 			opt_enable_exit = 1;
+			background = 1;
 			break;
 #endif
 #ifdef HAVE_SYSTEMD
 		case 's':
 			opt_enable_exit = 1;
-			foreground = 1;
+			background = 0;
 			break;
 #endif
 		case 'n':
@@ -675,7 +676,7 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (!foreground && !use_logfile) {
+	if (background && !use_logfile) {
 		verbose += LL_WARNING;
 		log_enable_syslog();
 	} else {
@@ -751,7 +752,7 @@ int main(int argc, char *argv[])
 		goto terminate;
 	}
 
-	if (!foreground) {
+	if (background) {
 		if ((res = daemonize()) < 0) {
 			fprintf(stderr, "usbmuxd: FATAL: Could not daemonize!\n");
 			usbmuxd_log(LL_FATAL, "Could not daemonize!");
