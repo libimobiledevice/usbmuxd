@@ -517,6 +517,7 @@ static void usage()
 #ifdef HAVE_SYSTEMD
 	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
 #endif
+	printf("  -C, --config-dir PATH\tSpecify different configuration directory.\n");
 	printf("  -S, --socket ADDR:PORT | PATH   Specify source ADDR and PORT or a UNIX\n");
 	printf("            \t\tsocket PATH to use for the listening socket.\n");
 	printf("            \t\tDefault: %s\n", socket_path);
@@ -549,6 +550,7 @@ static void parse_opts(int argc, char **argv)
 #ifdef HAVE_SYSTEMD
 		{"systemd", no_argument, NULL, 's'},
 #endif
+		{"config-dir", required_argument, NULL, 'C'},
 		{"socket", required_argument, NULL, 'S'},
 		{"pidfile", required_argument, NULL, 'P'},
 		{"exit", no_argument, NULL, 'x'},
@@ -560,11 +562,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hfvVuU:xXsnzl:pS:P:";
+	const char* opts_spec = "hfvVuU:xXsnzl:pC:S:P:";
 #elif HAVE_UDEV
-	const char* opts_spec = "hfvVuU:xXnzl:pS:P:";
+	const char* opts_spec = "hfvVuU:xXnzl:pC:S:P:";
 #else
-	const char* opts_spec = "hfvVU:xXnzl:pS:P:";
+	const char* opts_spec = "hfvVU:xXnzl:pC:S:P:";
 #endif
 
 	while (1) {
@@ -610,6 +612,14 @@ static void parse_opts(int argc, char **argv)
 			break;
 		case 'z':
 			opt_enable_exit = 1;
+			break;
+		case 'C':
+			if (!*optarg) {
+				usbmuxd_log(LL_FATAL, "ERROR: --config-dir requires an argument");
+				usage();
+				exit(2);
+			}
+			config_set_config_dir(optarg);
 			break;
 		case 'S':
 			if (!*optarg || *optarg == '-') {
@@ -796,11 +806,12 @@ int main(int argc, char *argv[])
 
 #ifdef HAVE_LIBIMOBILEDEVICE
 	const char* userprefdir = config_get_config_dir();
+	usbmuxd_log(LL_NOTICE, "Configuration directory: %s", userprefdir);
 	struct stat fst;
 	memset(&fst, '\0', sizeof(struct stat));
 	if (stat(userprefdir, &fst) < 0) {
 		if (mkdir(userprefdir, 0775) < 0) {
-			usbmuxd_log(LL_FATAL, "Failed to create required directory '%s': %s", userprefdir, strerror(errno));
+			usbmuxd_log(LL_FATAL, "Failed to create configuration directory '%s': %s", userprefdir, strerror(errno));
 			res = -1;
 			goto terminate;
 		}
