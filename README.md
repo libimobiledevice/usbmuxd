@@ -4,7 +4,7 @@
 
 ![build](https://github.com/libimobiledevice/usbmuxd/actions/workflows/build.yml/badge.svg)
 
-## Features
+## Overview
 
 usbmuxd stands for "USB multiplexing daemon". This daemon is in charge of
 multiplexing connections over USB to an iOS device.
@@ -15,10 +15,13 @@ device.
 To developers, it means you can connect to any listening localhost socket on
 the device.
 
-Some key features are:
+This project only implements and provides the `usbmuxd` daemon for Linux. On
+Windows it is provided by iTunes and on macOS it is provided by a system service.
 
-- **Implementation**: Open-Source implementation of proprietary usbmuxd daemon
-- **Cross-Platform:** Tested on Linux, macOS, Windows and Android platforms
+## Key features
+
+- **Implementation**: Open-Source implementation of proprietary `usbmuxd` daemon
+- **Cross-Platform:** Tested on Linux platforms
 - **Linux**: Supports udev and systemd for automatic activation
 - **Compatibility**: Supports latest device firmware releases
 - **Scalability**: Supports multiple connections to different ports in parallel
