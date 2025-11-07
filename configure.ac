@@ -53,7 +53,7 @@ if test "x$have_limd" = "xyes"; then
     fi
   fi
 else
-  if test "x$with_preflight" == "xyes"; then
+  if test "x$with_preflight" = "xyes"; then
     AC_MSG_ERROR([preflight worker support requested but libimobiledevice could not be found])
   fi
 fi
@@ -159,7 +159,7 @@ AC_SUBST(GLOBAL_CFLAGS)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 # workaround for older autoconf versions
-if test "x$runstatedir" == "x"; then
+if test "x$runstatedir" = "x"; then
   runstatedir=$localstatedir/run
 fi
 
