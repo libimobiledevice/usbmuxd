@@ -103,8 +103,8 @@ The daemon also manages pairing records with iOS devices and the host in
 
 Ensure proper permissions are setup for the daemon to access the directory.
 
-For debugging purposes it is helpful to start usbmuxd using the foreground `-f`
-argument and enable verbose mode `-v` to get suitable logs.
+For debugging purposes it is helpful to enable verbose mode `-v` to get
+suitable logs.
 
 Please consult the usage information or manual page for a full documentation of
 available command line options:
