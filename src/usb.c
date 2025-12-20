@@ -1022,8 +1022,9 @@ static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hot
 		uint8_t address = libusb_get_device_address(device);
 		FOREACH(struct usb_device *usbdev, &device_list) {
 			if(usbdev->bus == bus && usbdev->address == address) {
+				if (usbdev->alive)
+					device_remove(usbdev);
 				usbdev->alive = 0;
-				device_remove(usbdev);
 				break;
 			}
 		} ENDFOREACH
