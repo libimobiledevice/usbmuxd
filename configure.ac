@@ -53,41 +53,68 @@ if test "x$have_limd" = "xyes"; then
     fi
   fi
 else
-  if test "x$with_preflight" == "xyes"; then
+  if test "x$with_preflight" = "xyes"; then
     AC_MSG_ERROR([preflight worker support requested but libimobiledevice could not be found])
   fi
 fi
 
+AC_ARG_WITH([udev],
+            [AS_HELP_STRING([--with-udev],
+            [Build with udev support @<:@default=auto@:>@])],
+            [with_udev=$withval],
+            [with_udev=auto])
+if test "x$with_udev" = "xauto"; then
+  AC_MSG_CHECKING([for udev])
+  PKG_CHECK_EXISTS([udev],
+                   [AC_MSG_RESULT([yes])
+                    with_udev=yes],
+                   [AC_MSG_RESULT([no])])
+fi
+if test "x$with_udev" = "xyes"; then
+  AC_DEFINE([HAVE_UDEV], [1], [Define to enable udev support])
+fi
+
 AC_ARG_WITH([udevrulesdir],
             AS_HELP_STRING([--with-udevrulesdir=DIR],
-            [Directory for udev rules]),
+            [Directory for udev rules @<:@default=auto@:>@]),
             [],
             [with_udevrulesdir=auto])
 if test "x$with_udevrulesdir" = "xauto"; then
-  udevdir=$($PKG_CONFIG --variable=udevdir udev)
-  if test "x$udevdir" != "x"; then
-    with_udevrulesdir=$udevdir"/rules.d"
-  else
-    with_udevrulesdir=$prefix/lib/udev/rules.d
-  fi
+  PKG_CHECK_VAR([UDEVDIR], [udev], [udevdir],
+                [with_udevrulesdir="${UDEVDIR}/rules.d"],
+                [with_udevrulesdir="${libdir}/udev/rules.d"])
 fi
+AC_SUBST([udevrulesdir], [$with_udevrulesdir])
+AM_CONDITIONAL([WANT_UDEV], [test -n "$with_udevrulesdir" -a "x$with_udevrulesdir" != xno -a "x$with_udev" = "xyes"])
 
 AC_ARG_WITH([systemd],
-            [AS_HELP_STRING([--without-systemd],
-            [do not build with systemd support @<:@default=yes@:>@])],
+            [AS_HELP_STRING([--with-systemd],
+            [Build with systemd support @<:@default=auto@:>@])],
             [with_systemd=$withval],
-            [with_systemd=yes])
+            [with_systemd=auto])
+if test "x$with_systemd" = "xauto"; then
+  AC_MSG_CHECKING([for systemd])
+  PKG_CHECK_EXISTS([systemd],
+                   [AC_MSG_RESULT([yes])
+                    with_systemd=yes],
+                   [AC_MSG_RESULT([no])])
+fi
+if test "x$with_systemd" = "xyes"; then
+  AC_DEFINE([HAVE_SYSTEMD], [1], [Define to enable systemd support])
+fi
 
 AC_ARG_WITH([systemdsystemunitdir],
             [AS_HELP_STRING([--with-systemdsystemunitdir=DIR],
-            [directory for systemd service files])],
-            [with_systemdsystemunitdir=$withval],
-            [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
-
-if test "x$with_systemdsystemunitdir" != xno; then
-  AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+            [Directory for systemd service files @<:@default=auto@:>@])],
+            [],
+            [with_systemdsystemunitdir=auto])
+if test "x$with_systemdsystemunitdir" = "xauto"; then
+  PKG_CHECK_VAR([SYSTEMDSYSTEMUNITDIR], [systemd], [systemdsystemunitdir],
+                [with_systemdsystemunitdir="${SYSTEMDSYSTEMUNITDIR}"],
+                [with_systemdsystemunitdir=""])
 fi
-AM_CONDITIONAL(WANT_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno -a "x$with_systemd" = "xyes" ])
+AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+AM_CONDITIONAL([WANT_SYSTEMD], [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno -a "x$with_systemd" = "xyes"])
 
 if test "x$with_systemd" = xyes; then
   udev_activation_rule="ENV{SYSTEMD_WANTS}=\"usbmuxd.service\""
@@ -116,8 +143,6 @@ AC_CHECK_FUNCS([ppoll clock_gettime localtime_r])
 
 # Check for operating system
 AC_MSG_CHECKING([whether to enable WIN32 build settings])
-UDEV_SUB=
-SYSTEMD_SUB=
 case ${host_os} in
   *mingw32*|*cygwin*)
     win32=true
@@ -135,23 +160,18 @@ case ${host_os} in
   *)
     win32=false
     AC_MSG_RESULT([no])
-    UDEV_SUB=udev
-    AC_SUBST([udevrulesdir], [$with_udevrulesdir])
-    AC_DEFINE(HAVE_UDEV, 1, [Define to enable udev support])
-    activation_method="systemd"
-    if test "x$with_systemd" != "xyes"; then
-      echo "*** Note: support for systemd activation has been disabled, using udev activation instead ***"
+    if test "x$with_udev" = "xyes"; then
       activation_method="udev"
+    elif test "x$with_systemd" = "xyes"; then
+      activation_method="systemd"
+      echo "*** Note: support for udev activation has been disabled, using systemd activation instead ***"
     else
-      AC_DEFINE(HAVE_SYSTEMD, 1, [Define to enable systemd support])
-      SYSTEMD_SUB=systemd
+      activation_method="manual"
+      echo "*** Note: support for udev/systemd activation have been disabled, using manual activation instead ***"
     fi
     ;;
 esac
 AM_CONDITIONAL(WIN32, test x$win32 = xtrue)
-
-AC_SUBST([UDEV_SUB])
-AC_SUBST([SYSTEMD_SUB])
 
 AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-Wall -Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter")
 AC_SUBST(GLOBAL_CFLAGS)
@@ -159,7 +179,7 @@ AC_SUBST(GLOBAL_CFLAGS)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 # workaround for older autoconf versions
-if test "x$runstatedir" == "x"; then
+if test "x$runstatedir" = "x"; then
   runstatedir=$localstatedir/run
 fi
 
@@ -180,11 +200,11 @@ Configuration for $PACKAGE $VERSION:
   preflight worker support ..: $have_limd
   activation method .........: $activation_method"
 
-if test "x$activation_method" = "xsystemd"; then
+if test "x$with_systemd" = "xyes"; then
   echo "  systemd unit directory ....: ${systemdsystemunitdir}"
 fi
 
-if test -n "$udevrulesdir"; then
+if test "x$with_udev" = "xyes"; then
   echo "  udev rules directory ......: ${udevrulesdir}"
 fi
 
