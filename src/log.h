@@ -37,6 +37,8 @@ extern unsigned int log_level;
 void log_enable_syslog();
 void log_disable_syslog();
 
-void usbmuxd_log(enum loglevel level, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+void usbmuxd_logx(enum loglevel level, const char* fmt, ...) __attribute__ ((format (printf, 2, 3)));
+#define usbmuxd_log(level, fmt, ...) \
+	usbmuxd_logx(level, "%s:%d " fmt , __FILE__, __LINE__, ##__VA_ARGS__)
 
 #endif
