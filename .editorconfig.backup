@@ -1,0 +1,48 @@
+# EditorConfig para el proyecto usbmuxd
+# https://editorconfig.org
+
+# Configuración por defecto para todos los archivos
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Archivos de código C/C++
+[*.{c,h}]
+indent_style = space
+indent_size = 4
+max_line_length = 80
+
+# Archivos Makefile
+[Makefile*]
+indent_style = tab
+indent_size = 4
+
+# Archivos de configuración
+[*.{json,yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# Archivos Markdown
+[*.md]
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
+
+# Archivos de shell
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Archivos Python
+[*.py]
+indent_style = space
+indent_size = 4
+
+# Archivos XML
+[*.{xml,html}]
+indent_style = space
+indent_size = 2

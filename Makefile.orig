@@ -1,0 +1,114 @@
+# Makefile para el proyecto usbmuxd
+# Proporciona objetivos convenientes para desarrollo y pruebas
+
+# Variables
+CC = gcc
+CFLAGS = -Wall -Wextra -g -O0
+LDFLAGS = -lusb-1.0 -lplist
+SRCDIR = src
+BUILDDIR = build
+DEBUGDIR = $(BUILDDIR)/Debug
+RELEASEDIR = $(BUILDDIR)/Release
+TARGET = usbmuxd
+DEBUG_TARGET = $(DEBUGDIR)/$(TARGET)
+RELEASE_TARGET = $(RELEASEDIR)/$(TARGET)
+
+# Archivos fuente
+SOURCES = $(wildcard $(SRCDIR)/*.c)
+OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(DEBUGDIR)/%.o)
+RELEASE_OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(RELEASEDIR)/%.o)
+
+# Objetivos por defecto
+.PHONY: all debug release clean test help install uninstall format check
+
+all: debug
+
+# Compilación en modo Debug
+debug: $(DEBUG_TARGET)
+
+$(DEBUG_TARGET): $(OBJECTS) | $(DEBUGDIR)
+	@echo "Enlazando $@..."
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
+	@echo "Compilación Debug completada: $@"
+
+$(DEBUGDIR)/%.o: $(SRCDIR)/%.c | $(DEBUGDIR)
+	@echo "Compilando $<..."
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Compilación en modo Release
+release: $(RELEASE_TARGET)
+
+$(RELEASE_TARGET): $(RELEASE_OBJECTS) | $(RELEASEDIR)
+	@echo "Enlazando $@..."
+	$(CC) $(RELEASE_OBJECTS) -o $@ $(LDFLAGS)
+	@echo "Compilación Release completada: $@"
+
+$(RELEASEDIR)/%.o: $(SRCDIR)/%.c | $(RELEASEDIR)
+	@echo "Compilando $<..."
+	$(CC) $(CFLAGS) -O2 -DNDEBUG -c $< -o $@
+
+# Crear directorios de compilación
+$(DEBUGDIR) $(RELEASEDIR):
+	@mkdir -p $@
+
+# Limpiar archivos de compilación
+clean:
+	@echo "Limpiando archivos de compilación..."
+	@rm -rf $(BUILDDIR)
+	@rm -f $(SRCDIR)/*.o
+	@echo "Limpieza completada"
+
+# Ejecutar pruebas
+test: debug
+	@echo "Ejecutando pruebas..."
+	@if [ -d tests ]; then \
+		cd tests && ./run_tests.sh; \
+	else \
+		echo "No hay pruebas disponibles"; \
+	fi
+
+# Formatear código
+format:
+	@echo "Formateando código..."
+	@find $(SRCDIR) -name '*.c' -o -name '*.h' | xargs clang-format -i
+	@echo "Formateo completado"
+
+# Verificar estilo de código
+check:
+	@echo "Verificando estilo de código..."
+	@find $(SRCDIR) -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror
+	@echo "Verificación completada"
+
+# Instalar
+install: release
+	@echo "Instalando $(TARGET)..."
+	@install -d $(DESTDIR)/usr/local/bin
+	@install -m 755 $(RELEASE_TARGET) $(DESTDIR)/usr/local/bin/$(TARGET)
+	@echo "Instalación completada"
+
+# Desinstalar
+uninstall:
+	@echo "Desinstalando $(TARGET)..."
+	@rm -f $(DESTDIR)/usr/local/bin/$(TARGET)
+	@echo "Desinstalación completada"
+
+# Ayuda
+help:
+	@echo "Uso: make [objetivo]"
+	@echo ""
+	@echo "Objetivos disponibles:"
+	@echo "  all       - Compilar en modo Debug (por defecto)"
+	@echo "  debug     - Compilar en modo Debug"
+	@echo "  release   - Compilar en modo Release"
+	@echo "  clean     - Limpiar archivos de compilación"
+	@echo "  test      - Ejecutar pruebas"
+	@echo "  format    - Formatear código con clang-format"
+	@echo "  check     - Verificar estilo de código"
+	@echo "  install   - Instalar el ejecutable"
+	@echo "  uninstall - Desinstalar el ejecutable"
+	@echo "  help      - Mostrar esta ayuda"
+	@echo ""
+	@echo "Variables:"
+	@echo "  CC        - Compilador (por defecto: gcc)"
+	@echo "  CFLAGS    - Flags de compilación (por defecto: -Wall -Wextra -g -O0)"
+	@echo "  LDFLAGS   - Flags de enlazado (por defecto: -lusb-1.0 -lplist)"

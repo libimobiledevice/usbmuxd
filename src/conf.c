@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <time.h>
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -35,7 +36,13 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#ifdef HAVE_LIBIMOBILEDEVICE
 #include <libimobiledevice-glue/utils.h>
+#else
+// Stub implementations when libimobiledevice is not available
+char* string_concat(const char *str1, ...);
+void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *size);
+#endif
 #include <plist/plist.h>
 
 #include "conf.h"
@@ -556,3 +563,66 @@ void config_device_record_get_host_id(const char *udid, char **host_id)
 		usbmuxd_log(LL_ERROR, "ERROR: Could not get HostID from pairing record for udid %s", udid);
 	}
 }
+
+#ifndef HAVE_LIBIMOBILEDEVICE
+// Stub implementations
+char* string_concat(const char *str1, ...)
+{
+	va_list args;
+	size_t total_len = 0;
+	char *result, *p;
+	const char *str;
+
+	// First pass: calculate total length
+	va_start(args, str1);
+	str = str1;
+	while (str) {
+		total_len += strlen(str);
+		str = va_arg(args, const char*);
+	}
+	va_end(args);
+
+	result = malloc(total_len + 1);
+	if (!result)
+		return NULL;
+
+	// Second pass: copy strings
+	va_start(args, str1);
+	p = result;
+	str = str1;
+	while (str) {
+		size_t len = strlen(str);
+		memcpy(p, str, len);
+		p += len;
+		str = va_arg(args, const char*);
+	}
+	va_end(args);
+
+	*p = '\0';
+	return result;
+}
+
+void buffer_read_from_filename(const char *filename, char **buffer, uint64_t *size)
+{
+	FILE *f = fopen(filename, "rb");
+	*buffer = NULL;
+	*size = 0;
+
+	if (!f)
+		return;
+
+	fseek(f, 0, SEEK_END);
+	*size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	*buffer = malloc(*size + 1);
+	if (*buffer) {
+		fread(*buffer, 1, *size, f);
+		(*buffer)[*size] = '\0';
+	} else {
+		*size = 0;
+	}
+
+	fclose(f);
+}
+#endif
