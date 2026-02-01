@@ -1,0 +1,25 @@
+{
+  "name": "usbmuxd Development Environment",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y build-essential pkg-config checkinstall git autoconf automake libtool-bin libplist-dev libusbmuxd-dev libimobiledevice-dev libimobiledevice-glue-dev libusb-1.0-0-dev udev && echo 'Dependencies installed successfully!'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      }
+    }
+  },
+  "remoteUser": "vscode"
+}

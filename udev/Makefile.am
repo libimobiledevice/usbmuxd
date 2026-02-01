@@ -4,6 +4,8 @@ edit = \
 	-e 's|@sbindir[@]|$(sbindir)|g' \
 	< $< > $@ || rm $@
 
+if WANT_UDEV
+
 udevrules_DATA = \
 	39-usbmuxd.rules
 
@@ -18,3 +20,5 @@ MAINTAINERCLEANFILES = \
 
 CLEANFILES = \
 	39-usbmuxd.rules
+
+endif

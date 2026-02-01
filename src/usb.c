@@ -31,7 +31,19 @@
 
 #include <libusb.h>
 
+#ifdef HAVE_LIBIMOBILEDEVICE
 #include <libimobiledevice-glue/collection.h>
+#else
+// Stub implementations when libimobiledevice is not available
+struct collection { void **list; int capacity; };
+#define collection_init(c) do { (void)(c); } while(0)
+#define collection_free(c) do { (void)(c); } while(0)
+#define collection_add(c, item) do { (void)(c); (void)(item); } while(0)
+#define collection_remove(c, item) do { (void)(c); (void)(item); } while(0)
+#define collection_count(c) (0)
+#define FOREACH(var, col) for (int _i_ = 0; _i_ == 0; _i_++) for (var = NULL; _i_ < 1; _i_++, var = NULL)
+#define ENDFOREACH do { } while(0)
+#endif
 
 #include "usb.h"
 #include "log.h"

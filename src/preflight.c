@@ -32,9 +32,8 @@
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/lockdown.h>
 #include <libimobiledevice/notification_proxy.h>
-#endif
-
 #include <libimobiledevice-glue/thread.h>
+#endif
 
 #include "preflight.h"
 #include "device.h"

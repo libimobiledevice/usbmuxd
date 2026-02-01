@@ -37,9 +37,28 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-#include <plist/plist.h>
+#ifdef HAVE_LIBIMOBILEDEVICE
 #include <libimobiledevice-glue/collection.h>
 #include <libimobiledevice-glue/thread.h>
+#else
+// Stub implementations when libimobiledevice is not available
+#include <pthread.h>
+struct collection { void **list; int capacity; };
+typedef pthread_mutex_t mutex_t;
+#define mutex_init(m) pthread_mutex_init(m, NULL)
+#define mutex_destroy(m) pthread_mutex_destroy(m)
+#define mutex_lock(m) pthread_mutex_lock(m)
+#define mutex_unlock(m) pthread_mutex_unlock(m)
+#define collection_init(c) do { (void)(c); } while(0)
+#define collection_free(c) do { (void)(c); } while(0)
+#define collection_add(c, item) do { (void)(c); (void)(item); } while(0)
+#define collection_remove(c, item) do { (void)(c); (void)(item); } while(0)
+#define collection_count(c) (0)
+#define collection_copy(d, s) do { (void)(d); (void)(s); } while(0)
+// Stub FOREACH - use real libimobiledevice-glue for this
+#define FOREACH(...) // Empty stub - real implementation requires libimobiledevice-glue
+#define ENDFOREACH do { } while(0)
+#endif
 
 #include "log.h"
 #include "usb.h"

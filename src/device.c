@@ -34,8 +34,27 @@
 #include <inttypes.h>
 #include <unistd.h>
 
+#ifdef HAVE_LIBIMOBILEDEVICE
 #include <libimobiledevice-glue/collection.h>
 #include <libimobiledevice-glue/thread.h>
+#else
+// Stub implementations when libimobiledevice is not available
+#include <pthread.h>
+struct collection { void **list; int capacity; };
+typedef pthread_mutex_t mutex_t;
+#define mutex_init(m) pthread_mutex_init(m, NULL)
+#define mutex_destroy pthread_mutex_destroy
+#define mutex_lock pthread_mutex_lock
+#define mutex_unlock pthread_mutex_unlock
+#define collection_init(c) do { (void)(c); } while(0)
+#define collection_free(c) do { (void)(c); } while(0)
+#define collection_add(c, item) do { (void)(c); (void)(item); } while(0)
+#define collection_remove(c, item) do { (void)(c); (void)(item); } while(0)
+#define collection_count(c) (0)
+#define collection_copy(d, s) do { (void)(d); (void)(s); } while(0)
+#define FOREACH(var, col) for (int _i_ = 0; _i_ == 0; _i_++) for (var = NULL; _i_ < 1; _i_++, var = NULL)
+#define ENDFOREACH do { } while(0)
+#endif
 
 #include "device.h"
 #include "client.h"
