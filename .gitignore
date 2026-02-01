@@ -76,3 +76,8 @@ yarn-error.log
 
 # Archivos de pruebas
 test-results/
+AutoPentestX/
+get-pip.py
+your-project/
+.code-workspace
+FuzzyAI/
