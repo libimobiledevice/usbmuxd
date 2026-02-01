@@ -81,3 +81,4 @@ get-pip.py
 your-project/
 .code-workspace
 FuzzyAI/
+*.code-workspace
