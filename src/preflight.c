@@ -248,6 +248,7 @@ retry:
 	if (((!strcmp(deviceclass_str, "iPhone") || !strcmp(deviceclass_str, "iPad")) && version_major >= 7)
 	    || (!strcmp(deviceclass_str, "Watch") && version_major >= 2)
 	    || (!strcmp(deviceclass_str, "AppleTV") && version_major >= 9)
+	    || (!strcmp(deviceclass_str, "RealityDevice"))
 	) {
 		/* iOS 7.0 / watchOS 2.0 / tvOS 9.0 and later */
 		usbmuxd_log(LL_INFO, "%s: Found %s %s device %s", __func__, deviceclass_str, version_str, _dev->udid);
