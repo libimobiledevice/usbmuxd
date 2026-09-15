@@ -1060,7 +1060,7 @@ int usb_init(void)
 #ifdef HAVE_LIBUSB_HOTPLUG_API
 	if (libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
 		usbmuxd_log(LL_INFO, "Registering for libusb hotplug events");
-		res = libusb_hotplug_register_callback(NULL, LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT, LIBUSB_HOTPLUG_ENUMERATE, VID_APPLE, LIBUSB_HOTPLUG_MATCH_ANY, 0, usb_hotplug_cb, NULL, &usb_hotplug_cb_handle);
+		res = libusb_hotplug_register_callback(NULL, LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT, LIBUSB_HOTPLUG_ENUMERATE, VID_APPLE, LIBUSB_HOTPLUG_MATCH_ANY, LIBUSB_HOTPLUG_MATCH_ANY, usb_hotplug_cb, NULL, &usb_hotplug_cb_handle);
 		if (res == LIBUSB_SUCCESS) {
 			device_polling = 0;
 		} else {
