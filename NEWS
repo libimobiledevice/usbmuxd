@@ -1,3 +1,36 @@
+Version 1.2.0
+~~~~~~~~~~~~~
+
+* Changes:
+  - Support the restore mode of Apple silicon devices, in the daemon and in
+    the udev rules
+  - Support switching a device to a different mode with vendor specific
+    control messages. The USBMUXD_DEFAULT_DEVICE_MODE environment variable
+    controls the desired mode.
+  - Support USB modes 4 and 5
+  - Allow a custom listen address and port, or a unix socket
+  - Allow a different location for the pidfile, or no pidfile at all
+  - Allow a different configuration directory
+  - Show the speed of 10 Gbps USB 3.x devices correctly
+  - Add support for product ID 0x1905 and for the Apple silicon restore
+    product IDs
+  - Use libimobiledevice-glue instead of a local copy of the common code
+  - Bump the libplist requirement to 2.6.0
+  - Derive the version number automatically from the latest git tag
+
+* Bug Fixes:
+  - Fix a use-after-free in get_mode_cb()
+  - Fix a use-after-free in client_close() by making sure the client is valid
+  - Fix a crash caused by the wrong variable in an error message
+  - Fix a freeze on OpenRC caused by a raced execution of usbmuxd
+  - Make sure the iBridge (T1) does not stay in an unconfigured state
+  - Sanitize the input of the SavePairRecord command
+  - Fix false plist read and write errors in the configuration code
+  - Fix the preflight for older devices
+  - Fix the parsing of -S as the short option for --socket
+  - Add a missing include for FreeBSD
+
+
 Version 1.1.1
 ~~~~~~~~~~~~~
 
