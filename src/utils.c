@@ -50,9 +50,21 @@ void fdlist_create(struct fdlist *list)
 void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events)
 {
 	if(list->count == list->capacity) {
-		list->capacity *= 2;
-		list->owners = realloc(list->owners, sizeof(*list->owners) * list->capacity);
-		list->fds = realloc(list->fds, sizeof(*list->fds) * list->capacity);
+		int new_capacity = list->capacity ? list->capacity * 2 : 4;
+		enum fdowner *new_owners = realloc(list->owners, sizeof(*list->owners) * new_capacity);
+		if (!new_owners) {
+			util_error("%s: out of memory, not adding fd %d", __func__, fd);
+			return;
+		}
+		list->owners = new_owners;
+		struct pollfd *new_fds = realloc(list->fds, sizeof(*list->fds) * new_capacity);
+		if (!new_fds) {
+			/* owners is already larger, which is harmless; capacity stays unchanged */
+			util_error("%s: out of memory, not adding fd %d", __func__, fd);
+			return;
+		}
+		list->fds = new_fds;
+		list->capacity = new_capacity;
 	}
 	list->owners[list->count] = owner;
 	list->fds[list->count].fd = fd;
