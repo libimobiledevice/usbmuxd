@@ -209,7 +209,10 @@ static void rx_callback(struct libusb_transfer *xfer)
 	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
 	if(xfer->status == LIBUSB_TRANSFER_COMPLETED) {
 		device_data_input(dev, xfer->buffer, xfer->actual_length);
-		libusb_submit_transfer(xfer);
+		int res = libusb_submit_transfer(xfer);
+		if (res == 0)
+			return;
+		usbmuxd_log(LL_ERROR, "Failed to resubmit RX transfer to device %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
 	} else {
 		switch(xfer->status) {
 			case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
@@ -238,15 +241,15 @@ static void rx_callback(struct libusb_transfer *xfer)
 				// this should never be reached.
 				break;
 		}
-
-		free(xfer->buffer);
-		collection_remove(&dev->rx_xfers, xfer);
-		libusb_free_transfer(xfer);
-
-		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
-		// we'll do device_remove there too
-		dev->alive = 0;
 	}
+
+	free(xfer->buffer);
+	collection_remove(&dev->rx_xfers, xfer);
+	libusb_free_transfer(xfer);
+
+	// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+	// we'll do device_remove there too
+	dev->alive = 0;
 }
 
 // Start a read-callback loop for this device
