@@ -888,12 +888,13 @@ void device_remove(struct usb_device *usbdev)
 	usbmuxd_log(LL_WARNING, "Cannot find device entry while removing USB device %p on location 0x%x", usbdev, usb_get_location(usbdev));
 }
 
-void device_set_visible(int device_id)
+void device_set_visible(struct device_info *info)
 {
 	mutex_lock(&device_list_mutex);
 	FOREACH(struct mux_device *dev, &device_list) {
-		if(dev->id == device_id) {
+		if(dev->id == info->id) {
 			dev->visible = 1;
+			client_device_add(info);
 			break;
 		}
 	} ENDFOREACH
