@@ -170,7 +170,7 @@ retry:
 		// make restore mode devices visible
 		free(type);
 		usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-		client_device_add(info);
+		device_set_visible(info);
 		goto leave;
 	}
 	free(type);
@@ -185,7 +185,7 @@ retry:
 		if (lerr == LOCKDOWN_E_SUCCESS) {
 			usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
 			usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-			client_device_add(info);
+			device_set_visible(info);
 			goto leave;
 		}
 
@@ -260,7 +260,7 @@ retry:
 				/* if device is still showing the setup screen it will pair even without trust dialog */
 				usbmuxd_log(LL_INFO, "%s: Pair success for device %s", __func__, _dev->udid);
 				usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-				client_device_add(info);
+				device_set_visible(info);
 				goto leave;
 			}
 		}
@@ -270,7 +270,7 @@ retry:
 		if (lerr != LOCKDOWN_E_SUCCESS) {
 			/* even though we failed, simple mode should still work, so only warn of an error */
 			usbmuxd_log(LL_INFO, "%s: ERROR: Could not start insecure_notification_proxy on %s, lockdown error %d", __func__, _dev->udid, lerr);
-			client_device_add(info);
+			device_set_visible(info);
 			goto leave;
 		}
 
@@ -304,7 +304,7 @@ retry:
 		usbmuxd_log(LL_INFO, "%s: Waiting for user to trust this computer on device %s", __func__, _dev->udid);
 
 		/* make device visible anyways */
-		client_device_add(info);
+		device_set_visible(info);
 
 		while (cbdata.np && cbdata.is_device_connected && !cbdata.is_finished) {
 			sleep(1);
@@ -330,7 +330,7 @@ retry:
 			usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
 
 			/* make device visible anyways */
-			client_device_add(info);
+			device_set_visible(info);
 
 			goto leave;
 		}
@@ -353,7 +353,7 @@ retry:
 		usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
 
 		/* emit device added event and thus make device visible to clients */
-		client_device_add(info);
+		device_set_visible(info);
 	}
 
 leave:
@@ -378,7 +378,7 @@ void preflight_device_remove_cb(void *data)
 void preflight_worker_device_add(struct device_info* info)
 {
 	if (info->pid == PID_APPLE_T2_COPROCESSOR || no_preflight == 1) {
-		client_device_add(info);
+		device_set_visible(info);
 		return;
 	}
 
@@ -395,12 +395,12 @@ void preflight_worker_device_add(struct device_info* info)
 	if (perr != 0) {
 		free((char*)infocopy->serial);
 		free(infocopy);
-		usbmuxd_log(LL_ERROR, "ERROR: failed to start preflight worker thread for device %s: %s (%d). Invoking client_device_add() directly but things might not work as expected.", info->serial, strerror(perr), perr);
-		client_device_add(info);
+		usbmuxd_log(LL_ERROR, "ERROR: failed to start preflight worker thread for device %s: %s (%d). Invoking device_set_visible() directly but things might not work as expected.", info->serial, strerror(perr), perr);
+		device_set_visible(info);
 	} else {
 		thread_detach(th);
 	}
 #else
-	client_device_add(info);
+	device_set_visible(info);
 #endif
 }
