@@ -60,6 +60,7 @@ struct usb_device {
 	uint8_t interface, ep_in, ep_out;
 	struct collection rx_xfers;
 	struct collection tx_xfers;
+	struct collection ctrl_xfers; // pending init-time control transfers, must complete before the device is freed
 	int wMaxPacketSize;
 	uint64_t speed;
 	struct libusb_device_descriptor devdesc;
@@ -67,6 +68,7 @@ struct usb_device {
 
 struct mode_context {
 	struct libusb_device* dev;
+	struct usb_device* usbdev;
 	uint8_t bus, address;
 	uint8_t bRequest;
 	uint16_t wValue, wIndex, wLength;
@@ -80,6 +82,15 @@ static struct timeval next_dev_poll_time;
 static int devlist_failures;
 static int device_polling;
 static int device_hotplug = 1;
+
+static int submit_ctrl_transfer(struct usb_device *usbdev, struct libusb_transfer *transfer)
+{
+	int res = libusb_submit_transfer(transfer);
+	if(res == 0) {
+		collection_add(&usbdev->ctrl_xfers, transfer);
+	}
+	return res;
+}
 
 static void usb_disconnect(struct usb_device *dev)
 {
@@ -99,8 +110,13 @@ static void usb_disconnect(struct usb_device *dev)
 		libusb_cancel_transfer(xfer);
 	} ENDFOREACH
 
+	FOREACH(struct libusb_transfer *xfer, &dev->ctrl_xfers) {
+		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling control xfer %p", xfer);
+		libusb_cancel_transfer(xfer);
+	} ENDFOREACH
+
 	// Busy-wait until all xfers are closed
-	while(collection_count(&dev->rx_xfers) || collection_count(&dev->tx_xfers)) {
+	while(collection_count(&dev->rx_xfers) || collection_count(&dev->tx_xfers) || collection_count(&dev->ctrl_xfers)) {
 		struct timeval tv;
 		int res;
 
@@ -114,6 +130,7 @@ static void usb_disconnect(struct usb_device *dev)
 
 	collection_free(&dev->tx_xfers);
 	collection_free(&dev->rx_xfers);
+	collection_free(&dev->ctrl_xfers);
 	libusb_release_interface(dev->handle, dev->interface);
 	libusb_close(dev->handle);
 	dev->handle = NULL;
@@ -273,8 +290,18 @@ static void get_serial_callback(struct libusb_transfer *transfer)
 	unsigned int di, si;
 	struct usb_device *usbdev = transfer->user_data;
 
+	collection_remove(&usbdev->ctrl_xfers, transfer);
+
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
 		usbmuxd_log(LL_ERROR, "Failed to request serial for device %d-%d (%i)", usbdev->bus, usbdev->address, transfer->status);
+		libusb_free_transfer(transfer);
+		// schedule device for cleanup
+		usbdev->alive = 0;
+		return;
+	}
+
+	if(!usbdev->alive) {
+		usbmuxd_log(LL_INFO, "Device %d-%d is gone, aborting initialization", usbdev->bus, usbdev->address);
 		libusb_free_transfer(transfer);
 		return;
 	}
@@ -341,12 +368,21 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 	struct usb_device *usbdev = transfer->user_data;
 
 	transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
+	collection_remove(&usbdev->ctrl_xfers, transfer);
 
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
 		 usbmuxd_log(LL_ERROR, "Failed to request lang ID for device %d-%d (%i)", usbdev->bus,
 				 usbdev->address, transfer->status);
 		 libusb_free_transfer(transfer);
+		 // schedule device for cleanup
+		 usbdev->alive = 0;
 		 return;
+	}
+
+	if(!usbdev->alive) {
+		usbmuxd_log(LL_INFO, "Device %d-%d is gone, aborting initialization", usbdev->bus, usbdev->address);
+		libusb_free_transfer(transfer);
+		return;
 	}
 
 	unsigned char *data = libusb_control_transfer_get_data(transfer);
@@ -359,9 +395,10 @@ static void get_langid_callback(struct libusb_transfer *transfer)
 			langid, 1024 + LIBUSB_CONTROL_SETUP_SIZE);
 	libusb_fill_control_transfer(transfer, usbdev->handle, transfer->buffer, get_serial_callback, usbdev, 1000);
 
-	if((res = libusb_submit_transfer(transfer)) < 0) {
+	if((res = submit_ctrl_transfer(usbdev, transfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d: %s", usbdev->bus, usbdev->address, libusb_error_name(res));
 		libusb_free_transfer(transfer);
+		usbdev->alive = 0;
 	}
 }
 
@@ -376,7 +413,11 @@ static int submit_vendor_specific(struct libusb_device_handle *handle, struct mo
 	ctrl_transfer->flags = LIBUSB_TRANSFER_FREE_TRANSFER;
 	libusb_fill_control_transfer(ctrl_transfer, handle, buffer, callback, context, context->timeout);
 	
-	ret = libusb_submit_transfer(ctrl_transfer);
+	ret = submit_ctrl_transfer(context->usbdev, ctrl_transfer);
+	if(ret != 0) {
+		free(buffer);
+		libusb_free_transfer(ctrl_transfer);
+	}
 	return ret;
 }
 
@@ -562,9 +603,9 @@ static int set_valid_configuration(struct libusb_device* dev, struct usb_device 
 
 static void device_complete_initialization(struct mode_context *context, struct libusb_device_handle *handle) 
 {
-	struct usb_device *usbdev = find_device(context->bus, context->address);
-	if(!usbdev) {
-		usbmuxd_log(LL_ERROR, "Device %d-%d is missing from device list, aborting initialization", context->bus, context->address);
+	struct usb_device *usbdev = context->usbdev;
+	if(!usbdev->alive) {
+		usbmuxd_log(LL_INFO, "Device %d-%d is gone, aborting initialization", context->bus, context->address);
 		return;
 	}
 	struct libusb_device *dev = context->dev;
@@ -646,7 +687,7 @@ static void device_complete_initialization(struct mode_context *context, struct 
 	libusb_fill_control_setup(transfer_buffer, LIBUSB_ENDPOINT_IN, LIBUSB_REQUEST_GET_DESCRIPTOR, LIBUSB_DT_STRING << 8, 0, 1024 + LIBUSB_CONTROL_SETUP_SIZE);
 	libusb_fill_control_transfer(transfer, handle, transfer_buffer, get_langid_callback, usbdev, 1000);
 
-	if((res = libusb_submit_transfer(transfer)) < 0) {
+	if((res = submit_ctrl_transfer(usbdev, transfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d: %s", usbdev->bus, usbdev->address, libusb_error_name(res));
 		libusb_free_transfer(transfer);
 		free(transfer_buffer);
@@ -659,9 +700,14 @@ static void switch_mode_cb(struct libusb_transfer* transfer)
 {
 	// For old devices not supporting mode swtich, if anything goes wrong - continue in current mode
 	struct mode_context* context = transfer->user_data;
-	struct usb_device *dev = find_device(context->bus, context->address);
-	if(!dev) {
-		usbmuxd_log(LL_WARNING, "Device %d-%d is missing from device list", context->bus, context->address);
+	struct usb_device *dev = context->usbdev;
+	collection_remove(&dev->ctrl_xfers, transfer);
+	if(!dev->alive) {
+		usbmuxd_log(LL_INFO, "Device %d-%d is gone, aborting mode switch", context->bus, context->address);
+		free(context);
+		if(transfer->buffer)
+			free(transfer->buffer);
+		return;
 	}
 	if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
 		usbmuxd_log(LL_ERROR, "Failed to request mode switch for device %i-%i (%i). Completing initialization in current mode", 
@@ -686,9 +732,10 @@ static void get_mode_cb(struct libusb_transfer* transfer)
 	// For old devices not supporting mode swtich, if anything goes wrong - continue in current mode
 	int res;
 	struct mode_context* context = transfer->user_data;
-	struct usb_device *dev = find_device(context->bus, context->address);
-	if(!dev) {
-		usbmuxd_log(LL_ERROR, "Device %d-%d is missing from device list, aborting mode switch", context->bus, context->address);
+	struct usb_device *dev = context->usbdev;
+	collection_remove(&dev->ctrl_xfers, transfer);
+	if(!dev->alive) {
+		usbmuxd_log(LL_INFO, "Device %d-%d is gone, aborting mode switch", context->bus, context->address);
 		free(context);
 		return;
 	}
@@ -782,6 +829,7 @@ static int usb_device_add(libusb_device* dev)
 
 	collection_init(&usbdev->tx_xfers);
 	collection_init(&usbdev->rx_xfers);
+	collection_init(&usbdev->ctrl_xfers);
 
 	collection_add(&device_list, usbdev);
 
@@ -793,6 +841,7 @@ static int usb_device_add(libusb_device* dev)
 	usbmuxd_log(LL_INFO, "Requesting current mode from device %i-%i", bus, address);
 	struct mode_context* context = malloc(sizeof(struct mode_context));
 	context->dev = dev;
+	context->usbdev = usbdev;
 	context->bus = bus;
 	context->address = address;
 	context->bRequest = APPLE_VEND_SPECIFIC_GET_MODE;
@@ -805,6 +854,7 @@ static int usb_device_add(libusb_device* dev)
 		usbmuxd_log(LL_WARNING, "Could not request current mode from device %d-%d", bus, address);
 		// Schedule device for close and cleanup
 		usbdev->alive = 0;
+		free(context);
 		return -1;
 	}
 	return 0;
