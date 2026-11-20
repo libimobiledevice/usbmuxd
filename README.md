@@ -85,6 +85,18 @@ To output a list of available configure options use:
 ./autogen.sh --help
 ```
 
+Alternatively, you can build and install usbmuxd using [vcpkg](https://github.com/Microsoft/vcpkg/) dependency manager:
+
+```bash or powershell
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh # "./bootstrap-vcpkg.bat" for powershell
+./vcpkg integrate install
+./vcpkg install usbmuxd
+```
+
+The usbmuxd port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
+
 ## Usage
 
 The daemon is automatically started by udev or systemd depending on what you
