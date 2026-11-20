@@ -72,11 +72,22 @@ if test "x$with_udevrulesdir" = "xauto"; then
   fi
 fi
 
+AC_ARG_WITH([openrc],
+            [AS_HELP_STRING([--with-openrc],
+            [build with support for OpenRC init system @<:@default=no@:>@])],
+            [],
+            [with_openrc=no])
+
 AC_ARG_WITH([systemd],
             [AS_HELP_STRING([--without-systemd],
             [do not build with systemd support @<:@default=yes@:>@])],
             [with_systemd=$withval],
             [with_systemd=yes])
+
+if test "x$with_systemd" = xyes -a "x$with_openrc" = xyes; then
+  AC_MSG_ERROR([Both systemd and OpenRC support can't be enabled at the same time])
+fi
+
 
 AC_ARG_WITH([systemdsystemunitdir],
             [AS_HELP_STRING([--with-systemdsystemunitdir=DIR],
@@ -87,14 +98,31 @@ AC_ARG_WITH([systemdsystemunitdir],
 if test "x$with_systemdsystemunitdir" != xno; then
   AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
 fi
+
+AC_ARG_WITH([rcservicedir],
+            [AS_HELP_STRING([--with-rcservicedir=DIR],
+            [directory for OpenRC service files])],
+            [rcservicedir="$withval"],
+            [rcservicedir="$sysconfdir/init.d"])
+if test "x$with_rcservicedir" != "xno"; then
+  AC_SUBST([rcservicedir], [$rcservicedir])
+fi
+
 AM_CONDITIONAL(WANT_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno -a "x$with_systemd" = "xyes" ])
+AM_CONDITIONAL(WANT_OPENRC, [test "x$with_openrc" = xyes -a "x$with_rcservicedir" != "xno" ])
 
 if test "x$with_systemd" = xyes; then
   udev_activation_rule="ENV{SYSTEMD_WANTS}=\"usbmuxd.service\""
+  udev_deactivation_rule="RUN+=\"@sbindir@/usbmuxd --exit\""
+elif test "x$with_openrc" = "xyes" -a "x$with_rcservicedir" != "xno"; then
+  udev_activation_rule="RUN+=\"@rcservicedir@/usbmuxd start --quiet\""
+  udev_deactivation_rule="RUN+=\"@rcservicedir@/usbmuxd stop --quiet\""
 else
   udev_activation_rule="RUN+=\"@sbindir@/usbmuxd --user usbmux --udev\""
+  udev_deactivation_rule="RUN+=\"@sbindir@/usbmuxd --exit\""
 fi
 AC_SUBST(udev_activation_rule)
+AC_SUBST(udev_deactivation_rule)
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
@@ -117,6 +145,7 @@ AC_CHECK_FUNCS([ppoll clock_gettime localtime_r])
 # Check for operating system
 AC_MSG_CHECKING([whether to enable WIN32 build settings])
 UDEV_SUB=
+OPENRC_SUB=
 SYSTEMD_SUB=
 case ${host_os} in
   *mingw32*|*cygwin*)
@@ -142,6 +171,9 @@ case ${host_os} in
     if test "x$with_systemd" != "xyes"; then
       echo "*** Note: support for systemd activation has been disabled, using udev activation instead ***"
       activation_method="udev"
+      if test "x$with_openrc" = "xyes"; then
+        OPENRC_SUB=openrc
+      fi
     else
       AC_DEFINE(HAVE_SYSTEMD, 1, [Define to enable systemd support])
       SYSTEMD_SUB=systemd
@@ -151,6 +183,7 @@ esac
 AM_CONDITIONAL(WIN32, test x$win32 = xtrue)
 
 AC_SUBST([UDEV_SUB])
+AC_SUBST([OPENRC_SUB])
 AC_SUBST([SYSTEMD_SUB])
 
 AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-Wall -Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter")
@@ -168,6 +201,7 @@ Makefile
 src/Makefile
 udev/Makefile
 systemd/Makefile
+openrc/Makefile
 docs/Makefile
 ])
 AC_OUTPUT
