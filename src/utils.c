@@ -46,6 +46,15 @@ void fdlist_create(struct fdlist *list)
 	list->capacity = 4;
 	list->owners = malloc(sizeof(*list->owners) * list->capacity);
 	list->fds = malloc(sizeof(*list->fds) * list->capacity);
+	if (!list->owners || !list->fds) {
+		util_error("%s: out of memory", __func__);
+		// start empty; fdlist_add() will try to allocate on first use
+		free(list->owners);
+		free(list->fds);
+		list->owners = NULL;
+		list->fds = NULL;
+		list->capacity = 0;
+	}
 }
 void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events)
 {
