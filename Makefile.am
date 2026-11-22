@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src $(UDEV_SUB) $(SYSTEMD_SUB) docs
+SUBDIRS = src udev systemd docs
 
 EXTRA_DIST = \
 	docs \

@@ -53,9 +53,38 @@ if test "x$have_limd" = "xyes"; then
     fi
   fi
 else
-  if test "x$with_preflight" == "xyes"; then
+  if test "x$with_preflight" = "xyes"; then
     AC_MSG_ERROR([preflight worker support requested but libimobiledevice could not be found])
   fi
+fi
+
+AC_ARG_WITH([udev],
+            [AS_HELP_STRING([--with-udev],
+            [build with udev support @<:@default=auto@:>@])],
+            [],
+            [with_udev=auto])
+if test "x$with_udev" = "xauto"; then
+  # udev is only used if there is evidence that the system has it: its
+  # pkg-config file, or an existing udev rules directory (native builds only).
+  # When cross-compiling for Linux, assume it is present.
+  case ${host_os} in
+    *mingw32*|*cygwin*|darwin*)
+      with_udev=no
+      ;;
+    *)
+      with_udev=no
+      PKG_CHECK_EXISTS([udev], [with_udev=yes])
+      if test "x$with_udev" = "xno"; then
+        if test "x$cross_compiling" = "xyes"; then
+          case ${host_os} in
+            linux*) with_udev=yes ;;
+          esac
+        elif test -d /lib/udev/rules.d -o -d /usr/lib/udev/rules.d; then
+          with_udev=yes
+        fi
+      fi
+      ;;
+  esac
 fi
 
 AC_ARG_WITH([udevrulesdir],
@@ -64,7 +93,10 @@ AC_ARG_WITH([udevrulesdir],
             [],
             [with_udevrulesdir=auto])
 if test "x$with_udevrulesdir" = "xauto"; then
-  udevdir=$($PKG_CONFIG --variable=udevdir udev)
+  udevdir=
+  if test -n "$PKG_CONFIG"; then
+    udevdir=$($PKG_CONFIG --variable=udevdir udev 2>/dev/null)
+  fi
   if test "x$udevdir" != "x"; then
     with_udevrulesdir=$udevdir"/rules.d"
   else
@@ -82,7 +114,15 @@ AC_ARG_WITH([systemdsystemunitdir],
             [AS_HELP_STRING([--with-systemdsystemunitdir=DIR],
             [directory for systemd service files])],
             [with_systemdsystemunitdir=$withval],
-            [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+            [with_systemdsystemunitdir=
+             if test -n "$PKG_CONFIG"; then
+               with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd 2>/dev/null)
+             fi])
+
+# Without a unit directory no service file can be installed
+if test -z "$with_systemdsystemunitdir" -o "x$with_systemdsystemunitdir" = "xno"; then
+  with_systemd=no
+fi
 
 if test "x$with_systemdsystemunitdir" != xno; then
   AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
@@ -116,8 +156,7 @@ AC_CHECK_FUNCS([ppoll clock_gettime localtime_r])
 
 # Check for operating system
 AC_MSG_CHECKING([whether to enable WIN32 build settings])
-UDEV_SUB=
-SYSTEMD_SUB=
+want_udev=no
 case ${host_os} in
   *mingw32*|*cygwin*)
     win32=true
@@ -135,23 +174,23 @@ case ${host_os} in
   *)
     win32=false
     AC_MSG_RESULT([no])
-    UDEV_SUB=udev
-    AC_SUBST([udevrulesdir], [$with_udevrulesdir])
-    AC_DEFINE(HAVE_UDEV, 1, [Define to enable udev support])
-    activation_method="systemd"
-    if test "x$with_systemd" != "xyes"; then
+    if test "x$with_udev" = "xyes"; then
+      want_udev=yes
+      AC_SUBST([udevrulesdir], [$with_udevrulesdir])
+      AC_DEFINE(HAVE_UDEV, 1, [Define to enable udev support])
+    fi
+    activation_method="manual"
+    if test "x$with_systemd" = "xyes"; then
+      AC_DEFINE(HAVE_SYSTEMD, 1, [Define to enable systemd support])
+      activation_method="systemd"
+    elif test "x$want_udev" = "xyes"; then
       echo "*** Note: support for systemd activation has been disabled, using udev activation instead ***"
       activation_method="udev"
-    else
-      AC_DEFINE(HAVE_SYSTEMD, 1, [Define to enable systemd support])
-      SYSTEMD_SUB=systemd
     fi
     ;;
 esac
 AM_CONDITIONAL(WIN32, test x$win32 = xtrue)
-
-AC_SUBST([UDEV_SUB])
-AC_SUBST([SYSTEMD_SUB])
+AM_CONDITIONAL(WANT_UDEV, test x$want_udev = xyes)
 
 AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-Wall -Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter")
 AC_SUBST(GLOBAL_CFLAGS)
@@ -159,7 +198,7 @@ AC_SUBST(GLOBAL_CFLAGS)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 # workaround for older autoconf versions
-if test "x$runstatedir" == "x"; then
+if test "x$runstatedir" = "x"; then
   runstatedir=$localstatedir/run
 fi
 
