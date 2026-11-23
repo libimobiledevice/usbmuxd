@@ -532,6 +532,12 @@ static int set_valid_configuration(struct libusb_device* dev, struct usb_device 
 			usbmuxd_log(LL_NOTICE, "Could not get configuration %i descriptor for device %i-%i: %s", j, bus, address, libusb_error_name(res));
 			continue;
 		}
+		// iBridge/T2 may be owned by a kernel driver (e.g. the internal T1 of
+		// a MacBook Pro); never switch an already configured one
+		if(devdesc.idProduct == PID_APPLE_T2_COPROCESSOR && current_config != 0 && j != current_config) {
+			libusb_free_config_descriptor(config);
+			continue;
+		}
 		for(k = 0 ; k < config->bNumInterfaces ; k++) {
 			intf = &config->interface[k].altsetting[0];
 			if(intf->bInterfaceClass == INTERFACE_CLASS || 
