@@ -143,8 +143,18 @@ We are still working on the guidelines so bear with us!
 
 ## License
 
-This library and utilities are licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html),
-also included in the repository in the `COPYING.GPLv3` file.
+usbmuxd is dual-licensed: you may use, modify and redistribute it under the terms of either the
+[GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html) only or the
+[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) only, at your option.
+The license texts are included in the repository in the `COPYING.GPLv2` and `COPYING.GPLv3` files.
+This matches the notice in the source file headers ("either version 2 or version 3").
+
+The files `src/utils.c` and `src/utils.h` are licensed under the
+[GNU Lesser General Public License v2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html) or
+(at your option) any later version, as stated in their file headers.
+*Note: This does not conflict with the licensing of usbmuxd as a whole: the LGPL permits code to be used
+under the terms of the GPL instead (section 3 of the LGPL v2.1), so these files can be combined with the
+rest of usbmuxd and distributed under either GPL option above.*
 
 ## Credits
 
