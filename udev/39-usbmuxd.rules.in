@@ -4,9 +4,9 @@
 SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/12[9ab][0-9a-f]/*|5ac/190[1-5]/*|5ac/8600/*", TAG+="systemd"
 
 # Initialize iOS devices into "deactivated" USB configuration state and activate usbmuxd
-SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/12[9ab][0-9a-f]/*|5ac/190[1-5]/*", ACTION=="add", ENV{USBMUX_SUPPORTED}="1", ATTR{bConfigurationValue}="0", OWNER="usbmux", @udev_activation_rule@
-# but leave the configuration of iBridge (T1/T2) alone, it may be owned by a kernel driver
-SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/8600/*", ACTION=="add", ENV{USBMUX_SUPPORTED}="1", OWNER="usbmux", @udev_activation_rule@
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/12[9ab][0-9a-f]/*|5ac/190[1-4]/*", ACTION=="add", ENV{USBMUX_SUPPORTED}="1", ATTR{bConfigurationValue}="0", OWNER="usbmux", @udev_activation_rule@
+# but leave the configuration of iBridge (T1/T2) and Apple Silicon Macs (1905) alone, they may be owned by kernel drivers
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/8600/*|5ac/1905/*", ACTION=="add", ENV{USBMUX_SUPPORTED}="1", OWNER="usbmux", @udev_activation_rule@
 
 
 # Make sure properties don't get lost when bind action is called

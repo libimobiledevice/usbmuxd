@@ -606,6 +606,17 @@ static int set_valid_configuration(struct libusb_device* dev, struct usb_device 
 
 	if(!found) {
 		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %i-%i", bus, address);
+		if(current_config == 0) {
+			// don't leave a device we cannot use unconfigured (e.g. after udev
+			// reset it), let the kernel drivers bind to the default configuration
+			if(libusb_get_config_descriptor(dev, 0, &config) == 0) {
+				usbmuxd_log(LL_NOTICE, "Restoring configuration %d of device %i-%i", config->bConfigurationValue, bus, address);
+				if((res = libusb_set_configuration(handle, config->bConfigurationValue)) != 0) {
+					usbmuxd_log(LL_WARNING, "Could not restore configuration %d for device %d-%d: %s", config->bConfigurationValue, bus, address, libusb_error_name(res));
+				}
+				libusb_free_config_descriptor(config);
+			}
+		}
 		return -1;
 	}
 
