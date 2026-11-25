@@ -509,12 +509,32 @@ void device_client_process(int device_id, struct mux_client *client, short event
 			connection_teardown(conn);
 			return;
 		}
-		res = send_tcp(conn, TH_ACK, conn->ob_buf, size);
+		// A USB transfer whose length is a multiple of wMaxPacketSize has to be
+		// followed by a zero-length packet (see usb_send). Some transports drop
+		// that ZLP (usbipd-win forwarding the device into WSL2), and the device
+		// then joins this packet to the next one until its buffer overflows:
+		// "message was too large (65536 bytes, max = 65535)".
+		// Send the last byte as its own segment so that no ZLP is needed.
+		int first = size;
+		int mps = usb_get_max_packet_size(conn->dev->usbdev);
+		int hdrlen = ((conn->dev->version < 2) ? 8 : sizeof(struct mux_header)) + sizeof(struct tcphdr);
+		if (size > 1 && mps > 0 && ((hdrlen + size) % mps) == 0) {
+			first = size - 1;
+		}
+		res = send_tcp(conn, TH_ACK, conn->ob_buf, first);
 		if(res < 0) {
 			connection_teardown(conn);
 			return;
 		}
-		conn->tx_seq += size;
+		conn->tx_seq += first;
+		if (first < size) {
+			res = send_tcp(conn, TH_ACK, conn->ob_buf + first, size - first);
+			if(res < 0) {
+				connection_teardown(conn);
+				return;
+			}
+			conn->tx_seq += size - first;
+		}
 	}
 
 	update_connection(conn);

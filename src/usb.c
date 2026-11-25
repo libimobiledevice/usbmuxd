@@ -971,6 +971,11 @@ uint64_t usb_get_speed(struct usb_device *dev)
 	return dev->speed;
 }
 
+int usb_get_max_packet_size(struct usb_device *dev)
+{
+	return dev->wMaxPacketSize;
+}
+
 void usb_get_fds(struct fdlist *list)
 {
 	const struct libusb_pollfd **usbfds;
