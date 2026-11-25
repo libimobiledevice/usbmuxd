@@ -68,6 +68,7 @@ int no_preflight = 0;
 // Global state for main.c
 static int verbose = 0;
 static int background = 0;
+static int obsolete_foreground = 0;
 static int drop_privileges = 0;
 static const char *drop_user = NULL;
 static int opt_disable_hotplug = 0;
@@ -517,7 +518,7 @@ static void usage()
 	printf("  -u, --udev\t\tRun in udev operation mode (implies -n, -b and -z).\n");
 #endif
 #ifdef HAVE_SYSTEMD
-	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z and -f).\n");
+	printf("  -s, --systemd\t\tRun in systemd operation mode (implies -z).\n");
 #endif
 	printf("  -C, --config-dir PATH\tSpecify different configuration directory.\n");
 	printf("  -S, --socket ADDR:PORT | PATH   Specify source ADDR and PORT or a UNIX\n");
@@ -541,6 +542,7 @@ static void parse_opts(int argc, char **argv)
 	static struct option longopts[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"background", no_argument, NULL, 'b'},
+		{"foreground", no_argument, NULL, 'f'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"user", required_argument, NULL, 'U'},
 		{"disable-hotplug", no_argument, NULL, 'n'},
@@ -564,11 +566,11 @@ static void parse_opts(int argc, char **argv)
 	int c;
 
 #ifdef HAVE_SYSTEMD
-	const char* opts_spec = "hbvVuU:xXsnzl:pC:S:P:";
+	const char* opts_spec = "hbfvVuU:xXsnzl:pC:S:P:";
 #elif HAVE_UDEV
-	const char* opts_spec = "hbvVuU:xXnzl:pC:S:P:";
+	const char* opts_spec = "hbfvVuU:xXnzl:pC:S:P:";
 #else
-	const char* opts_spec = "hbvVU:xXnzl:pC:S:P:";
+	const char* opts_spec = "hbfvVU:xXnzl:pC:S:P:";
 #endif
 
 	while (1) {
@@ -583,6 +585,9 @@ static void parse_opts(int argc, char **argv)
 			exit(0);
 		case 'b':
 			background = 1;
+			break;
+		case 'f':
+			obsolete_foreground = 1;
 			break;
 		case 'v':
 			++verbose;
@@ -699,6 +704,9 @@ int main(int argc, char *argv[])
 	log_level = verbose;
 
 	usbmuxd_log(LL_NOTICE, "usbmuxd v%s starting up", PACKAGE_VERSION);
+	if (obsolete_foreground) {
+		usbmuxd_log(LL_WARNING, "-f is obsolete and ignored; running in the foreground is the default (use -b to run in the background)");
+	}
 	should_exit = 0;
 	should_discover = 0;
 
