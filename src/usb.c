@@ -542,8 +542,8 @@ static int set_valid_configuration(struct libusb_device* dev, struct usb_device 
 		}
 		for(k = 0 ; k < config->bNumInterfaces ; k++) {
 			intf = &config->interface[k].altsetting[0];
-			if(intf->bInterfaceClass == INTERFACE_CLASS || 
-			   intf->bInterfaceSubClass == INTERFACE_SUBCLASS || 
+			if(intf->bInterfaceClass == INTERFACE_CLASS &&
+			   intf->bInterfaceSubClass == INTERFACE_SUBCLASS &&
 			   intf->bInterfaceProtocol == INTERFACE_PROTOCOL) {
 				usbmuxd_log(LL_NOTICE, "Found usbmux interface for device %i-%i: %i", bus, address, intf->bInterfaceNumber);
 				if(intf->bNumEndpoints != 2) {
